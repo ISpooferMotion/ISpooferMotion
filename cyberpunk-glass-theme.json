@@ -1,0 +1,42 @@
+{
+  "name": "Cyberpunk Glass",
+  "colors": {
+    "bg-color": "#0a0e27",
+    "bg-secondary": "#0f1535",
+    "titlebar-bg": "#0d1229",
+    "sidebar-bg": "#0b0f2a",
+    "input-bg": "#1a1f3a",
+    "text-color": "#00f0ff",
+    "text-secondary": "#00d9ff",
+    "label-color": "#00b8d4",
+    "green-accent": "#00ffcc",
+    "green-accent-hover": "#00e6b8",
+    "accent-text": "#0a0e27",
+    "red-accent": "#ff0099",
+    "border-color": "#00d9ff",
+    "disabled-input-bg": "#0f1535",
+    "disabled-input-text": "#004466",
+    "shadow-sm": "0 1px 2px 0 rgba(0, 240, 255, 0.2)",
+    "shadow-md": "0 4px 12px 0 rgba(0, 240, 255, 0.3)",
+    "shadow-lg": "0 8px 24px 0 rgba(0, 240, 255, 0.4)",
+    "debug-info": "#00e6ff",
+    "debug-warn": "#ffaa00",
+    "debug-error": "#ff0066",
+    "debug-timestamp": "#0088aa"
+  },
+  "transparency": {
+    "titlebar": 0.8,
+    "sidebar": 0.78,
+    "content": 0.82,
+    "input": 0.85
+  },
+  "background": {
+    "image": "https://cdn.discordapp.com/attachments/1415735773474324552/1459646844111159504/cyberpunk-style-background-starry-sky-600nw-2468747685.png?ex=6964098e&is=6962b80e&hm=067001d5e3be059436d61379e11cc00dd1d538dead38e809af983c8f500ce34f",
+    "size": "cover",
+    "position": "center",
+    "attachment": "fixed",
+    "repeat": "no-repeat"
+  },
+  "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+  "logoTransparency": 1
+}

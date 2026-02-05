@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loading...</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f0f0f;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    }
+
+    .loading-container {
+      text-align: center;
+      position: relative;
+      z-index: 10;
+    }
+
+    .logo {
+      width: 140px;
+      height: 140px;
+      margin: 0 auto 30px;
+      position: relative;
+      animation: float 3s ease-in-out infinite;
+      filter: drop-shadow(0 10px 30px rgba(16, 185, 129, 0.3));
+    }
+
+    .logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .app-name {
+      font-size: 36px;
+      font-weight: 600;
+      color: #ffffff;
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .app-version {
+      font-size: 13px;
+      color: #b8bcc0;
+      margin-bottom: 50px;
+      letter-spacing: 0.5px;
+    }
+
+    .spinner-container {
+      position: relative;
+      width: 60px;
+      height: 60px;
+      margin: 0 auto;
+    }
+
+    .spinner {
+      width: 60px;
+      height: 60px;
+      border: 3px solid #2d2d2d;
+      border-top: 3px solid #10b981;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    .loading-text {
+      margin-top: 30px;
+      font-size: 14px;
+      color: #a0a6ac;
+      letter-spacing: 0.5px;
+    }
+
+    .loading-dots {
+      display: inline-block;
+      width: 20px;
+      text-align: left;
+    }
+
+    .loading-dots::after {
+      content: '';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+
+    /* Subtle background grid */
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: 
+        linear-gradient(rgba(45, 45, 45, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(45, 45, 45, 0.1) 1px, transparent 1px);
+      background-size: 50px 50px;
+      opacity: 0.3;
+    }
+
+    /* Animated glow particles */
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+      animation: rise 15s infinite ease-in;
+    }
+
+    .particle:nth-child(1) { left: 15%; width: 100px; height: 100px; animation-delay: 0s; }
+    .particle:nth-child(2) { left: 35%; width: 80px; height: 80px; animation-delay: 3s; }
+    .particle:nth-child(3) { left: 55%; width: 120px; height: 120px; animation-delay: 6s; }
+    .particle:nth-child(4) { left: 75%; width: 90px; height: 90px; animation-delay: 9s; }
+    .particle:nth-child(5) { left: 25%; width: 70px; height: 70px; animation-delay: 12s; }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-15px); }
+    }
+
+    @keyframes rise {
+      0% {
+        bottom: -150px;
+        opacity: 0;
+      }
+      25% {
+        opacity: 1;
+      }
+      75% {
+        opacity: 1;
+      }
+      100% {
+        bottom: 100vh;
+        opacity: 0;
+      }
+    }
+
+    @keyframes dots {
+      0%, 20% { content: ''; }
+      40% { content: '.'; }
+      60% { content: '..'; }
+      80%, 100% { content: '...'; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Background particles -->
+  <div class="particle"></div>
+  <div class="particle"></div>
+  <div class="particle"></div>
+  <div class="particle"></div>
+  <div class="particle"></div>
+
+  <!-- Loading content -->
+  <div class="loading-container">
+    <div class="logo">
+      <img src="assets/app_icon_dark.png" alt="ISpooferMotion Logo">
+    </div>
+    <div class="app-name">ISpooferMotion</div>
+    <div class="app-version">Version ...</div>
+    <div class="spinner-container">
+      <div class="spinner"></div>
+    </div>
+    <div class="loading-text">Loading<span class="loading-dots"></span></div>
+  </div>
+
+  <script>
+    (() => {
+      const params = new URLSearchParams(window.location.search);
+      const version = params.get('version') || '';
+      const versionEl = document.querySelector('.app-version');
+      if (versionEl) {
+        versionEl.textContent = `Version ${version || '?'}`;
+      }
+    })();
+  </script>
+</body>
+</html>

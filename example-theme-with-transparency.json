@@ -1,0 +1,37 @@
+{
+  "name": "Dark Transparent Example",
+  "colors": {
+    "bg-color": "#0f0f0f",
+    "bg-secondary": "#1a1a1a",
+    "titlebar-bg": "#161616",
+    "sidebar-bg": "#141414",
+    "input-bg": "#222222",
+    "text-color": "#ffffff",
+    "text-secondary": "#b8bcc0",
+    "label-color": "#a0a6ac",
+    "green-accent": "#10b981",
+    "green-accent-hover": "#059669",
+    "red-accent": "#ef4444",
+    "border-color": "#2d2d2d",
+    "disabled-input-bg": "#1a1a1a",
+    "disabled-input-text": "#666666",
+    "shadow-sm": "0 1px 2px 0 rgba(0, 0, 0, 0.3)",
+    "shadow-md": "0 4px 12px 0 rgba(0, 0, 0, 0.4)",
+    "shadow-lg": "0 8px 24px 0 rgba(0, 0, 0, 0.5)"
+  },
+  "transparency": {
+    "titlebar": 0.85,
+    "sidebar": 0.8,
+    "content": 0.9,
+    "input": 0.95
+  },
+  "background": {
+    "image": "https://example.com/background.jpg",
+    "size": "cover",
+    "position": "center",
+    "attachment": "fixed",
+    "repeat": "no-repeat"
+  },
+  "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+  "logoTransparency": 1
+}

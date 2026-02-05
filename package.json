@@ -1,13 +1,14 @@
 {
   "name": "ispoofermotion",
-  "version": "1.1.6",
+  "version": "2.0.6",
   "main": "main.js",
   "description": "Animation spoofing utility for Roblox",
   "author": "IncredibroXP",
   "license": "GPL-3.0-or-later",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "make:mac-icon": "bash scripts/make-mac-icon.sh"
   },
   "devDependencies": {
     "electron": "^36.2.1",
@@ -16,6 +17,8 @@
   },
   "dependencies": {
     "axios": "^1.9.0",
+    "better-sqlite3": "^12.6.0",
+    "express": "^5.2.1",
     "form-data": "^4.0.2",
     "keytar": "^7.9.0",
     "roblox-animation-transfer": "^1.3.0"
@@ -32,10 +35,14 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/app_icon.ico"
+      "icon": "assets/app_icon_dark.ico"
     },
     "mac": {
-      "target": "dmg"
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/app_icon.icns"
     }
   }
 }

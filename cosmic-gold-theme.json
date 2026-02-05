@@ -1,0 +1,42 @@
+{
+  "name": "Cosmic Gold",
+  "colors": {
+    "bg-color": "#0d0a1a",
+    "bg-secondary": "#1a0f2e",
+    "titlebar-bg": "#120d24",
+    "sidebar-bg": "#0f0b1f",
+    "input-bg": "#1f1535",
+    "text-color": "#e0b3ff",
+    "text-secondary": "#c299ff",
+    "label-color": "#a87ddb",
+    "green-accent": "#ffb347",
+    "green-accent-hover": "#ffa02f",
+    "accent-text": "#1a0f2e",
+    "red-accent": "#ff6b9d",
+    "border-color": "#8a4fff",
+    "disabled-input-bg": "#1a0f2e",
+    "disabled-input-text": "#4a3a5a",
+    "shadow-sm": "0 1px 2px 0 rgba(138, 79, 255, 0.3)",
+    "shadow-md": "0 4px 12px 0 rgba(138, 79, 255, 0.4)",
+    "shadow-lg": "0 8px 24px 0 rgba(255, 179, 71, 0.5)",
+    "debug-info": "#b8a6ff",
+    "debug-warn": "#ffcc66",
+    "debug-error": "#ff8fb9",
+    "debug-timestamp": "#7766cc"
+  },
+  "transparency": {
+    "titlebar": 0.75,
+    "sidebar": 0.72,
+    "content": 0.78,
+    "input": 0.82
+  },
+  "background": {
+    "image": "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1920&q=80",
+    "size": "cover",
+    "position": "center",
+    "attachment": "fixed",
+    "repeat": "no-repeat"
+  },
+  "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+  "logoTransparency": 1
+}

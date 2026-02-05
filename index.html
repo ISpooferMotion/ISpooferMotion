@@ -2,388 +2,665 @@
 <html>
 <head>
   <title>ISpooferMotion</title>
-  <style>
-    :root {
-      --bg-color: #2C2F33;
-      --titlebar-bg: #23272A;
-      --input-bg: #3A3E42;
-      --text-color: #FFFFFF;
-      --label-color: #B0B3B8;
-      --green-accent: #4CAF50; /* Green color for status and accents */
-      --red-accent: #F44336;
-      --border-color: #4F545C;
-      --font-main: Arial, sans-serif;
-      --disabled-input-bg: #303235; /* User provided */
-      --disabled-input-text: #888;
-    }
-
-    body {
-      margin: 0;
-      user-select: none;
-      -webkit-user-select: none;
-      overflow: hidden;
-      font-family: var(--font-main);
-      background-color: var(--bg-color);
-      color: var(--text-color);
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-
-    #titlebar {
-      -webkit-app-region: drag;
-      height: 70px;
-      background-color: var(--titlebar-bg);
-      color: var(--text-color);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 15px;
-      border-bottom: 1px solid var(--border-color);
-      flex-shrink: 0; /* Prevent shrinking */
-    }
-
-    #title-left {
-      display: flex;
-      align-items: center;
-      -webkit-app-region: drag;
-    }
-
-    #logo {
-      height: 40px;
-      width: auto;
-      margin-right: 12px;
-      border-radius: 6px;
-    }
-
-    #title-text-container {
-      display: flex;
-      flex-direction: column;
-      -webkit-app-region: drag;
-    }
-
-    #titlebar h1 {
-      margin: 0;
-      font-size: 20px;
-      font-weight: 600;
-      line-height: 1.2;
-      -webkit-app-region: drag;
-    }
-
-    #titlebar .subtitle {
-      font-size: 12px;
-      color: var(--label-color);
-      margin: 0;
-      line-height: 1.2;
-      -webkit-app-region: drag;
-    }
-
-    #title-buttons {
-      display: flex;
-      align-items: center;
-      -webkit-app-region: no-drag;
-    }
-
-    #close-btn {
-      -webkit-app-region: no-drag;
-      background-color: var(--input-bg);
-      border: none;
-      color: var(--label-color);
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      width: 30px;
-      height: 30px;
-      line-height: 30px;
-      text-align: center;
-      border-radius: 4px;
-      transition: background-color 0.2s, color 0.2s;
-    }
-    #close-btn:hover {
-      background-color: var(--red-accent);
-      color: var(--text-color);
-    }
-
-    .main-content {
-      padding: 20px;
-      overflow-y: auto;
-      flex-grow: 1; /* Takes available space */
-      background-color: var(--bg-color);
-    }
-
-    .form-group {
-      margin-bottom: 15px;
-    }
-
-    .form-group label {
-      display: block;
-      font-size: 13px;
-      color: var(--label-color);
-      margin-bottom: 6px;
-    }
-
-    .form-group input[type="text"],
-    .form-group input[type="number"] {
-      width: 100%;
-      padding: 10px;
-      background-color: var(--input-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 4px;
-      color: var(--text-color);
-      font-size: 14px;
-      box-sizing: border-box;
-      font-family: var(--font-main);
-    }
-    .form-group input[type="text"]:focus,
-    .form-group input[type="number"]:focus {
-        outline: none;
-        border-color: var(--green-accent);
-    }
-
-    .form-group textarea.input-box,
-    .output-area textarea.input-box {
-      width: 100%;
-      padding: 10px;
-      padding-right: 40px;
-      background-color: var(--input-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 4px;
-      color: var(--text-color);
-      font-size: 14px;
-      box-sizing: border-box;
-      font-family: var(--font-main);
-      resize: none;
-      user-select: text;
-      -webkit-user-select: text;
-      line-height: 1.4;
-    }
-    .form-group textarea.input-box:focus,
-    .output-area textarea.input-box:focus {
-        outline: none;
-        border-color: var(--green-accent);
-    }
-
-    .output-area textarea.input-box {
-        height: 80px;
-        color: var(--label-color);
-    }
-
-    .input-with-button-container {
-      position: relative;
-      display: flex;
-    }
-
-    .input-action-btn {
-      position: absolute;
-      top: 10px;
-      right: 8px;
-      background-color: transparent;
-      border: none;
-      color: var(--label-color);
-      font-size: 18px;
-      cursor: pointer;
-      padding: 5px;
-      line-height: 1;
-      -webkit-app-region: no-drag;
-      z-index: 2;
-    }
-    .input-action-btn:hover {
-      color: var(--text-color);
-    }
-
-    .form-group input.disabled-input,
-    .form-group textarea.disabled-input {
-      background-color: var(--disabled-input-bg);
-      color: var(--disabled-input-text);
-      cursor: not-allowed;
-      border-color: #555;
-    }
-    .form-group input.disabled-input:focus {
-        border-color: #555;
-    }
-
-    .toggles-container {
-      display: flex;
-      justify-content: flex-start;
-      flex-wrap: wrap;
-      gap: 20px;
-      align-items: center;
-      margin-bottom: 20px;
-      margin-top: 20px;
-    }
-
-    .toggle-group {
-      display: flex;
-      align-items: center;
-    }
-
-    .toggle-group label.toggle-label {
-        margin-right: 8px;
-        font-size: 14px;
-        color: var(--text-color);
-        user-select: text;
-        -webkit-user-select: text;
-        white-space: nowrap;
-    }
-
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 44px;
-      height: 24px;
-      flex-shrink: 0;
-    }
-
-    .switch input { opacity: 0; width: 0; height: 0; }
-
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-color: var(--input-bg);
-      transition: .4s;
-      border-radius: 24px;
-      border: 1px solid var(--border-color);
-    }
-
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 18px; width: 18px;
-      left: 2px; bottom: 2px;
-      background-color: white;
-      transition: .4s;
-      border-radius: 50%;
-    }
-
-    input:checked + .slider {
-      background-color: var(--green-accent);
-      border-color: var(--green-accent);
-    }
-    input:focus + .slider { box-shadow: 0 0 1px var(--green-accent); }
-    input:checked + .slider:before { transform: translateX(20px); }
-
-    #run-spoofer-btn {
-      width: 100%;
-      padding: 12px;
-      background-color: var(--green-accent);
-      color: var(--text-color);
-      border: none;
-      border-radius: 4px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      text-align: center;
-      transition: background-color 0.2s;
-      margin-bottom: 20px;
-    }
-    #run-spoofer-btn:hover { background-color: #388E3C; }
-
-    .output-area {
-      position: relative;
-    }
-
-    /* NEW: Status Bar Styles */
-    #status-bar {
-      background-color: var(--titlebar-bg); /* Same as title bar for consistency */
-      padding: 6px 15px; /* Adjust padding as needed */
-      border-top: 1px solid var(--border-color);
-      flex-shrink: 0; /* Prevent shrinking */
-      min-height: 1em; /* Ensure it has some height even if empty */
-    }
-
-    #status-text {
-      color: var(--green-accent);
-      font-size: 13px;
-      user-select: text; /* Allow selecting status text if needed */
-      -webkit-user-select: text;
-    }
-
-    /* Discord button layout (allow SVG's own color to show) */
-    #discord-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background: transparent;
-      border: none;
-      padding: 4px;
-    }
-    /* Slight hover feedback */
-    #discord-btn:hover { opacity: 0.95; transform: translateY(-1px); }
-
-    #run-spoofer-btn:disabled {
-        background-color: #303235;
-        cursor: not-allowed;
-    }
-
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
+  <!-- ============= TITLEBAR ============= -->
   <div id="titlebar">
     <div id="title-left">
-      <img id="logo" src="assets/app_icon.png" alt="Logo">
+      <img id="logo" alt="Logo">
       <div id="title-text-container">
         <h1>ISpooferMotion</h1>
         <p class="subtitle">Made by @IncredibroXP on Discord</p>
       </div>
     </div>
     <div id="title-buttons">
+      <button id="minimize-btn">−</button>
       <button id="close-btn">X</button>
     </div>
   </div>
 
-  <div class="main-content">
-    <div class="form-group">
-      <label for="animationId">Animation Id Input</label>
-      <div class="input-with-button-container">
-        <textarea id="animationId" name="animationId" rows="3" class="input-box" placeholder="Enter or paste Animation ID"></textarea>
-        <button id="paste-animationId-btn" class="input-action-btn" title="Paste Animation ID">📥</button>
+  <!-- ============= MAIN CONTAINER ============= -->
+  <div class="main-container">
+    
+    <!-- ============= SIDEBAR ============= -->
+    <div class="sidebar">
+      <div class="sidebar-nav">
+        <button class="nav-button active" data-section="home">
+          <img class="nav-icon" src="assets/icons/Dark/Standard/MeshPart.png" alt="Home" />
+          <span>Home</span>
+        </button>
+        <button class="nav-button" data-section="spoofing">
+          <img class="nav-icon" src="assets/icons/Dark/Standard/ChatInputBarConfiguration.png" alt="Spoofing" />
+          <span>Spoofing</span>
+        </button>
+        <button class="nav-button" data-section="settings">
+          <img class="nav-icon" src="assets/icons/Dark/Standard/GameSettings.png" alt="Settings" />
+          <span>Settings</span>
+        </button>
       </div>
     </div>
 
-    <div class="form-group">
-      <label for="robloxCookie">Roblox Cookie</label>
-      <input type="text" id="robloxCookie" name="robloxCookie" placeholder="Enter .ROBLOSECURITY cookie">
-    </div>
+    <!-- ============= CONTENT AREA ============= -->
+    <div class="content-area">
+      <div class="split-container">
+        <div class="main-pane">
 
-    <div class="form-group">
-      <label for="groupId">GroupID</label>
-      <input type="text" id="groupId" name="groupId" placeholder="Leave empty if you dont want to upload to group">
-    </div>
+      <!-- ============= HOME SECTION ============= -->
+      <div id="section-home" class="content-section active">
+        <h2>Welcome to ISpooferMotion</h2>
+        
+        <div style="padding: 20px; background-color: var(--input-bg); border-radius: 8px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0; color: var(--green-accent);">Quick Start Guide</h3>
+          <p style="color: var(--label-color); line-height: 1.6;">
+            1. Navigate to the <strong>Spoofing</strong> tab to configure and run the spoofer<br>
+            2. Select what you want to spoof (Animation, Audio, Images, etc.)<br>
+            3. Enter your animation ID and credentials<br>
+            4. Click "Run Spoofer" to start the process
+          </p>
+        </div>
 
-    <div class="toggles-container">
-      <div class="toggle-group">
-        <label for="enable-spoofing" class="toggle-label">Enable Spoofing</label>
-        <label class="switch">
-          <input type="checkbox" id="enable-spoofing" checked>
-          <span class="slider"></span>
-        </label>
+        <div style="padding: 20px; background-color: var(--input-bg); border-radius: 8px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0; color: var(--green-accent);">Features</h3>
+          <ul style="color: var(--label-color); line-height: 1.8;">
+            <li><strong>Animation Spoofing:</strong> Modify and upload Roblox animations</li>
+            <li><strong>Audio Spoofing:</strong> Spoof audio files and metadata</li>
+            <li><strong>Image Spoofing:</strong> Modify image properties and data</li>
+            <li><strong>Advanced Options:</strong> Fine-tune spoofing parameters</li>
+            <li><strong>Debug Console:</strong> Real-time logging (enable in Settings)</li>
+          </ul>
+        </div>
+
+        <div style="padding: 20px; background-color: var(--input-bg); border-radius: 8px;">
+          <h3 style="margin-top: 0; color: var(--green-accent);">Need Help?</h3>
+          <p style="color: var(--label-color); line-height: 1.6;">
+            Join our Discord server for support, updates, and community discussions.<br>
+            <button id="discord-home-btn" style="margin-top: 10px; padding: 8px 16px; background-color: #5865F2; border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: bold;">Join Discord</button>
+          </p>
+        </div>
       </div>
-      <div class="toggle-group">
-        <label for="autoDetectCookie" class="toggle-label">Auto detect Roblox cookie</label>
-        <label class="switch">
-          <input type="checkbox" id="autoDetectCookie">
-          <span class="slider"></span>
-        </label>
+
+      <!-- ============= SPOOFING SECTION ============= -->
+      <div id="section-spoofing" class="content-section">
+        <h2>Spoofer Configuration</h2>
+        
+        <!-- Top controls: Selected User and Group -->
+        <div class="spoofer-top-controls">
+          <div class="form-group">
+            <label for="selected-user">Selected User</label>
+            <select id="selected-user">
+              <option value="">None</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="selected-group">Selected Group</label>
+            <select id="selected-group">
+              <option value="">None</option>
+            </select>
+          </div>
+        </div>
+        
+        <!-- What to Spoof Selection -->
+        <div style="background-color: var(--input-bg); padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+          <label style="display: block; color: var(--label-color); font-size: 14px; margin-bottom: 12px; font-weight: 600;">Select What to Spoof:</label>
+          <div class="toggles-container" style="margin-top: 0; margin-bottom: 0;">
+            <div class="toggle-group">
+              <img class="toggle-icon" src="assets/icons/Dark/Standard/Animation.png" alt="" />
+              <label for="spoof-animation" class="toggle-label">Animation</label>
+              <label class="switch">
+                <input type="checkbox" id="spoof-animation" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="toggle-group">
+              <img class="toggle-icon" src="assets/icons/Dark/Standard/Sound.png" alt="" />
+              <label for="spoof-audio" class="toggle-label">Audio</label>
+              <label class="switch">
+                <input type="checkbox" id="spoof-audio">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="toggle-group">
+              <img class="toggle-icon" src="assets/icons/Dark/Standard/Decal.png" alt="" />
+              <label for="spoof-images" class="toggle-label">Images</label>
+              <label class="switch">
+                <input type="checkbox" id="spoof-images">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- ID Input (Toggle via Advanced Options) -->
+        <div class="form-group" id="id-input-section" style="display: none;">
+          <label for="animationId">ID Input</label>
+          <div class="input-with-button-container">
+            <textarea 
+              id="animationId" 
+              name="animationId" 
+              rows="3" 
+              class="input-box" 
+              placeholder="Enter or paste IDs">
+            </textarea>
+            <button id="paste-animationId-btn" class="input-action-btn" title="Paste IDs">📥</button>
+          </div>
+        </div>
+
+        <!-- Roblox Cookie Input -->
+        <div class="form-group">
+          <label for="robloxCookie">Roblox Cookie</label>
+          <input 
+            type="text" 
+            id="robloxCookie" 
+            name="robloxCookie" 
+            placeholder="Enter .ROBLOSECURITY cookie">
+        </div>
+
+        <!-- Group ID Input -->
+        <div class="form-group">
+          <label for="groupId">GroupID</label>
+          <input 
+            type="text" 
+            id="groupId" 
+            name="groupId" 
+            placeholder="Leave empty if you dont want to upload to group">
+        </div>
+
+        <!-- Toggles -->
+        <div class="toggles-container">
+          <div class="toggle-group">
+            <label for="enable-spoofing" class="toggle-label">Enable Spoofing</label>
+            <label class="switch">
+              <input type="checkbox" id="enable-spoofing" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Run Spoofer Button -->
+        <button id="run-spoofer-btn">Run Spoofer</button>
+
+        <!-- Output Area -->
+        <div class="output-area">
+          <label for="output-data" style="color: var(--label-color); font-size: 13px; margin-bottom: 6px; display: block;">Output</label>
+          <div class="input-with-button-container">
+            <textarea 
+              id="output-data" 
+              class="input-box" 
+              readonly 
+              placeholder="Output will appear here...">
+            </textarea>
+            <button id="copy-output-btn" class="input-action-btn" title="Copy output">📋</button>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <button id="run-spoofer-btn">Run Spoofer</button>
+      <!-- ============= ANIMATION SECTION ============= -->
+      <div id="section-animation" class="content-section">
+        <h2>Animation Settings</h2>
+        
+        <!-- Animation Dropdown 1 -->
+        <div class="dropdown" id="dropdown-anim-1">
+          <div class="dropdown-header">
+            <span>Animation Presets</span>
+            <span class="dropdown-toggle">▼</span>
+          </div>
+          <div class="dropdown-content">
+            <div class="form-group">
+              <label for="anim-preset">Select Preset</label>
+              <input 
+                type="text" 
+                id="anim-preset" 
+                placeholder="Search or select animation preset">
+            </div>
+            <p style="color: var(--label-color); font-size: 12px; margin-top: 10px;">No presets available yet.</p>
+          </div>
+        </div>
 
-    <div class="output-area">
-      <textarea id="output-data" class="input-box" readonly placeholder="Output will appear here..."></textarea>
-      <button id="copy-output-btn" class="input-action-btn" title="Copy output">📄</button>
+        <!-- Animation Dropdown 2 -->
+        <div class="dropdown" id="dropdown-anim-2">
+          <div class="dropdown-header">
+            <span>Custom Animations</span>
+            <span class="dropdown-toggle">▼</span>
+          </div>
+          <div class="dropdown-content">
+            <div class="form-group">
+              <label for="custom-anim">Add Custom Animation</label>
+              <input 
+                type="text" 
+                id="custom-anim" 
+                placeholder="Enter ID">
+            </div>
+            <button style="width: 100%; padding: 8px; background-color: var(--green-accent); border: none; border-radius: 4px; color: var(--text-color); cursor: pointer; font-weight: bold;">Add Animation</button>
+          </div>
+        </div>
+
+        <!-- Animation Dropdown 3 -->
+        <div class="dropdown" id="dropdown-anim-3">
+          <div class="dropdown-header">
+            <span>Animation Speed</span>
+            <span class="dropdown-toggle">▼</span>
+          </div>
+          <div class="dropdown-content">
+            <div class="form-group">
+              <label for="anim-speed">Speed Multiplier</label>
+              <input 
+                type="number" 
+                id="anim-speed" 
+                placeholder="1.0" 
+                min="0.1" 
+                max="3.0" 
+                step="0.1">
+            </div>
+            <p style="color: var(--label-color); font-size: 12px; margin-top: 10px;">Default: 1.0</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============= SOUNDS SECTION ============= -->
+      <div id="section-sounds" class="content-section">
+        <h2>Sound Settings</h2>
+        
+        <!-- Sounds Dropdown 1 -->
+        <div class="dropdown" id="dropdown-sound-1">
+          <div class="dropdown-header">
+            <span>Audio Effects</span>
+            <span class="dropdown-toggle">▼</span>
+          </div>
+          <div class="dropdown-content">
+            <div class="toggle-group" style="margin-bottom: 10px;">
+              <label for="audio-enabled" class="toggle-label">Enable Audio Effects</label>
+              <label class="switch">
+                <input type="checkbox" id="audio-enabled" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label for="audio-volume">Volume Level</label>
+              <input 
+                type="number" 
+                id="audio-volume" 
+                placeholder="100" 
+                min="0" 
+                max="100" 
+                step="5" 
+                value="100">
+            </div>
+          </div>
+        </div>
+
+        <!-- Sounds Dropdown 2 -->
+        <div class="dropdown" id="dropdown-sound-2">
+          <div class="dropdown-header">
+            <span>Sound Library</span>
+            <span class="dropdown-toggle">▼</span>
+          </div>
+          <div class="dropdown-content">
+            <div class="form-group">
+              <label for="sound-select">Select Sound</label>
+              <input 
+                type="text" 
+                id="sound-select" 
+                placeholder="Search sounds...">
+            </div>
+            <p style="color: var(--label-color); font-size: 12px; margin-top: 10px;">No sounds available yet.</p>
+          </div>
+        </div>
+
+        <!-- Sounds Dropdown 3 -->
+        <div class="dropdown" id="dropdown-sound-3">
+          <div class="dropdown-header">
+            <span>Audio Filters</span>
+            <span class="dropdown-toggle">▼</span>
+          </div>
+          <div class="dropdown-content">
+            <div class="form-group">
+              <label for="audio-filter">Filter Type</label>
+              <input 
+                type="text" 
+                id="audio-filter" 
+                placeholder="None selected">
+            </div>
+            <p style="color: var(--label-color); font-size: 12px; margin-top: 10px;">Available: None, Echo, Reverb, Distortion</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============= SETTINGS SECTION ============= -->
+      <div id="section-settings" class="content-section">
+        <h2>Application Settings</h2>
+        
+        <!-- Settings Dropdown 1 -->
+        <div class="dropdown" id="dropdown-settings-1">
+          <div class="dropdown-header">
+            <span>General Settings</span>
+            <span class="dropdown-toggle">▼</span>
+          </div>
+          <div class="dropdown-content">
+            <div class="toggle-group" style="margin-bottom: 10px;">
+              <label for="auto-update" class="toggle-label">Auto Update</label>
+              <label class="switch">
+                <input type="checkbox" id="auto-update" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="toggle-group" style="margin-bottom: 10px;">
+              <label for="start-on-boot" class="toggle-label">Start on Boot</label>
+              <label class="switch">
+                <input type="checkbox" id="start-on-boot">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="toggle-group" style="margin-bottom: 10px;">
+              <label for="lock-aspect-ratio" class="toggle-label">Lock Window Aspect Ratio</label>
+              <label class="switch">
+                <input type="checkbox" id="lock-aspect-ratio" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label for="theme-select">Theme</label>
+              <select 
+                id="theme-select"
+                style="width: 100%; padding: 10px 12px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-color); font-size: 14px; font-family: var(--font-main); transition: all 0.3s ease; cursor: pointer;">
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+                <option value="custom">Custom...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="theme-import-btn">Import Custom Theme</label>
+              <input 
+                type="file" 
+                id="theme-import-file" 
+                accept=".json" 
+                style="display: none;">
+              <input 
+                type="file" 
+                id="theme-icon-file" 
+                accept="image/*" 
+                style="display: none;">
+              <button 
+                id="theme-import-btn" 
+                style="width: 100%; padding: 10px 12px; background-color: var(--green-accent); border: none; border-radius: 6px; color: var(--text-color); cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.2s; margin-bottom: 8px;">
+                📁 Import Theme JSON
+              </button>
+              <button 
+                id="theme-icon-btn" 
+                style="width: 100%; padding: 10px 12px; background-color: var(--green-accent); border: none; border-radius: 6px; color: var(--text-color); cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.2s; opacity: 0.7;">
+                🎨 Import Theme Icon (Optional)
+              </button>
+            </div>
+            <p id="theme-import-status" style="font-size: 12px; color: var(--label-color); margin-top: 8px;"></p>
+          </div>
+        </div>
+
+        <!-- Settings Dropdown 2 -->
+        <div class="dropdown" id="dropdown-settings-2">
+          <div class="dropdown-header">
+            <span>Advanced Options</span>
+            <span class="dropdown-toggle">▼</span>
+          </div>
+          <div class="dropdown-content">
+            <p style="color: var(--label-color); font-size: 12px; font-weight: 700; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">Debug & Display</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 12px;">
+              <div class="toggle-group">
+                <label for="debug-mode" class="toggle-label">Debug Mode</label>
+                <label class="switch">
+                  <input type="checkbox" id="debug-mode">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="toggle-group">
+                <label for="cache-enabled" class="toggle-label">Enable Cache</label>
+                <label class="switch">
+                  <input type="checkbox" id="cache-enabled" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="toggle-group">
+                <label for="show-id-input" class="toggle-label">Show ID Input Box</label>
+                <label class="switch">
+                  <input type="checkbox" id="show-id-input">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="toggle-group">
+                <label for="enable-sound-playback" class="toggle-label">Enable Sound Playback <span style="color: var(--red-accent); font-weight: bold; font-size: 11px;">[WIP]</span></label>
+                <label class="switch">
+                  <input type="checkbox" id="enable-sound-playback">
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <p style="color: var(--label-color); font-size: 12px; font-weight: 700; margin: 12px 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">Cookies</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 12px;">
+              <div class="toggle-group">
+                <label for="auto-cookie-studio" class="toggle-label">Auto detect cookie (studio)</label>
+                <label class="switch">
+                  <input type="checkbox" id="auto-cookie-studio">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="toggle-group">
+                <label for="auto-cookie-browsers" class="toggle-label">Auto detect cookie (browser)</label>
+                <label class="switch">
+                  <input type="checkbox" id="auto-cookie-browsers">
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <p style="color: var(--label-color); font-size: 12px; font-weight: 700; margin: 12px 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">Ownership</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 12px;">
+              <div class="toggle-group">
+                <label for="skip-owned-check" class="toggle-label">Skip assets you already own</label>
+                <label class="switch">
+                  <input type="checkbox" id="skip-owned-check" checked>
+                  <span class="slider"></span>
+                </label>
+                <small style="color: var(--label-color); font-size: 11px;">Uncheck to include assets owned by your place owner/group.</small>
+              </div>
+            </div>
+
+            <p style="color: var(--label-color); font-size: 12px; font-weight: 700; margin: 12px 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">Output</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 12px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="transfer-mode" class="toggle-label">Transfer mode</label>
+                <select id="transfer-mode">
+                  <option value="upload">Reupload to Roblox (default)</option>
+                  <option value="download">Download files only (skip reupload)</option>
+                </select>
+                <small style="color: var(--label-color); font-size: 11px;">Download mode saves files locally without publishing or ID replacements.</small>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="download-directory" class="toggle-label">Download location</label>
+                <div class="input-with-button-container">
+                  <input type="text" id="download-directory" placeholder="Choose a folder" readonly>
+                  <button id="browse-download-directory" class="input-action-btn" title="Pick folder">📁</button>
+                </div>
+                <small style="color: var(--label-color); font-size: 11px;">Used when transfer mode is set to download.</small>
+              </div>
+            </div>
+
+            <p style="color: var(--label-color); font-size: 12px; font-weight: 700; margin: 12px 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">Routing & Limits</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 12px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="plugin-port" class="toggle-label">Plugin Server Port</label>
+                <input
+                  type="number"
+                  id="plugin-port"
+                  min="1024"
+                  max="65535"
+                  value="3100"
+                  step="1"
+                  style="width: 100%; padding: 8px 10px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-color); font-size: 14px; font-family: var(--font-main);">
+                <small style="color: var(--label-color);">Port for Roblox plugin connection (restart server required)</small>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="force-placeid" class="toggle-label">Force Place ID</label>
+                <input
+                  type="number"
+                  id="force-placeid"
+                  min="1"
+                  step="1"
+                  placeholder="Leave blank to auto-discover"
+                  style="width: 100%; padding: 8px 10px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-color); font-size: 14px; font-family: var(--font-main);">
+                <small style="color: var(--label-color);">Uses this place ID for all requests. Not saved; skips place ID fetching.</small>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="placeid-search-limit" class="toggle-label">Place ID search limit</label>
+                <input
+                  type="number"
+                  id="placeid-search-limit"
+                  min="5"
+                  max="200"
+                  value="20"
+                  step="5"
+                  style="width: 100%; padding: 8px 10px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-color); font-size: 14px; font-family: var(--font-main);">
+                <small style="color: var(--label-color);">Higher values try more places if batch fails.</small>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="scan-timeout" class="toggle-label">Asset Scan Timeout (seconds)</label>
+                <input
+                  type="number"
+                  id="scan-timeout"
+                  min="5"
+                  max="120"
+                  value="20"
+                  step="5"
+                  style="width: 100%; padding: 8px 10px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-color); font-size: 14px; font-family: var(--font-main);">
+                <small style="color: var(--label-color);">Maximum time to wait for asset scanning. Increase for slow connections.</small>
+              </div>
+            </div>
+
+            <p style="color: var(--label-color); font-size: 12px; font-weight: 700; margin: 12px 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">Exclusions</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 12px;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="excluded-user-ids" class="toggle-label">Excluded User IDs (comma or space separated)</label>
+                <input
+                  type="text"
+                  id="excluded-user-ids"
+                  placeholder="12345, 67890"
+                  style="width: 100%; padding: 8px 10px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-color); font-size: 14px; font-family: var(--font-main);">
+                <small style="color: var(--label-color);">Assets from these users will be skipped.</small>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="excluded-group-ids" class="toggle-label">Excluded Group IDs (comma or space separated)</label>
+                <input
+                  type="text"
+                  id="excluded-group-ids"
+                  placeholder="11111 22222"
+                  style="width: 100%; padding: 8px 10px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-color); font-size: 14px; font-family: var(--font-main);">
+                <small style="color: var(--label-color);">Assets from these groups will be skipped.</small>
+              </div>
+            </div>
+
+            <p style="color: var(--label-color); font-size: 12px; font-weight: 700; margin: 12px 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">Branding</p>
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label for="logo-transparency" class="toggle-label">Logo Transparency</label>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <input
+                  type="range"
+                  id="logo-transparency"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value="1"
+                  style="flex: 1; height: 5px; border-radius: 5px; background-color: var(--border-color); outline: none; -webkit-appearance: slider-horizontal; cursor: pointer;">
+                <span id="logo-transparency-value" style="color: var(--text-color); min-width: 30px; text-align: right;">100%</span>
+              </div>
+              <small style="color: var(--label-color);">Adjust the opacity of the logo/icon (0% = invisible, 100% = fully opaque)</small>
+            </div>
+
+            <button style="width: 100%; padding: 8px; background-color: var(--red-accent); border: none; border-radius: 4px; color: var(--text-color); cursor: pointer; font-weight: bold; margin-top: 8px;">Clear Cache</button>
+          </div>
+        </div>
+
+        <!-- Settings Dropdown 3 -->
+        <div class="dropdown" id="dropdown-settings-3">
+          <div class="dropdown-header">
+            <span>About</span>
+            <span class="dropdown-toggle">▼</span>
+          </div>
+          <div class="dropdown-content">
+            <p style="color: var(--label-color); font-size: 12px; line-height: 1.6;">
+              <strong>ISpooferMotion</strong><br>
+              Version: <span id="settings-version">v?</span><br>
+              Made by @IncredibroXP on Discord<br>
+              <a href="#" style="color: var(--green-accent); text-decoration: none;">Visit Repository</a> | 
+              <a href="#" style="color: var(--green-accent); text-decoration: none;">Report Issue</a>
+            </p>
+            <button id="check-update-btn" style="width: 100%; padding: 8px; background-color: var(--green-accent); border: none; border-radius: 4px; color: var(--text-color); cursor: pointer; font-weight: bold; margin-top: 0px;">Check for Updates</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============= DEBUG TERMINAL ============= -->
+      <div id="debug-terminal" class="debug-terminal" style="display: none;">
+        <div class="debug-resize-handle" id="debug-resize-handle" title="Drag to resize"></div>
+        <div class="debug-terminal-header">
+          <span>🐛 Debug Console</span>
+          <button id="clear-debug-btn" class="debug-btn" title="Clear Console">Clear</button>
+        </div>
+        <div id="debug-output" class="debug-output"></div>
+      </div>
+
+        </div>
+        <div id="asset-splitter" class="vertical-splitter" title="Drag to resize"></div>
+        <div id="asset-expand-tab" class="asset-expand-tab" title="Show Explorer">◀</div>
+        <div id="asset-explorer" class="asset-explorer">
+          <div class="asset-header">
+            <div class="asset-header-left">
+              <span class="asset-title">Explorer</span>
+              <span id="asset-progress" class="asset-progress" aria-live="polite">Idle</span>
+            </div>
+            <div class="asset-header-right">
+              <label class="assets-only-toggle" title="Show only assets">
+                <input type="checkbox" id="assets-only-toggle-input">
+                <span class="toggle-label">Assets Only</span>
+              </label>
+              <button id="asset-refresh-btn" class="asset-btn" title="Load selected assets">🔄</button>
+              <button id="asset-collapse-btn" class="asset-btn secondary" title="Collapse">⯈</button>
+            </div>
+          </div>
+          <div id="explorer-tree" class="explorer-tree"></div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- NEW: Status Bar HTML -->
+  <!-- ============= UPDATE MODAL ============= -->
+  <div id="update-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); z-index: 10001; align-items: center; justify-content: center;">
+    <div style="background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 24px; max-width: 400px; box-shadow: var(--shadow-lg);">
+      <h3 style="margin-top: 0; color: var(--green-accent);">🎉 Update Available</h3>
+      <p style="color: var(--text-color); line-height: 1.6; margin-bottom: 16px;">
+        A new version of ISpooferMotion is available!
+      </p>
+      <p style="color: var(--label-color); font-size: 13px; margin-bottom: 20px;">
+        Current Version: <strong id="current-version-display">v0.0.0</strong><br>
+        New Version: <strong id="new-version-display">v0.0.0</strong>
+      </p>
+      <div style="display: flex; gap: 10px;">
+        <button id="update-later-btn" style="flex: 1; padding: 10px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-color); cursor: pointer; font-weight: bold;">
+          Later
+        </button>
+        <button id="update-now-btn" style="flex: 1; padding: 10px; background-color: var(--green-accent); border: none; border-radius: 4px; color: var(--accent-text); cursor: pointer; font-weight: bold;">
+          Download Update
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============= STATUS BAR ============= -->
   <div id="status-bar">
-    <span id="status-text">Ready</span> <!-- Initial status message -->
-    <span id="status-right" style="float: right; display: flex; align-items: center; gap: 8px;">
-      <span id="version-text" style="color: var(--label-color); font-size: 12px;">v?</span>
+    <span id="status-text">Ready</span>
+    <span id="status-right">
+      <button id="logs-btn" title="Open logs folder" aria-label="Open Logs">Logs 📋</button>
+      <span id="version-text" style="color: var(--label-color); font-size: 12px; margin-left: 12px;">v?</span>
       <button id="discord-btn" title="Join for support or questions!" aria-label="Join Discord">
-        <!-- Replaced SVG: uses Discord default purple as provided -->
         <svg viewBox="0 -28.5 256 256" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid" width="16" height="16" aria-hidden="true">
           <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
           <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
@@ -397,165 +674,9 @@
     </span>
   </div>
 
-
-  
-  <script>
-    // --- Element Selectors ---
-    const closeBtn = document.getElementById('close-btn');
-    const copyOutputBtn = document.getElementById('copy-output-btn');
-    const outputDataTextarea = document.getElementById('output-data');
-    const animationIdTextarea = document.getElementById('animationId');
-    const pasteAnimationIdBtn = document.getElementById('paste-animationId-btn');
-    const robloxCookieInput = document.getElementById('robloxCookie');
-    const autoDetectCookieToggle = document.getElementById('autoDetectCookie');
-    const groupIdInput = document.getElementById('groupId'); // Get reference
-    const enableSpoofingToggle = document.getElementById('enable-spoofing'); // Get reference
-    const runSpooferBtn = document.getElementById('run-spoofer-btn'); // Get reference
-    const statusTextElement = document.getElementById('status-text');
-
-    // --- Status Update Function ---
-    function updateStatus(message) {
-        if (statusTextElement) {
-            statusTextElement.textContent = message;
-        }
-    }
-
-    // --- IPC for Status Updates from Main ---
-    if (window.electronAPI && window.electronAPI.onStatusUpdate) {
-        window.electronAPI.onStatusUpdate(updateStatus);
-    } else {
-        console.warn("electronAPI.onStatusUpdate not found.");
-    }
-
-  // --- Display App Version in status bar ---
-  if (window.electronAPI && window.electronAPI.getAppVersion) {
-    window.electronAPI.getAppVersion().then(ver => {
-      const verEl = document.getElementById('version-text');
-      if (verEl) verEl.textContent = `v${ver}`;
-    }).catch(err => { console.warn('Failed to get app version:', err); });
-  } else {
-    console.warn('electronAPI.getAppVersion not found.');
-  }
-
-  // --- Discord button (open external invite) ---
-  const discordBtn = document.getElementById('discord-btn');
-  if (discordBtn) {
-    discordBtn.addEventListener('click', () => {
-      const invite = 'https://discord.gg/vfVdm9q8SV';
-      if (window.electronAPI && window.electronAPI.openExternal) {
-        window.electronAPI.openExternal(invite);
-      } else {
-        // Fallback for non-electron environments
-        window.open(invite, '_blank', 'noopener');
-      }
-    });
-  }
-
-    // --- IPC for Spoofer Results from Main ---
-    if (window.electronAPI && window.electronAPI.onSpooferResult) {
-        window.electronAPI.onSpooferResult((result) => {
-            console.log("Renderer received spoofer result:", result);
-            if (outputDataTextarea && result && typeof result.output !== 'undefined') {
-                outputDataTextarea.value = result.output;
-            }
-            // Re-enable the button after operation
-            if(runSpooferBtn) runSpooferBtn.disabled = false;
-        });
-    } else {
-        console.warn("electronAPI.onSpooferResult not found.");
-    }
-
-
-    // --- Window Controls ---
-    if (window.electronAPI && window.electronAPI.close) {
-      if (closeBtn) {
-        closeBtn.addEventListener('click', () => window.electronAPI.close());
-      }
-    } else {
-      console.warn("electronAPI.close not found.");
-      if (closeBtn) closeBtn.disabled = true;
-    }
-    // Add minimize if you have a minimize button and exposed it via preload
-
-    // --- Copy Output Button ---
-    if (copyOutputBtn && outputDataTextarea) {
-        copyOutputBtn.addEventListener('click', () => {
-          outputDataTextarea.select();
-            try { document.execCommand('copy'); updateStatus("Output copied!"); }
-            catch (err) { console.error('Fallback: Oops, unable to copy', err); updateStatus("Failed to copy output.");}
-            window.getSelection().removeAllRanges();
-        });
-    }
-
-    // --- Paste Animation ID Button ---
-    if (pasteAnimationIdBtn && animationIdTextarea && navigator.clipboard) {
-        pasteAnimationIdBtn.addEventListener('click', async () => {
-            try {
-                const text = await navigator.clipboard.readText();
-                animationIdTextarea.value = text.trim();
-                animationIdTextarea.focus();
-                updateStatus("Animation ID pasted.");
-            } catch (err) {
-                console.error('Failed to read clipboard contents: ', err);
-                alert('Failed to paste. Please check clipboard permissions.');
-                updateStatus("Failed to paste Animation ID.");
-            }
-        });
-    } else if (!navigator.clipboard && pasteAnimationIdBtn) {
-        pasteAnimationIdBtn.style.display = 'none';
-    }
-
-    // --- Auto Detect Cookie Toggle Logic ---
-    function updateRobloxCookieInputState() {
-        if (robloxCookieInput && autoDetectCookieToggle) {
-            robloxCookieInput.disabled = autoDetectCookieToggle.checked;
-            if (autoDetectCookieToggle.checked) {
-                robloxCookieInput.classList.add('disabled-input');
-            } else {
-                robloxCookieInput.classList.remove('disabled-input');
-            }
-        }
-    }
-    if (autoDetectCookieToggle) {
-        autoDetectCookieToggle.addEventListener('change', updateRobloxCookieInputState);
-        updateRobloxCookieInputState(); // Initial state
-    }
-
-    // --- "Run Spoofer" Button Logic ---
-    if (runSpooferBtn && window.electronAPI && window.electronAPI.runSpooferAction) {
-        runSpooferBtn.addEventListener('click', () => {
-            // Disable button to prevent multiple clicks
-            runSpooferBtn.disabled = true;
-            updateStatus("Initiating spoofer...");
-            outputDataTextarea.value = ""; // Clear previous output
-
-            const data = {
-                animationId: animationIdTextarea.value,
-                robloxCookie: robloxCookieInput.value,
-                groupId: groupIdInput.value,
-                enableSpoofing: enableSpoofingToggle.checked,
-                autoDetectCookie: autoDetectCookieToggle.checked
-            };
-
-            console.log("Renderer sending data to main:", data);
-            window.electronAPI.runSpooferAction(data);
-        });
-    } else {
-        if(runSpooferBtn) runSpooferBtn.disabled = true; // Disable if API not found
-        console.warn("Run Spoofer button or electronAPI.runSpooferAction not available.");
-    }
-
-    // --- Enable Text Selection for Inputs ---
-    const selectableElements = document.querySelectorAll('input[type="text"], input[type="number"], textarea.input-box');
-    selectableElements.forEach(el => {
-        el.style.webkitUserSelect = 'text';
-        el.style.userSelect = 'text';
-    });
-
-    // Initial ready status
-    updateStatus("Ready");
-
-  </script>
+  <!-- Scripts -->
+  <script src="ui.js"></script>
+  <script src="app.js"></script>
 
 </body>
 </html>
