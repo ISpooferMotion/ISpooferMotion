@@ -124,7 +124,11 @@ async function downloadAssetsBatch(assets, placeIds, cookie, downloadsDir, sendO
       // Process each chunk
       for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
         const chunk = chunks[chunkIndex];
-        const batchPayload = chunk.map(a => ({ assetId: a.assetId, assetType: a.assetType }));
+        const batchPayload = chunk.map(a => ({
+          requestId: crypto.randomUUID(),
+          assetId: a.assetId,
+          assetType: a.assetType,
+        }));
         const batchUrl = 'https://assetdelivery.roblox.com/v2/assets/batch';
         const batchHeaders = {
           'Content-Type': 'application/json',
@@ -145,6 +149,12 @@ async function downloadAssetsBatch(assets, placeIds, cookie, downloadsDir, sendO
 
         if (!batchResp.ok) {
           const errText = await batchResp.text();
+          if (DEVELOPER_MODE) {
+            console.warn('[BATCH DEBUG] URL:', batchUrl);
+            console.warn('[BATCH DEBUG] Headers:', JSON.stringify(batchHeaders));
+            console.warn('[BATCH DEBUG] Payload:', JSON.stringify(batchPayload));
+            console.warn('[BATCH DEBUG] Error:', errText);
+          }
           throw new Error(`Batch failed (${batchResp.status}): ${errText.substring(0, 200)}`);
         }
 
