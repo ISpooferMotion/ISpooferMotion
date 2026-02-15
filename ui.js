@@ -7,6 +7,7 @@ class UIManager {
   constructor() {
     this.currentSection = 'home';
     this.debugMode = false;
+    this.isLoadingAssets = false;
     this.init();
   }
 
@@ -503,6 +504,7 @@ class UIManager {
 
     // Refresh button: fetch assets based on spoof selections
     if (refreshBtn) {
+      this._refreshBtn = refreshBtn;
       refreshBtn.addEventListener('click', async () => {
         await this.loadServerAssets();
       });
@@ -535,6 +537,14 @@ class UIManager {
 
   async loadServerAssets() {
     if (!window.electronAPI?.fetchServerSounds && !window.electronAPI?.fetchServerAnimations && !window.electronAPI?.fetchServerImages) return;
+    
+    // Prevent multiple simultaneous loads
+    if (this.isLoadingAssets) {
+      this.addDebugLine('Asset scan already in progress, please wait...', 'warn');
+      return;
+    }
+    this.isLoadingAssets = true;
+    if (this._refreshBtn) this._refreshBtn.disabled = true;
     
     const assets = {};
     let hasAudio = false;
@@ -679,6 +689,8 @@ class UIManager {
       if (!hasAudio && !hasAnimation && !hasImages) {
         this._setAssetProgress('No data', false);
         this.addDebugLine('No sounds, animations, or images selected or received', 'warn');
+        this.isLoadingAssets = false;
+        if (this._refreshBtn) this._refreshBtn.disabled = false;
         return;
       }
 
@@ -687,6 +699,9 @@ class UIManager {
     } catch (err) {
       this._setAssetProgress('Error', false);
       this.addDebugLine(`Explorer exception: ${err.message}`, 'error');
+    } finally {
+      this.isLoadingAssets = false;
+      if (this._refreshBtn) this._refreshBtn.disabled = false;
     }
   }
 

@@ -9,6 +9,7 @@ class AppManager {
     this.spooferProgress = 0; // Track overall progress 0-100
     this.currentStage = null; // Track current stage for cumulative progress
     this.lastMappings = null; // Store last mappings for retry
+    this.isRunning = false; // Track if spoofer is currently running
     // Stage progress ranges (percentages of total)
     this.stages = {
       'creator': { start: 0, end: 15, name: 'Resolving creators' },
@@ -380,6 +381,7 @@ class AppManager {
    */
   setRunningState(isRunning) {
     try {
+      this.isRunning = isRunning;
       if (this.elements.runSpooferBtn) {
         this.elements.runSpooferBtn.disabled = !!isRunning;
         if (isRunning) {
@@ -485,6 +487,13 @@ class AppManager {
   runSpoofer() {
     if (!this.elements.runSpooferBtn) return;
 
+    // Prevent multiple simultaneous runs - set flag immediately
+    if (this.isRunning) {
+      console.log('[Spoofer] Already running, ignoring click');
+      return;
+    }
+    this.isRunning = true;
+
     // Get selected user and group
     const selectedUserId = this.elements.selectedUserSelect?.value || '';
     const selectedGroupId = this.elements.selectedGroupSelect?.value || '';
@@ -492,6 +501,7 @@ class AppManager {
 
     // Validate that we have a cookie source
     if (!selectedUserId && !manualCookie) {
+      this.isRunning = false;
       window.uiManager?.addDebugLine('[Spoofer] Error: No user selected or cookie provided', 'error');
       alert('Please select a user or enter a Roblox cookie before running the spoofer.');
       return;
@@ -503,6 +513,7 @@ class AppManager {
     // Get selected assets from the tree
     const selectedAssets = window.uiManager?.getSelectedAssets() || [];
     if (selectedAssets.length === 0) {
+      this.isRunning = false;
       window.uiManager?.addDebugLine('[Spoofer] Error: No assets selected', 'error');
       alert('Please select at least one asset to spoof.');
       return;
