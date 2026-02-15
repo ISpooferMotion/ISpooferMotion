@@ -596,6 +596,7 @@
               <a href="#" style="color: var(--green-accent); text-decoration: none;">Report Issue</a>
             </p>
             <button id="check-update-btn" style="width: 100%; padding: 8px; background-color: var(--green-accent); border: none; border-radius: 4px; color: var(--text-color); cursor: pointer; font-weight: bold; margin-top: 0px;">Check for Updates</button>
+            <button id="credits-btn" style="width: 100%; padding: 8px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-color); cursor: pointer; font-weight: bold; margin-top: 8px;">Credits</button>
           </div>
         </div>
       </div>
@@ -670,6 +671,48 @@
       <p id="plugin-update-status" style="color: var(--label-color); font-size: 12px; margin-bottom: 16px;">Preparing download...</p>
       <div style="display: flex; gap: 10px;">
         <button id="plugin-update-close-btn" style="flex: 1; padding: 10px; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-color); cursor: pointer; font-weight: bold;">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============= CREDITS MODAL ============= -->
+  <div id="credits-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); z-index: 10001; align-items: center; justify-content: center;">
+    <div style="background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 24px; max-width: 500px; max-height: 80vh; overflow-y: auto; box-shadow: var(--shadow-lg);">
+      <h3 style="margin-top: 0; color: var(--green-accent);">✨ Credits</h3>
+      <div style="color: var(--text-color); line-height: 1.8; font-size: 14px;">
+        <p style="margin-bottom: 16px;">
+          <strong style="color: var(--green-accent); font-size: 15px;">ISpooferMotion</strong><br>
+          <span style="color: var(--label-color); font-size: 13px;">A tool for spoofing Roblox game assets</span>
+        </p>
+        
+        <div style="margin-bottom: 16px;">
+          <strong style="color: var(--text-color);">👨‍💻 Developer</strong><br>
+          <span style="color: var(--label-color);">@IncredibroXP aka @IncrediDev - Main Developer</span>
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+          <strong style="color: var(--text-color);">🎨 Design</strong><br>
+          <span style="color: var(--label-color);">@samica_alguem - ISM Icon and Banner Designs<br>@IncredibroXP - UI/UX Design</span>
+        </div>
+        
+        <div style="margin-bottom: 16px;" id="supporters-section">
+          <strong style="color: var(--text-color);">💎 Supporters</strong><br>
+          <span style="color: var(--label-color);" id="supporters-list">Loading...</span>
+        </div>
+        
+        <div style="margin-bottom: 16px;" id="boosters-section">
+          <strong style="color: var(--text-color);">🚀 Boosters</strong><br>
+          <span style="color: var(--label-color);" id="boosters-list">Loading...</span>
+        </div>
+        
+        <div style="margin-bottom: 8px;">
+          <strong style="color: var(--text-color);">📝 License</strong><br>
+          <span style="color: var(--label-color);">Licensed under the MIT License</span>
+        </div>
+      </div>
+      
+      <div style="margin-top: 20px; display: flex; gap: 10px;">
+        <button id="credits-close-btn" style="flex: 1; padding: 10px; background-color: var(--green-accent); border: none; border-radius: 4px; color: var(--accent-text); cursor: pointer; font-weight: bold;">Close</button>
       </div>
     </div>
   </div>

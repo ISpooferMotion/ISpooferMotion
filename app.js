@@ -33,6 +33,7 @@ class AppManager {
     this.setupDiscordButton();
     this.setupTheme();
     this.setupUpdateModal();
+    this.setupCreditsModal();
     this.setupCookieSourceToggles();
     this.setupTransferModeControls();
     this.setupSpooferSelections();
@@ -1813,6 +1814,74 @@ class AppManager {
         if (updateNowBtnInner) {
           updateNowBtnInner.disabled = false;
           updateNowBtnInner.textContent = 'Update Now';
+        }
+      });
+    }
+  }
+
+  /**
+   * Setup Credits Modal
+   */
+  setupCreditsModal() {
+    const creditsBtn = document.getElementById('credits-btn');
+    const creditsModal = document.getElementById('credits-modal');
+    const creditsCloseBtn = document.getElementById('credits-close-btn');
+    const supportersList = document.getElementById('supporters-list');
+    const boostersList = document.getElementById('boosters-list');
+
+    if (creditsBtn && creditsModal) {
+      creditsBtn.addEventListener('click', async () => {
+        creditsModal.style.display = 'flex';
+        
+        // Fetch supporters and boosters when modal opens
+        if (supportersList && supportersList.textContent === 'Loading...') {
+          try {
+            const response = await fetch('https://www.incredidev.com/api/supporters', {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/json'
+              }
+            });
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Display supporters
+            if (data && data.supporters && Array.isArray(data.supporters) && data.supporters.length > 0) {
+              supportersList.innerHTML = data.supporters.map(name => `• ${name}`).join('<br>');
+            } else {
+              supportersList.textContent = 'No supporters yet. Be the first!';
+            }
+            
+            // Display boosters
+            if (data && data.boosters && Array.isArray(data.boosters) && data.boosters.length > 0) {
+              boostersList.innerHTML = data.boosters.map(name => `• ${name}`).join('<br>');
+            } else {
+              boostersList.textContent = 'No boosters yet. Be the first!';
+            }
+          } catch (error) {
+            console.error('Failed to fetch supporters and boosters:', error);
+            supportersList.textContent = 'Thank you to all our supporters!';
+            boostersList.textContent = 'Thank you to all our boosters!';
+          }
+        }
+      });
+    }
+
+    if (creditsCloseBtn && creditsModal) {
+      creditsCloseBtn.addEventListener('click', () => {
+        creditsModal.style.display = 'none';
+      });
+    }
+
+    // Close modal when clicking outside
+    if (creditsModal) {
+      creditsModal.addEventListener('click', (e) => {
+        if (e.target === creditsModal) {
+          creditsModal.style.display = 'none';
         }
       });
     }
