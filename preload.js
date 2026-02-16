@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Asset server: request Roblox to dump images
   requestImageDump: () => ipcRenderer.invoke('request-image-dump'),
 
+  // Check if Roblox plugin is connected
+  checkPluginStatus: () => ipcRenderer.invoke('check-plugin-status'),
+
   // Reveal asset in file explorer
   revealAsset: (assetId, assetType) => ipcRenderer.send('reveal-asset', assetId, assetType),
 

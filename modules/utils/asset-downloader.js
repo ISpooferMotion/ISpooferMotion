@@ -31,7 +31,8 @@ async function downloadAssetsBatch(assets, placeIds, cookie, downloadsDir, sendO
     const downloadImage = async (asset) => {
       const transferId = crypto.randomUUID();
       try {
-        const downloadPath = path.join(downloadsDir, `${asset.assetId}.png`);
+        const sanitizedName = (asset.name || `Image_${asset.assetId}`).replace(/[<>:"/\\|?*]/g, '_').substring(0, 200);
+        const downloadPath = path.join(downloadsDir, `${sanitizedName}.png`);
         const assetDeliveryUrl = `https://assetdelivery.roblox.com/v1/asset/?id=${asset.assetId}`;
         
         sendOutput({ output: `    ↓ Downloading image ${asset.name} (${asset.assetId})...\n`, success: null });
@@ -85,6 +86,7 @@ async function downloadAssetsBatch(assets, placeIds, cookie, downloadsDir, sendO
       } catch (err) {
         if (DEVELOPER_MODE) console.error(`(Dev) Failed to download image ${asset.assetId}:`, err.message);
         sendOutput({ output: `      ✗ Failed to download: ${err.message}\n`, success: false });
+        if (onProgress) onProgress();
         return null;
       }
     };
@@ -166,7 +168,7 @@ async function downloadAssetsBatch(assets, placeIds, cookie, downloadsDir, sendO
       // Download each asset from the batch response (in parallel)
       const downloadAsset = async (item) => {
         const asset = otherAssets.find(a => a.assetId === item.assetId);
-        if (!asset || !item.location) return null;
+        if (!asset || !item.location) return { assetId: item.assetId, success: false };
 
         const transferId = crypto.randomUUID();
         const extensions = {
@@ -175,7 +177,8 @@ async function downloadAssetsBatch(assets, placeIds, cookie, downloadsDir, sendO
           'Animation': '.rbxm',
         };
         const ext = extensions[asset.assetType] || '.dat';
-        const downloadPath = path.join(downloadsDir, `${asset.assetId}${ext}`);
+        const sanitizedName = (asset.name || `Asset_${asset.assetId}`).replace(/[<>:"/\\|?*]/g, '_').substring(0, 200);
+        const downloadPath = path.join(downloadsDir, `${sanitizedName}${ext}`);
 
         sendOutput({ output: `    ↓ Downloading ${asset.name} (${asset.assetId})...\n`, success: null });
 
@@ -208,6 +211,7 @@ async function downloadAssetsBatch(assets, placeIds, cookie, downloadsDir, sendO
           
           return {
             assetId: asset.assetId,
+            success: true,
             data: {
               filePath: downloadPath,
               name: asset.name,
@@ -217,14 +221,26 @@ async function downloadAssetsBatch(assets, placeIds, cookie, downloadsDir, sendO
           };
         } catch (err) {
           sendOutput({ output: `      ✗ Failed: ${err.message}\n`, success: false });
-          return null;
+          
+          sendTransferUpdate({
+            id: transferId,
+            name: asset.name,
+            direction: 'download',
+            status: 'error',
+            progress: 0,
+          });
+          
+          return { assetId: asset.assetId, success: false };
         }
       };
       
         // Download all batch assets in parallel
         const results = await Promise.all(batchData.map(downloadAsset));
         results.forEach(result => {
-          if (result) downloadedAssets[result.assetId] = result.data;
+          if (result && result.success && result.data) {
+            downloadedAssets[result.assetId] = result.data;
+          }
+          if (onProgress) onProgress();
         });
       }
 
@@ -364,7 +380,8 @@ async function downloadAssetsIndividual(assets, cookie, downloadsDir, sendOutput
         'Decal': '.png',
       };
       const ext = extensions[asset.assetType] || '.dat';
-      const downloadPath = path.join(downloadsDir, `${asset.assetId}${ext}`);
+      const sanitizedName = (asset.name || `Asset_${asset.assetId}`).replace(/[<>:"/\\|?*]/g, '_').substring(0, 200);
+      const downloadPath = path.join(downloadsDir, `${sanitizedName}${ext}`);
 
       sendOutput({ output: `    ↓ Downloading ${asset.name} (${asset.assetId})...\n`, success: null });
 
@@ -452,6 +469,7 @@ async function downloadAssetsIndividual(assets, cookie, downloadsDir, sendOutput
         progress: 0,
       });
       
+      if (onProgress) onProgress();
       return { assetId: asset.assetId, success: false };
     }
   };

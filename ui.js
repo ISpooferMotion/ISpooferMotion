@@ -546,6 +546,25 @@ class UIManager {
     this.isLoadingAssets = true;
     if (this._refreshBtn) this._refreshBtn.disabled = true;
     
+    // Check if plugin is connected before proceeding
+    if (window.electronAPI?.checkPluginStatus) {
+      const statusResp = await window.electronAPI.checkPluginStatus();
+      if (statusResp?.ok && statusResp.result) {
+        const { connected, message } = statusResp.result;
+        if (!connected) {
+          this.addDebugLine(`❌ Roblox plugin not connected: ${message}`, 'error');
+          this.addDebugLine('1. Open Roblox Studio with your game', 'info');
+          this.addDebugLine('2. Install the ISpooferMotion plugin from the Creator Store', 'info');
+          this.addDebugLine('3. Open the plugin settings and click "Start Connection"', 'info');
+          this._setAssetProgress('Plugin not connected', false);
+          this.isLoadingAssets = false;
+          if (this._refreshBtn) this._refreshBtn.disabled = false;
+          return;
+        }
+        this.addDebugLine(`✓ Plugin connected: ${message}`, 'success');
+      }
+    }
+    
     const assets = {};
     let hasAudio = false;
     let hasAnimation = false;
@@ -599,12 +618,20 @@ class UIManager {
         
         if (attempts >= maxAttempts) {
           this.addDebugLine(`Sound scan timed out after ${scanTimeout}s`, 'warn');
+          // Check if any data was received before timeout
+          const finalCheck = await window.electronAPI.fetchServerSounds();
+          if (finalCheck?.ok && finalCheck.result?.assets?.length > 0) {
+            this.addDebugLine(`⚠ Found ${finalCheck.result.assets.length} sounds after timeout, loading anyway`, 'warn');
+            assets.Sounds = finalCheck.result.assets;
+            hasAudio = true;
+          }
         }
       }
 
       // Fetch animations if Animation is enabled
       if (animationEnabled && window.electronAPI?.requestAnimationDump && window.electronAPI?.fetchServerAnimations) {
         this.addDebugLine('Requesting animations from Roblox...', 'info');
+        this.addDebugLine('⚠ Make sure the ISpooferMotion plugin is installed and connected in Roblox Studio', 'info');
         this._setAssetProgress('Scanning animations...', true);
         await window.electronAPI.requestAnimationDump();
         
@@ -620,6 +647,7 @@ class UIManager {
           if (animResp?.ok && animResp.result?.complete) {
             const animations = animResp.result.assets;
             const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            console.log('[UI] Animation scan complete:', animations?.length || 0, 'animations received');
             if (Array.isArray(animations) && animations.length > 0) {
               assets.Animations = animations;
               hasAnimation = true;
@@ -641,6 +669,13 @@ class UIManager {
         
         if (attempts >= maxAttempts) {
           this.addDebugLine(`Animation scan timed out after ${scanTimeout}s`, 'warn');
+          // Check if any data was received before timeout
+          const finalCheck = await window.electronAPI.fetchServerAnimations();
+          if (finalCheck?.ok && finalCheck.result?.assets?.length > 0) {
+            this.addDebugLine(`⚠ Found ${finalCheck.result.assets.length} animations after timeout, loading anyway`, 'warn');
+            assets.Animations = finalCheck.result.assets;
+            hasAnimation = true;
+          }
         }
       }
 
@@ -683,12 +718,46 @@ class UIManager {
         
         if (attempts >= maxAttempts) {
           this.addDebugLine(`Image scan timed out after ${scanTimeout}s`, 'warn');
+          // Check if any data was received before timeout
+          const finalCheck = await window.electronAPI.fetchServerImages();
+          if (finalCheck?.ok && finalCheck.result?.assets?.length > 0) {
+            this.addDebugLine(`⚠ Found ${finalCheck.result.assets.length} images after timeout, loading anyway`, 'warn');
+            assets.Images = finalCheck.result.assets;
+            hasImages = true;
+          }
         }
       }
 
+      // Check if assets were scanned but not loaded due to unchecked checkboxes
       if (!hasAudio && !hasAnimation && !hasImages) {
+        // Try to fetch any available data to see if checkboxes are the issue
+        let diagInfo = [];
+        if (!audioEnabled && window.electronAPI?.fetchServerSounds) {
+          const soundCheck = await window.electronAPI.fetchServerSounds();
+          if (soundCheck?.ok && soundCheck.result?.assets?.length > 0) {
+            diagInfo.push(`${soundCheck.result.assets.length} sounds available (checkbox unchecked)`);
+          }
+        }
+        if (!animationEnabled && window.electronAPI?.fetchServerAnimations) {
+          const animCheck = await window.electronAPI.fetchServerAnimations();
+          if (animCheck?.ok && animCheck.result?.assets?.length > 0) {
+            diagInfo.push(`${animCheck.result.assets.length} animations available (checkbox unchecked)`);
+          }
+        }
+        if (!imagesEnabled && window.electronAPI?.fetchServerImages) {
+          const imgCheck = await window.electronAPI.fetchServerImages();
+          if (imgCheck?.ok && imgCheck.result?.assets?.length > 0) {
+            diagInfo.push(`${imgCheck.result.assets.length} images available (checkbox unchecked)`);
+          }
+        }
+        
         this._setAssetProgress('No data', false);
-        this.addDebugLine('No sounds, animations, or images selected or received', 'warn');
+        if (diagInfo.length > 0) {
+          this.addDebugLine('⚠ Assets found but not loaded: ' + diagInfo.join(', '), 'warn');
+          this.addDebugLine('Enable the corresponding checkboxes in Explorer Settings and click Refresh', 'info');
+        } else {
+          this.addDebugLine('No sounds, animations, or images selected or received', 'warn');
+        }
         this.isLoadingAssets = false;
         if (this._refreshBtn) this._refreshBtn.disabled = false;
         return;
@@ -1725,7 +1794,7 @@ class UIManager {
         selectedAssets.push({
           assetId: assetId,
           assetType: assetType,
-          name: checkbox.title?.replace(/Include .*? /, '') || `Asset ${assetId}`,
+          name: checkbox._nodeData?.name || checkbox._nodeData?.fullInfo?.assetName || checkbox.title?.replace(/Include .*? /, '') || `Asset ${assetId}`,
           fullName: checkbox._nodeData?.fullInfo?.fullName || '',
           creator: checkbox._nodeData?.fullInfo?.creator || 'Unknown',
           creatorType: checkbox._nodeData?.fullInfo?.creatorType || 'User', // Default to User if not specified

@@ -490,6 +490,20 @@ function registerIpcHandlers(getMainWindowFn, sendTransferUpdate, sendSpooferRes
     }
   });
 
+  // Check if Roblox plugin is connected
+  ipcMain.handle('check-plugin-status', async (event) => {
+    try {
+      if (!assetServer) {
+        return { ok: false, error: 'Asset server not initialized' };
+      }
+      const status = assetServer.getPluginStatus();
+      return { ok: true, result: status };
+    } catch (err) {
+      if (DEVELOPER_MODE) console.warn('MAIN_PROCESS (Dev): check-plugin-status error:', err);
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
   ipcMain.on('toggle-aspect-ratio', (event, isLocked) => {
     const mainWindow = getMainWindowFn();
     if (mainWindow) {

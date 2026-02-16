@@ -9,12 +9,17 @@ local MarketplaceService = game:GetService("MarketplaceService")
 -- =====================================
 local plugin = plugin or PluginManager():CreatePlugin()
 local toolbar = plugin:CreateToolbar("ISpooferMotion")
-local button = toolbar:CreateButton("Settings", "Configure ISpooferMotion connection", "rbxassetid://138890833611083")
+local button = toolbar:CreateButton("Settings", "Configure ISpooferMotion connection", "rbxassetid://137844667859456")
 
 -- State variables
 local currentPort = 3100
 local connectionEnabled = true
 local pollTasks = {}
+
+-- Scan settings
+local scanSpeed = "Normal" -- "Fast", "Normal", "Slow", "Ultra Slow"
+local showProgressReports = true
+local disableScanTimeout = false
 
 -- Persistent processed IDs to avoid re-scanning same assets
 local processedSoundIds = {}
@@ -27,9 +32,9 @@ local widgetInfo = DockWidgetPluginGuiInfo.new(
 	false,   -- Initially enabled
 	false,   -- Don't override previous enabled state
 	300,     -- Default width
-	200,     -- Default height
+	400,     -- Default height (increased for new settings)
 	250,     -- Min width
-	150      -- Min height
+	350      -- Min height (increased for new settings)
 )
 
 local widget = plugin:CreateDockWidgetPluginGui("ISpooferMotionSettings", widgetInfo)
@@ -100,6 +105,71 @@ portInput.PlaceholderText = "3100"
 portInput.ClearTextOnFocus = false
 portInput.Parent = frame
 
+-- Scan Speed Label
+local scanSpeedLabel = Instance.new("TextLabel")
+scanSpeedLabel.Size = UDim2.new(1, -20, 0, 20)
+scanSpeedLabel.Position = UDim2.new(0, 10, 0, 185)
+scanSpeedLabel.BackgroundTransparency = 1
+scanSpeedLabel.Text = "Scan Speed:"
+scanSpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+scanSpeedLabel.Font = Enum.Font.SourceSans
+scanSpeedLabel.TextSize = 14
+scanSpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+scanSpeedLabel.Parent = frame
+
+-- Scan Speed Dropdown
+local scanSpeedDropdown = Instance.new("TextButton")
+scanSpeedDropdown.Size = UDim2.new(1, -20, 0, 30)
+scanSpeedDropdown.Position = UDim2.new(0, 10, 0, 210)
+scanSpeedDropdown.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+scanSpeedDropdown.BorderSizePixel = 1
+scanSpeedDropdown.BorderColor3 = Color3.fromRGB(70, 70, 70)
+scanSpeedDropdown.Text = "⚡ " .. scanSpeed .. " ▼"
+scanSpeedDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+scanSpeedDropdown.Font = Enum.Font.SourceSans
+scanSpeedDropdown.TextSize = 14
+scanSpeedDropdown.Parent = frame
+
+-- Progress Reports Checkbox
+local progressCheckbox = Instance.new("TextButton")
+progressCheckbox.Size = UDim2.new(1, -20, 0, 30)
+progressCheckbox.Position = UDim2.new(0, 10, 0, 250)
+progressCheckbox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+progressCheckbox.BorderSizePixel = 1
+progressCheckbox.BorderColor3 = Color3.fromRGB(70, 70, 70)
+progressCheckbox.Text = "✓ Show Progress Reports"
+progressCheckbox.TextColor3 = Color3.fromRGB(16, 185, 129)
+progressCheckbox.Font = Enum.Font.SourceSans
+progressCheckbox.TextSize = 14
+progressCheckbox.Parent = frame
+
+-- Timeout Checkbox
+local timeoutCheckbox = Instance.new("TextButton")
+timeoutCheckbox.Size = UDim2.new(1, -20, 0, 30)
+timeoutCheckbox.Position = UDim2.new(0, 10, 0, 290)
+timeoutCheckbox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+timeoutCheckbox.BorderSizePixel = 1
+timeoutCheckbox.BorderColor3 = Color3.fromRGB(70, 70, 70)
+timeoutCheckbox.Text = "⏱ Disable Scan Timeout"
+timeoutCheckbox.TextColor3 = Color3.fromRGB(200, 200, 200)
+timeoutCheckbox.Font = Enum.Font.SourceSans
+timeoutCheckbox.TextSize = 14
+timeoutCheckbox.Parent = frame
+
+-- Info Label
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(1, -20, 0, 60)
+infoLabel.Position = UDim2.new(0, 10, 0, 330)
+infoLabel.BackgroundTransparency = 1
+infoLabel.Text = "ℹ️ For big games, use Slow/Ultra Slow to prevent Studio from freezing."
+infoLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+infoLabel.Font = Enum.Font.SourceSans
+infoLabel.TextSize = 12
+infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+infoLabel.TextYAlignment = Enum.TextYAlignment.Top
+infoLabel.TextWrapped = true
+infoLabel.Parent = frame
+
 -- Dynamic URL building function
 local function buildUrls()
 	local baseUrl = "http://localhost:" .. currentPort
@@ -124,6 +194,39 @@ local PLACE_CREATOR_ID = game.CreatorId
 local PLACE_CREATOR_TYPE = tostring(game.CreatorType)
 local SKIP_OWNED_CHECK = true
 
+-- Test connection to localhost server
+local function testConnection()
+	-- First check if HttpService is enabled
+	local httpEnabled = pcall(function()
+		HttpService:GetAsync("http://localhost:" .. currentPort)
+	end)
+
+	if not httpEnabled then
+		warn("[ISpooferMotion] ❌ HttpService is NOT enabled!")
+		warn("[ISpooferMotion] To enable: Home tab > Game Settings > Security > Enable 'Allow HTTP Requests'")
+		return false
+	end
+
+	print("[ISpooferMotion] Testing connection to localhost:" .. currentPort .. "...")
+	local testUrl = string.format("http://localhost:%d/poll-sounds", currentPort)
+
+	local ok, response = pcall(function()
+		return HttpService:GetAsync(testUrl)
+	end)
+
+	if ok then
+		print("[ISpooferMotion] ✓ Successfully connected to app!")
+		return true
+	else
+		warn("[ISpooferMotion] ❌ Connection test FAILED: " .. tostring(response))
+		warn("[ISpooferMotion] Troubleshooting:")
+		warn("  1. Is the ISpooferMotion desktop app running?")
+		warn("  2. Correct port? Currently set to: " .. currentPort)
+		warn("  3. Firewall blocking localhost connections?")
+		return false
+	end
+end
+
 -- UI Event Handlers
 button.Click:Connect(function()
 	widget.Enabled = not widget.Enabled
@@ -142,6 +245,9 @@ toggleButton.MouseButton1Click:Connect(function()
 		processedImageIds = {}
 		print("[ISpooferMotion] Cache cleared - fresh scan on next request")
 		print("[ISpooferMotion] Connection enabled on port " .. currentPort)
+
+		-- Test connection immediately
+		testConnection()
 	else
 		toggleButton.Text = "Start Connection"
 		toggleButton.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
@@ -178,12 +284,96 @@ portInput.FocusLost:Connect(function(enterPressed)
 	end
 end)
 
+-- Scan Speed Dropdown Event
+local scanSpeedOptions = {"Fast", "Normal", "Slow", "Ultra Slow"}
+local scanSpeedIndex = 2 -- Default to Normal
+scanSpeedDropdown.MouseButton1Click:Connect(function()
+	scanSpeedIndex = (scanSpeedIndex % #scanSpeedOptions) + 1
+	scanSpeed = scanSpeedOptions[scanSpeedIndex]
+	scanSpeedDropdown.Text = "⚡ " .. scanSpeed .. " ▼"
+	print("[ISpooferMotion] Scan speed set to: " .. scanSpeed)
+end)
+
+-- Progress Reports Checkbox Event
+progressCheckbox.MouseButton1Click:Connect(function()
+	showProgressReports = not showProgressReports
+	if showProgressReports then
+		progressCheckbox.Text = "✓ Show Progress Reports"
+		progressCheckbox.TextColor3 = Color3.fromRGB(16, 185, 129)
+	else
+		progressCheckbox.Text = "✗ Show Progress Reports"
+		progressCheckbox.TextColor3 = Color3.fromRGB(200, 200, 200)
+	end
+	print("[ISpooferMotion] Progress reports: " .. (showProgressReports and "Enabled" or "Disabled"))
+end)
+
+-- Timeout Checkbox Event
+timeoutCheckbox.MouseButton1Click:Connect(function()
+	disableScanTimeout = not disableScanTimeout
+	if disableScanTimeout then
+		timeoutCheckbox.Text = "✓ Disable Scan Timeout"
+		timeoutCheckbox.TextColor3 = Color3.fromRGB(16, 185, 129)
+		print("[ISpooferMotion] Scan timeout disabled - will scan until complete")
+	else
+		timeoutCheckbox.Text = "⏱ Disable Scan Timeout"
+		timeoutCheckbox.TextColor3 = Color3.fromRGB(200, 200, 200)
+		print("[ISpooferMotion] Scan timeout enabled")
+	end
+end)
+
 print("[ISpooferMotion] Plugin loaded (OPTIMIZED), ready on port " .. currentPort)
+
+-- Test initial connection
+task.delay(0.5, function()
+	if connectionEnabled then
+		testConnection()
+	end
+end)
 
 -- Cache to avoid duplicate GetProductInfo calls
 local infoCache = {}
 local infoFailCache = {}
 local INFO_FAIL_TTL_SEC = 30
+
+-- Get scan delay based on speed setting
+local function getScanDelay()
+	if scanSpeed == "Fast" then
+		return 0 -- No delay
+	elseif scanSpeed == "Normal" then
+		return 0.001 -- Minimal delay
+	elseif scanSpeed == "Slow" then
+		return 0.01 -- 10ms delay every iteration
+	elseif scanSpeed == "Ultra Slow" then
+		return 0.05 -- 50ms delay every iteration
+	end
+	return 0.001 -- Default to normal
+end
+
+-- Get check interval based on scan speed (how often to yield)
+local function getCheckInterval()
+	if scanSpeed == "Fast" then
+		return 1000 -- Check every 1000 objects
+	elseif scanSpeed == "Normal" then
+		return 500 -- Check every 500 objects
+	elseif scanSpeed == "Slow" then
+		return 100 -- Check every 100 objects
+	elseif scanSpeed == "Ultra Slow" then
+		return 50 -- Check every 50 objects
+	end
+	return 500 -- Default
+end
+
+-- Report progress percentage
+local function reportProgress(label, scanned, total, found)
+	if not showProgressReports then return end
+
+	local percent = math.floor((scanned / total) * 100)
+	-- Report every 10%
+	if percent % 10 == 0 and percent > 0 then
+		print(string.format("[ISpooferMotion] %s: %d%% complete (scanned %d/%d, found %d assets)", 
+			label, percent, scanned, total, found))
+	end
+end
 
 local function logScanProgress(label, totalDesc, found, skippedOwned, skippedPublic, infoMissing)
 	print(string.format(
@@ -194,7 +384,7 @@ local function logScanProgress(label, totalDesc, found, skippedOwned, skippedPub
 		skippedOwned,
 		skippedPublic,
 		infoMissing
-	))
+		))
 end
 
 -- Determine if an asset is owned by the place owner/group
@@ -313,24 +503,36 @@ local function scanSoundsIncremental()
 	local skippedPublic = 0
 	local infoMissing = 0
 	local scriptMatches = 0
+	local lastProgressPercent = 0
 
 	-- Clear processed IDs for fresh scan
 	processedSoundIds = {}
 
 	print("[ISpooferMotion] Starting sound scan (streaming mode)...")
+	print(string.format("[ISpooferMotion] Scan speed: %s | Progress reports: %s | Timeout: %s", 
+		scanSpeed, 
+		showProgressReports and "Enabled" or "Disabled",
+		disableScanTimeout and "Disabled" or "Enabled"))
 	print("[ISpooferMotion] Scanning: game descendants, excluding ServerStorage/Spoofer-Output")
+
+	-- Get all descendants first to calculate total
+	local allDescendants = game:GetDescendants()
+	local totalObjects = #allDescendants
+	print(string.format("[ISpooferMotion] Total objects to scan: %d", totalObjects))
 
 	-- Stream batches as they fill
 	local currentBatch = {}
 	local totalFound = 0
-	
+	local checkInterval = getCheckInterval()
+	local scanDelay = getScanDelay()
+
 	local function flushBatch()
 		if #currentBatch > 0 then
 			sendBatch(currentBatch, urls.sendSounds, "sounds")
 			currentBatch = {}
 		end
 	end
-	
+
 	local function addAsset(asset)
 		table.insert(currentBatch, asset)
 		totalFound = totalFound + 1
@@ -338,12 +540,29 @@ local function scanSoundsIncremental()
 			flushBatch()
 		end
 	end
-	
-	for _, obj in pairs(game:GetDescendants()) do
+
+	for _, obj in pairs(allDescendants) do
 		scanned = scanned + 1
+
+		-- Progress reporting
+		if showProgressReports then
+			local currentPercent = math.floor((scanned / totalObjects) * 100)
+			if currentPercent >= lastProgressPercent + 10 and currentPercent % 10 == 0 then
+				print(string.format("[ISpooferMotion] Sounds: %d%% complete (scanned %d/%d, found %d assets)", 
+					currentPercent, scanned, totalObjects, totalFound))
+				lastProgressPercent = currentPercent
+			end
+		end
+
+		-- Yield control based on scan speed
+		if scanned % checkInterval == 0 then
+			task.wait(scanDelay)
+		end
+
 		if scanned % 5000 == 0 then
 			logScanProgress("Sounds", scanned, totalFound, skippedOwned, skippedPublic, infoMissing)
 		end
+
 		if not obj:IsDescendantOf(spooferOutput or Instance.new("Folder")) then
 			if obj:IsA("Sound") then
 				local id = obj.SoundId:match("rbxassetid://(%d+)")
@@ -410,9 +629,9 @@ local function scanSoundsIncremental()
 
 	-- Send remaining batch
 	flushBatch()
-	
+
 	logScanProgress("Sounds", scanned, totalFound, skippedOwned, skippedPublic, infoMissing)
-	print(string.format("[ISpooferMotion] Found %d sounds (scriptMatches=%d) in %.2fs", totalFound, scriptMatches, os.clock() - startClock))
+	print(string.format("[ISpooferMotion] ✓ 100%% - Found %d sounds (scriptMatches=%d) in %.2fs", totalFound, scriptMatches, os.clock() - startClock))
 
 	signalComplete(urls.soundsComplete, "sound")
 end
@@ -428,24 +647,36 @@ local function scanAnimationsIncremental()
 	local skippedPublic = 0
 	local infoMissing = 0
 	local scriptMatches = 0
+	local lastProgressPercent = 0
 
 	-- Clear processed IDs for fresh scan
 	processedAnimationIds = {}
 
 	print("[ISpooferMotion] Starting animation scan (streaming mode)...")
+	print(string.format("[ISpooferMotion] Scan speed: %s | Progress reports: %s | Timeout: %s", 
+		scanSpeed, 
+		showProgressReports and "Enabled" or "Disabled",
+		disableScanTimeout and "Disabled" or "Enabled"))
 	print("[ISpooferMotion] Scanning: game descendants, excluding ServerStorage/Spoofer-Output")
+
+	-- Get all descendants first to calculate total
+	local allDescendants = game:GetDescendants()
+	local totalObjects = #allDescendants
+	print(string.format("[ISpooferMotion] Total objects to scan: %d", totalObjects))
 
 	-- Stream batches as they fill
 	local currentBatch = {}
 	local totalFound = 0
-	
+	local checkInterval = getCheckInterval()
+	local scanDelay = getScanDelay()
+
 	local function flushBatch()
 		if #currentBatch > 0 then
 			sendBatch(currentBatch, urls.sendAnimations, "animations")
 			currentBatch = {}
 		end
 	end
-	
+
 	local function addAsset(asset)
 		table.insert(currentBatch, asset)
 		totalFound = totalFound + 1
@@ -453,12 +684,29 @@ local function scanAnimationsIncremental()
 			flushBatch()
 		end
 	end
-	
-	for _, obj in pairs(game:GetDescendants()) do
+
+	for _, obj in pairs(allDescendants) do
 		scanned = scanned + 1
+
+		-- Progress reporting
+		if showProgressReports then
+			local currentPercent = math.floor((scanned / totalObjects) * 100)
+			if currentPercent >= lastProgressPercent + 10 and currentPercent % 10 == 0 then
+				print(string.format("[ISpooferMotion] Animations: %d%% complete (scanned %d/%d, found %d assets)", 
+					currentPercent, scanned, totalObjects, totalFound))
+				lastProgressPercent = currentPercent
+			end
+		end
+
+		-- Yield control based on scan speed
+		if scanned % checkInterval == 0 then
+			task.wait(scanDelay)
+		end
+
 		if scanned % 5000 == 0 then
 			logScanProgress("Animations", scanned, totalFound, skippedOwned, skippedPublic, infoMissing)
 		end
+
 		if not obj:IsDescendantOf(spooferOutput or Instance.new("Folder")) then
 			if obj:IsA("Animation") then
 				local id = obj.AnimationId:match("rbxassetid://(%d+)")
@@ -488,35 +736,35 @@ local function scanAnimationsIncremental()
 					if not processedAnimationIds[id] then
 						local info = getProductInfo(tonumber(id))
 						if info and info.AssetTypeId == 24 then
-						local skipReason = getSkipReason(info)
-						if skipReason then
-							if skipReason == "owned" then skippedOwned = skippedOwned + 1 else skippedPublic = skippedPublic + 1 end
-							print(string.format("[ISpooferMotion] Skipping script animation %s (%s)", info.Name or id, skipReason))
-						else
+							local skipReason = getSkipReason(info)
+							if skipReason then
+								if skipReason == "owned" then skippedOwned = skippedOwned + 1 else skippedPublic = skippedPublic + 1 end
+								print(string.format("[ISpooferMotion] Skipping script animation %s (%s)", info.Name or id, skipReason))
+							else
+								processedAnimationIds[id] = true
+								addAsset({
+									kind = "ScriptReference",
+									script = obj:GetFullName(),
+									assetId = id,
+									animationId = "rbxassetid://" .. id,
+									assetName = info.Name or "Asset " .. id,
+									creator = info.Creator and info.Creator.Name or "Unknown",
+								})
+							end
+						elseif not info then
 							processedAnimationIds[id] = true
+							infoMissing = infoMissing + 1
 							addAsset({
 								kind = "ScriptReference",
 								script = obj:GetFullName(),
 								assetId = id,
 								animationId = "rbxassetid://" .. id,
-								assetName = info.Name or "Asset " .. id,
-								creator = info.Creator and info.Creator.Name or "Unknown",
+								assetName = "Asset " .. id,
+								creator = "Unknown",
+								infoMissing = true,
+								typeHint = "Animation",
 							})
 						end
-					elseif not info then
-						processedAnimationIds[id] = true
-						infoMissing = infoMissing + 1
-						addAsset({
-							kind = "ScriptReference",
-							script = obj:GetFullName(),
-							assetId = id,
-							animationId = "rbxassetid://" .. id,
-							assetName = "Asset " .. id,
-							creator = "Unknown",
-							infoMissing = true,
-							typeHint = "Animation",
-						})
-					end
 					end
 				end
 			end
@@ -525,9 +773,9 @@ local function scanAnimationsIncremental()
 
 	-- Send remaining batch
 	flushBatch()
-	
+
 	logScanProgress("Animations", scanned, totalFound, skippedOwned, skippedPublic, infoMissing)
-	print(string.format("[ISpooferMotion] Found %d animations (scriptMatches=%d) in %.2fs", totalFound, scriptMatches, os.clock() - startClock))
+	print(string.format("[ISpooferMotion] ✓ 100%% - Found %d animations (scriptMatches=%d) in %.2fs", totalFound, scriptMatches, os.clock() - startClock))
 
 	signalComplete(urls.animationsComplete, "animation")
 end
@@ -545,26 +793,38 @@ local function scanImagesIncremental()
 	local skippedPublic = 0
 	local infoMissing = 0
 	local scriptMatches = 0
+	local lastProgressPercent = 0
 
 	-- Clear processed IDs for fresh scan
 	processedImageIds = {}
 
 	print("[ISpooferMotion] Starting image scan (streaming mode)...")
+	print(string.format("[ISpooferMotion] Scan speed: %s | Progress reports: %s | Timeout: %s", 
+		scanSpeed, 
+		showProgressReports and "Enabled" or "Disabled",
+		disableScanTimeout and "Disabled" or "Enabled"))
 	print("[ISpooferMotion] Scanning: game descendants, excluding Spoofer-Output, CoreGui, PluginGui")
+
+	-- Get all descendants first to calculate total
+	local allDescendants = game:GetDescendants()
+	local totalObjects = #allDescendants
+	print(string.format("[ISpooferMotion] Total objects to scan: %d", totalObjects))
 
 	-- Stream batches as they fill
 	local currentBatch = {}
 	local totalFound = 0
+	local checkInterval = getCheckInterval()
+	local scanDelay = getScanDelay()
 	-- Use persistent processedIds table
 	local processedIds = processedImageIds
-	
+
 	local function flushBatch()
 		if #currentBatch > 0 then
 			sendBatch(currentBatch, urls.sendImages, "images")
 			currentBatch = {}
 		end
 	end
-	
+
 	local function addAsset(asset)
 		table.insert(currentBatch, asset)
 		totalFound = totalFound + 1
@@ -598,11 +858,28 @@ local function scanImagesIncremental()
 		end
 	end
 
-	for _, obj in pairs(game:GetDescendants()) do
+	for _, obj in pairs(allDescendants) do
 		scanned = scanned + 1
+
+		-- Progress reporting
+		if showProgressReports then
+			local currentPercent = math.floor((scanned / totalObjects) * 100)
+			if currentPercent >= lastProgressPercent + 10 and currentPercent % 10 == 0 then
+				print(string.format("[ISpooferMotion] Images: %d%% complete (scanned %d/%d, found %d assets)", 
+					currentPercent, scanned, totalObjects, totalFound))
+				lastProgressPercent = currentPercent
+			end
+		end
+
+		-- Yield control based on scan speed
+		if scanned % checkInterval == 0 then
+			task.wait(scanDelay)
+		end
+
 		if scanned % 5000 == 0 then
 			logScanProgress("Images", scanned, totalFound, skippedOwned, skippedPublic, infoMissing)
 		end
+
 		local inOutput = spooferOutput and obj:IsDescendantOf(spooferOutput)
 		local inCoreGui = coreGui and obj:IsDescendantOf(coreGui)
 		local inPluginGui = pluginGuiService and obj:IsDescendantOf(pluginGuiService)
@@ -775,15 +1052,17 @@ local function scanImagesIncremental()
 
 	-- Send remaining batch
 	flushBatch()
-	
+
 	logScanProgress("Images", scanned, totalFound, skippedOwned, skippedPublic, infoMissing)
-	print(string.format("[ISpooferMotion] Found %d images (scriptMatches=%d) in %.2fs", totalFound, scriptMatches, os.clock() - startClock))
+	print(string.format("[ISpooferMotion] ✓ 100%% - Found %d images (scriptMatches=%d) in %.2fs", totalFound, scriptMatches, os.clock() - startClock))
 
 	signalComplete(urls.imagesComplete, "image")
 end
 
 local function pollLoop(pollUrl, onRequest, label)
 	local cancelFlag = false
+	local consecutiveFailures = 0
+	local lastSuccessTime = nil
 	local taskInfo = {
 		cancel = function()
 			cancelFlag = true
@@ -797,6 +1076,8 @@ local function pollLoop(pollUrl, onRequest, label)
 					return HttpService:GetAsync(pollUrl)
 				end)
 				if ok and response then
+					consecutiveFailures = 0
+					lastSuccessTime = os.clock()
 					local decodedOk, decoded = pcall(function()
 						return HttpService:JSONDecode(response)
 					end)
@@ -808,10 +1089,21 @@ local function pollLoop(pollUrl, onRequest, label)
 							print(string.format("[ISpooferMotion] Localhost requested %s scan", label))
 							onRequest()
 						end
+					else
+						warn(string.format("[ISpooferMotion] Failed to decode JSON from %s", pollUrl))
 					end
 				else
-					if not ok and connectionEnabled then 
-						warn(string.format("[ISpooferMotion] Failed to GET %s: %s", pollUrl, response)) 
+					consecutiveFailures = consecutiveFailures + 1
+					if connectionEnabled then
+						if consecutiveFailures == 1 then
+							warn(string.format("[ISpooferMotion] Failed to connect to %s: %s", pollUrl, tostring(response)))
+							warn("[ISpooferMotion] Common fixes:")
+							warn("  1. Make sure the ISpooferMotion app is running")
+							warn("  2. Enable HttpService: Home > Game Settings > Security > Allow HTTP Requests")
+							warn("  3. Check if port " .. currentPort .. " is correct")
+						elseif consecutiveFailures % 20 == 0 then
+							warn(string.format("[ISpooferMotion] Still failing after %d attempts (%s)", consecutiveFailures, label))
+						end
 					end
 				end
 			end
@@ -1019,7 +1311,7 @@ pollTasks["replacements"] = (function()
 	local pollInterval = 1
 	local maxPollInterval = 10
 	local consecutiveEmpty = 0
-	
+
 	task.spawn(function()
 		while not cancelFlag do
 			if connectionEnabled then

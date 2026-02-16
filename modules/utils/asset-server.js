@@ -18,10 +18,11 @@ class AssetServer {
     this.requestAnimations = false;
     this.requestImages = false;
     this.skipOwnedCheck = true; // skip assets already owned by place creator by default
-    this.lastSounds = { assets: [], scanning: false, complete: false };
-    this.lastAnimations = { assets: [], scanning: false, complete: false };
-    this.lastImages = { assets: [], scanning: false, complete: false };
+    this.lastSounds = { assets: [], scanning: false, complete: false, timestamp: null };
+    this.lastAnimations = { assets: [], scanning: false, complete: false, timestamp: null };
+    this.lastImages = { assets: [], scanning: false, complete: false, timestamp: null };
     this.storedMappings = [];
+    this.lastPluginPollTime = null; // Track when plugin last polled
   }
 
   setSkipOwnedCheck(enabled) {
@@ -40,9 +41,10 @@ class AssetServer {
       // ===== Sound Endpoints =====
       // Poll endpoint: Roblox script checks if sounds should be scanned
       this.app.get('/poll-sounds', (req, res) => {
+        this.lastPluginPollTime = Date.now();
         const result = { requestAssets: this.requestSounds, skipOwnedCheck: this.getSkipOwnedCheck() };
         if (this.requestSounds) {
-          this.lastSounds = { assets: [], scanning: true, complete: false };
+          this.lastSounds = { assets: [], scanning: true, complete: false, timestamp: Date.now() };
           console.log('[ASSET-SERVER] Sound scan initiated, cleared previous data');
         }
         this.requestSounds = false;
@@ -72,10 +74,12 @@ class AssetServer {
       // ===== Animation Endpoints =====
       // Poll endpoint: Roblox script checks if animations should be scanned
       this.app.get('/poll-animations', (req, res) => {
+        this.lastPluginPollTime = Date.now();
         const result = { requestAssets: this.requestAnimations, skipOwnedCheck: this.getSkipOwnedCheck() };
+        console.log('[ASSET-SERVER] Plugin polled /poll-animations - requestAssets:', result.requestAssets);
         if (this.requestAnimations) {
-          this.lastAnimations = { assets: [], scanning: true, complete: false };
-          console.log('[ASSET-SERVER] Animation scan initiated, cleared previous data');
+          this.lastAnimations = { assets: [], scanning: true, complete: false, timestamp: Date.now() };
+          console.log('[ASSET-SERVER] ✓ Animation scan initiated, cleared previous data');
         }
         this.requestAnimations = false;
         res.json(result);
@@ -85,7 +89,7 @@ class AssetServer {
       // Asset receive endpoint: Roblox POSTs animation data here
       this.app.post('/assets-animations', (req, res) => {
         const batch = req.body;
-        console.log('[ASSET-SERVER] Received animation batch:', batch.assetCount || 0, 'assets');
+        console.log('[ASSET-SERVER] Received animation batch:', batch.assetCount || 0, 'assets (scanning:', this.lastAnimations.scanning + ')');
         if (batch.assets && Array.isArray(batch.assets)) {
           this.lastAnimations.assets.push(...batch.assets);
           console.log('[ASSET-SERVER] Total animations accumulated:', this.lastAnimations.assets.length);
@@ -104,9 +108,10 @@ class AssetServer {
       // ===== Image Endpoints =====
       // Poll endpoint: Roblox script checks if images should be scanned
       this.app.get('/poll-images', (req, res) => {
+        this.lastPluginPollTime = Date.now();
         const result = { requestAssets: this.requestImages, skipOwnedCheck: this.getSkipOwnedCheck() };
         if (this.requestImages) {
-          this.lastImages = { assets: [], scanning: true, complete: false };
+          this.lastImages = { assets: [], scanning: true, complete: false, timestamp: Date.now() };
           console.log('[ASSET-SERVER] Image scan initiated, cleared previous data');
         }
         this.requestImages = false;
@@ -233,43 +238,116 @@ class AssetServer {
   }
 
   getLastSounds() {
-    const data = { ...this.lastSounds };
+    // Check if data is stale (older than 60 seconds and not scanning)
+    const now = Date.now();
+    if (this.lastSounds.timestamp && !this.lastSounds.scanning && !this.lastSounds.complete) {
+      const age = now - this.lastSounds.timestamp;
+      if (age > 60000) {
+        console.log('[ASSET-SERVER] Clearing stale sound data (age:', Math.round(age/1000), 'seconds)');
+        this.lastSounds = { assets: [], scanning: false, complete: false, timestamp: null };
+      }
+    }
+
+    // Deep copy to prevent race conditions
+    const data = {
+      assets: [...this.lastSounds.assets],
+      scanning: this.lastSounds.scanning,
+      complete: this.lastSounds.complete,
+      timestamp: this.lastSounds.timestamp
+    };
     if (this.lastSounds.complete) {
-      this.lastSounds = { assets: [], scanning: false, complete: false };
+      this.lastSounds = { assets: [], scanning: false, complete: false, timestamp: null };
       console.log('[ASSET-SERVER] Returning', data.assets.length, 'sounds and resetting');
     }
     return data;
   }
 
   getLastAnimations() {
-    const data = { ...this.lastAnimations };
+    // Check if data is stale (older than 60 seconds and not scanning)
+    const now = Date.now();
+    if (this.lastAnimations.timestamp && !this.lastAnimations.scanning && !this.lastAnimations.complete) {
+      const age = now - this.lastAnimations.timestamp;
+      if (age > 60000) {
+        console.log('[ASSET-SERVER] Clearing stale animation data (age:', Math.round(age/1000), 'seconds)');
+        this.lastAnimations = { assets: [], scanning: false, complete: false, timestamp: null };
+      }
+    }
+
+    // Deep copy to prevent race conditions
+    const data = {
+      assets: [...this.lastAnimations.assets],
+      scanning: this.lastAnimations.scanning,
+      complete: this.lastAnimations.complete,
+      timestamp: this.lastAnimations.timestamp
+    };
     if (this.lastAnimations.complete) {
-      this.lastAnimations = { assets: [], scanning: false, complete: false };
+      this.lastAnimations = { assets: [], scanning: false, complete: false, timestamp: null };
       console.log('[ASSET-SERVER] Returning', data.assets.length, 'animations and resetting');
     }
     return data;
   }
 
   requestSoundDump() {
+    // Clear any stale data immediately when a new scan is requested
+    if (!this.lastSounds.scanning) {
+      const hadOldData = this.lastSounds.assets.length > 0;
+      this.lastSounds = { assets: [], scanning: false, complete: false, timestamp: null };
+      if (hadOldData) {
+        console.log('[ASSET-SERVER] Cleared stale sound data before new scan request');
+      }
+    }
     this.requestSounds = true;
     logDev('Sound dump request triggered');
   }
 
   requestAnimationDump() {
+    // Clear any stale data immediately when a new scan is requested
+    if (!this.lastAnimations.scanning) {
+      const hadOldData = this.lastAnimations.assets.length > 0;
+      this.lastAnimations = { assets: [], scanning: false, complete: false, timestamp: null };
+      if (hadOldData) {
+        console.log('[ASSET-SERVER] Cleared stale animation data before new scan request');
+      }
+    }
     this.requestAnimations = true;
+    console.log('[ASSET-SERVER] ✓ Animation dump request triggered - waiting for plugin to poll');
     logDev('Animation dump request triggered');
   }
 
   getLastImages() {
-    const data = { ...this.lastImages };
+    // Check if data is stale (older than 60 seconds and not scanning)
+    const now = Date.now();
+    if (this.lastImages.timestamp && !this.lastImages.scanning && !this.lastImages.complete) {
+      const age = now - this.lastImages.timestamp;
+      if (age > 60000) {
+        console.log('[ASSET-SERVER] Clearing stale image data (age:', Math.round(age/1000), 'seconds)');
+        this.lastImages = { assets: [], scanning: false, complete: false, timestamp: null };
+      }
+    }
+
+    // Deep copy to prevent race conditions
+    const data = {
+      assets: [...this.lastImages.assets],
+      scanning: this.lastImages.scanning,
+      complete: this.lastImages.complete,
+      timestamp: this.lastImages.timestamp
+    };
     if (this.lastImages.complete) {
-      this.lastImages = { assets: [], scanning: false, complete: false };
+      this.lastImages = { assets: [], scanning: false, complete: false, timestamp: null };
       console.log('[ASSET-SERVER] Returning', data.assets.length, 'images and resetting');
     }
     return data;
   }
 
   requestImageDump() {
+    // Clear any stale data immediately when a new scan is requested
+    if (!this.lastImages.scanning) {
+      const hadOldData = this.lastImages.assets.length > 0;
+      this.lastImages = { assets: [], scanning: false, complete: false, timestamp: null };
+      if (hadOldData) {
+        console.log('[ASSET-SERVER] Cleared stale image data before new scan request');
+      }
+    }
     this.requestImages = true;
     logDev('Image dump request triggered');
   }
@@ -278,6 +356,25 @@ class AssetServer {
     const mappings = this.storedMappings;
     this.storedMappings = [];
     return mappings;
+  }
+
+  isPluginConnected() {
+    if (!this.lastPluginPollTime) return false;
+    const timeSinceLastPoll = Date.now() - this.lastPluginPollTime;
+    return timeSinceLastPoll < 2000; // Consider connected if polled within last 2 seconds
+  }
+
+  getPluginStatus() {
+    if (!this.lastPluginPollTime) {
+      return { connected: false, message: 'Plugin has never connected' };
+    }
+    const timeSinceLastPoll = Date.now() - this.lastPluginPollTime;
+    const connected = timeSinceLastPoll < 2000;
+    return {
+      connected,
+      message: connected ? 'Connected' : `Last seen ${Math.round(timeSinceLastPoll / 1000)}s ago`,
+      lastPollTime: this.lastPluginPollTime
+    };
   }
 }
 
