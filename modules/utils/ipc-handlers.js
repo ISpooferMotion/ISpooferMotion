@@ -1214,7 +1214,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
 
     if (Object.keys(downloadedAssets).length === 0) {
       // If batch failed, try fetching more placeIds (double limit) once before falling back
-      if (!isIndividualMode && !useForcedPlaceId) {
+      if (!isIndividualMode && !useForcedPlaceIds) {
         try {
           const expandedLimit = placeIdSearchLimit * 2;
           log('WARN', `Batch download failed for ${creatorKey} — fetching more placeIds (limit ${expandedLimit})...`);
@@ -1234,8 +1234,8 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
         } catch (err) {
           log('WARN', `Extra placeId fetch failed: ${err.message}`);
         }
-      } else if (!isIndividualMode && useForcedPlaceId) {
-        log('WARN', `Batch download failed for ${creatorKey} with forced placeId ${forcedPlaceId}; skipping extra fetch`);
+      } else if (!isIndividualMode && useForcedPlaceIds) {
+        log('WARN', `Batch download failed for ${creatorKey} with forced placeIds; skipping extra fetch`);
       }
 
       // Fallback to individual downloads if still empty
