@@ -3,6 +3,13 @@
 -- =====================================
 local HttpService = game:GetService("HttpService")
 local MarketplaceService = game:GetService("MarketplaceService")
+local RunService = game:GetService("RunService")
+
+-- Prevent plugin from running in play mode
+if not RunService:IsEdit() then
+	warn("[ISpooferMotion] Plugin disabled during play mode")
+	return
+end
 
 -- =====================================
 -- PLUGIN CONFIGURATION & UI
