@@ -62,7 +62,7 @@ class AssetServer {
 
   start() {
     return new Promise((resolve, reject) => {
-      this.app.use(express.json());
+      this.app.use(express.json({ limit: '50mb' }));
 
       // ===== Unified Poll Endpoint (new plugin-optimized.lua) =====
       // Single poll: triggers a full multi-type scan when any dump has been requested.

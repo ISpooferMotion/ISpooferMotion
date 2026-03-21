@@ -18,6 +18,7 @@ pollButton.ClickableWhenViewportHidden = true
 --[[Config]]--
 local PORT = 3100
 local BATCH_SIZE = 2000
+local SEND_CHUNK_SIZE = 500 -- Max assets per HTTP POST to avoid 413 errors
 local BASE_URL = "http://localhost:" .. PORT
 local TESTING = false -- Set to false to send via HTTP
 
@@ -60,6 +61,23 @@ local function sendToServer(endpoint, payload)
 	end)
 	if not ok then
 		warn("[AssetCollection] Failed to POST to " .. endpoint .. ": " .. tostring(err))
+	end
+end
+
+local function sendBatched(endpoint, assetsList, placeId, timestamp)
+	if #assetsList == 0 then return end
+	for i = 1, #assetsList, SEND_CHUNK_SIZE do
+		local chunk = {}
+		for j = i, math.min(i + SEND_CHUNK_SIZE - 1, #assetsList) do
+			table.insert(chunk, assetsList[j])
+		end
+		print(string.format("[AssetCollection] Sending batch %d-%d of %d to %s", i, i + #chunk - 1, #assetsList, endpoint))
+		sendToServer(endpoint, {
+			timestamp = timestamp,
+			placeId = placeId,
+			assetCount = #chunk,
+			assets = chunk,
+		})
 	end
 end
 
@@ -314,40 +332,11 @@ local function scan()
 	local placeId = game.PlaceId
 	local timestamp = os.time()
 
-	if #animationData > 0 then
-		sendToServer("/assets-animations", {
-			timestamp = timestamp, placeId = placeId,
-			assetCount = #animationData, assets = animationData
-		})
-	end
-
-	if #soundData > 0 then
-		sendToServer("/assets-sounds", {
-			timestamp = timestamp, placeId = placeId,
-			assetCount = #soundData, assets = soundData
-		})
-	end
-
-	if #imageData > 0 then
-		sendToServer("/assets-images", {
-			timestamp = timestamp, placeId = placeId,
-			assetCount = #imageData, assets = imageData
-		})
-	end
-
-	if #meshData > 0 then
-		sendToServer("/assets-meshes", {
-			timestamp = timestamp, placeId = placeId,
-			assetCount = #meshData, assets = meshData
-		})
-	end
-
-	if #scriptRefData > 0 then
-		sendToServer("/assets-script-refs", {
-			timestamp = timestamp, placeId = placeId,
-			assetCount = #scriptRefData, assets = scriptRefData
-		})
-	end
+	sendBatched("/assets-animations", animationData, placeId, timestamp)
+	sendBatched("/assets-sounds", soundData, placeId, timestamp)
+	sendBatched("/assets-images", imageData, placeId, timestamp)
+	sendBatched("/assets-meshes", meshData, placeId, timestamp)
+	sendBatched("/assets-script-refs", scriptRefData, placeId, timestamp)
 
 	print("[AssetCollection] All data sent.")
 end
