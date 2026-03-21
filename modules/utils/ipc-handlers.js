@@ -490,6 +490,52 @@ function registerIpcHandlers(getMainWindowFn, sendTransferUpdate, sendSpooferRes
     }
   });
 
+  // Fetch meshes from the local asset server
+  ipcMain.handle('fetch-server-meshes', async (event) => {
+    try {
+      if (!assetServer) return { ok: false, error: 'Asset server not initialized' };
+      const data = assetServer.getLastMeshes();
+      return { ok: true, result: data };
+    } catch (err) {
+      if (DEVELOPER_MODE) console.warn('MAIN_PROCESS (Dev): fetch-server-meshes error:', err);
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  // Request mesh dump from Roblox via the asset server
+  ipcMain.handle('request-mesh-dump', async (event) => {
+    try {
+      if (assetServer) assetServer.requestMeshDump();
+      return { ok: true };
+    } catch (err) {
+      if (DEVELOPER_MODE) console.warn('MAIN_PROCESS (Dev): request-mesh-dump error:', err);
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  // Fetch script-refs from the local asset server
+  ipcMain.handle('fetch-server-script-refs', async (event) => {
+    try {
+      if (!assetServer) return { ok: false, error: 'Asset server not initialized' };
+      const data = assetServer.getLastScriptRefs();
+      return { ok: true, result: data };
+    } catch (err) {
+      if (DEVELOPER_MODE) console.warn('MAIN_PROCESS (Dev): fetch-server-script-refs error:', err);
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  // Request script-ref dump from Roblox via the asset server
+  ipcMain.handle('request-script-ref-dump', async (event) => {
+    try {
+      if (assetServer) assetServer.requestScriptRefDump();
+      return { ok: true };
+    } catch (err) {
+      if (DEVELOPER_MODE) console.warn('MAIN_PROCESS (Dev): request-script-ref-dump error:', err);
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
   // Check if Roblox plugin is connected
   ipcMain.handle('check-plugin-status', async (event) => {
     try {

@@ -569,186 +569,137 @@ class UIManager {
     let hasAudio = false;
     let hasAnimation = false;
     let hasImages = false;
+    let hasMeshes = false;
+    let hasScriptRefs = false;
 
     // Check spoof selections
     const audioEnabled = document.getElementById('spoof-audio')?.checked;
     const animationEnabled = document.getElementById('spoof-animation')?.checked;
     const imagesEnabled = document.getElementById('spoof-images')?.checked;
+    const meshesEnabled = document.getElementById('spoof-meshes')?.checked;
+    const scriptRefsEnabled = document.getElementById('spoof-script-refs')?.checked;
 
     this._setAssetProgress('Requesting...', true);
     this.addDebugLine('Loading assets from Roblox dump...', 'info');
 
+    // Helper: poll an IPC endpoint until it reports complete, or until timeout.
+    const pollUntilComplete = async (label, requestFn, fetchFn, onComplete, progressMsg) => {
+      this._setAssetProgress(progressMsg, true);
+      this.addDebugLine(`Requesting ${label} from Roblox...`, 'info');
+      await requestFn();
+      let attempts = 0;
+      const scanTimeout = this._getScanTimeout();
+      const maxAttempts = scanTimeout * 10;
+      const startTime = Date.now();
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const resp = await fetchFn();
+        if (resp?.ok && resp.result?.complete) {
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+          const items = resp.result.assets;
+          if (Array.isArray(items) && items.length > 0) {
+            onComplete(items);
+            this.addDebugLine(`✓ Loaded ${items.length} ${label} in ${elapsed}s`, 'success');
+          } else {
+            this.addDebugLine(`Scan complete but no ${label} found`, 'warn');
+          }
+          return;
+        }
+        if (resp?.ok && resp.result?.scanning && attempts % 10 === 0) {
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+          const count = resp.result.assets?.length ?? 0;
+          this._setAssetProgress(`${progressMsg} ${count} found`, true);
+          this.addDebugLine(`Scanning ${label}... (${count} found, ${elapsed}s elapsed)`, 'info');
+        }
+        attempts++;
+      }
+      // Timeout — load whatever arrived
+      this.addDebugLine(`${label} scan timed out after ${scanTimeout}s`, 'warn');
+      const finalCheck = await fetchFn();
+      if (finalCheck?.ok && finalCheck.result?.assets?.length > 0) {
+        this.addDebugLine(`⚠ Found ${finalCheck.result.assets.length} ${label} after timeout, loading anyway`, 'warn');
+        onComplete(finalCheck.result.assets);
+      }
+    };
+
     try {
-      // Fetch sounds if Audio is enabled
       if (audioEnabled && window.electronAPI?.requestSoundDump && window.electronAPI?.fetchServerSounds) {
-        this.addDebugLine('Requesting sounds from Roblox...', 'info');
-        this._setAssetProgress('Scanning sounds...', true);
-        await window.electronAPI.requestSoundDump();
-        
-        // Poll until data arrives or timeout (check every 100ms for faster response)
-        let attempts = 0;
-        const scanTimeout = this._getScanTimeout();
-        const maxAttempts = scanTimeout * 10; // Convert seconds to 100ms intervals
-        const startTime = Date.now();
-        while (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          const soundResp = await window.electronAPI.fetchServerSounds();
-          
-          if (soundResp?.ok && soundResp.result?.complete) {
-            const sounds = soundResp.result.assets;
-            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-            if (Array.isArray(sounds) && sounds.length > 0) {
-              assets.Sounds = sounds;
-              hasAudio = true;
-              this.addDebugLine(`✓ Loaded ${sounds.length} sounds in ${elapsed}s`, 'success');
-            } else {
-              this.addDebugLine('Scan complete but no sounds found', 'warn');
-            }
-            break;
-          }
-          
-          if (soundResp?.ok && soundResp.result?.scanning && attempts % 10 === 0) {
-            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-            const eta = attempts > 0 ? ((elapsed / attempts) * (maxAttempts - attempts) / 10).toFixed(0) : '?';
-            this._setAssetProgress(`Scanning sounds... ${soundResp.result.assets.length} found`, true);
-            this.addDebugLine(`Scanning sounds... (${soundResp.result.assets.length} found, ${elapsed}s elapsed, ~${eta}s remaining)`, 'info');
-          }
-          attempts++;
-        }
-        
-        if (attempts >= maxAttempts) {
-          this.addDebugLine(`Sound scan timed out after ${scanTimeout}s`, 'warn');
-          // Check if any data was received before timeout
-          const finalCheck = await window.electronAPI.fetchServerSounds();
-          if (finalCheck?.ok && finalCheck.result?.assets?.length > 0) {
-            this.addDebugLine(`⚠ Found ${finalCheck.result.assets.length} sounds after timeout, loading anyway`, 'warn');
-            assets.Sounds = finalCheck.result.assets;
-            hasAudio = true;
-          }
-        }
+        await pollUntilComplete('sounds',
+          () => window.electronAPI.requestSoundDump(),
+          () => window.electronAPI.fetchServerSounds(),
+          (items) => { assets.Sounds = items; hasAudio = true; },
+          'Scanning sounds...'
+        );
       }
 
-      // Fetch animations if Animation is enabled
       if (animationEnabled && window.electronAPI?.requestAnimationDump && window.electronAPI?.fetchServerAnimations) {
-        this.addDebugLine('Requesting animations from Roblox...', 'info');
         this.addDebugLine('⚠ Make sure the ISpooferMotion plugin is installed and connected in Roblox Studio', 'info');
-        this._setAssetProgress('Scanning animations...', true);
-        await window.electronAPI.requestAnimationDump();
-        
-        // Poll until data arrives or timeout (check every 100ms for faster response)
-        let attempts = 0;
-        const scanTimeout = this._getScanTimeout();
-        const maxAttempts = scanTimeout * 10; // Convert seconds to 100ms intervals
-        const startTime = Date.now();
-        while (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          const animResp = await window.electronAPI.fetchServerAnimations();
-          
-          if (animResp?.ok && animResp.result?.complete) {
-            const animations = animResp.result.assets;
-            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-            console.log('[UI] Animation scan complete:', animations?.length || 0, 'animations received');
-            if (Array.isArray(animations) && animations.length > 0) {
-              assets.Animations = animations;
-              hasAnimation = true;
-              this.addDebugLine(`✓ Loaded ${animations.length} animations in ${elapsed}s`, 'success');
-            } else {
-              this.addDebugLine('Scan complete but no animations found', 'warn');
-            }
-            break;
-          }
-          
-          if (animResp?.ok && animResp.result?.scanning && attempts % 10 === 0) {
-            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-            const eta = attempts > 0 ? ((elapsed / attempts) * (maxAttempts - attempts) / 10).toFixed(0) : '?';
-            this._setAssetProgress(`Scanning animations... ${animResp.result.assets.length} found`, true);
-            this.addDebugLine(`Scanning animations... (${animResp.result.assets.length} found, ${elapsed}s elapsed, ~${eta}s remaining)`, 'info');
-          }
-          attempts++;
-        }
-        
-        if (attempts >= maxAttempts) {
-          this.addDebugLine(`Animation scan timed out after ${scanTimeout}s`, 'warn');
-          // Check if any data was received before timeout
-          const finalCheck = await window.electronAPI.fetchServerAnimations();
-          if (finalCheck?.ok && finalCheck.result?.assets?.length > 0) {
-            this.addDebugLine(`⚠ Found ${finalCheck.result.assets.length} animations after timeout, loading anyway`, 'warn');
-            assets.Animations = finalCheck.result.assets;
+        await pollUntilComplete('animations',
+          () => window.electronAPI.requestAnimationDump(),
+          () => window.electronAPI.fetchServerAnimations(),
+          (items) => {
+            assets.Animations = items;
             hasAnimation = true;
-          }
-        }
+            this.addDebugLine(`ℹ The hierarchy shows ${items.length} unique animation asset IDs. The plugin's "Found X Animations" count includes all instances (many NPCs may share the same animation ID).`, 'info');
+          },
+          'Scanning animations...'
+        );
       }
 
-      // Fetch images if Images is enabled
       if (imagesEnabled && window.electronAPI?.requestImageDump && window.electronAPI?.fetchServerImages) {
-        this.addDebugLine('Requesting images from Roblox...', 'info');
-        this._setAssetProgress('Scanning images...', true);
-        await window.electronAPI.requestImageDump();
-        
-        // Poll until data arrives or timeout (check every 100ms for faster response)
-        let attempts = 0;
-        const scanTimeout = this._getScanTimeout();
-        const maxAttempts = scanTimeout * 10; // Convert seconds to 100ms intervals
-        const startTime = Date.now();
-        while (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          const imageResp = await window.electronAPI.fetchServerImages();
-          
-          if (imageResp?.ok && imageResp.result?.complete) {
-            const images = imageResp.result.assets;
-            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-            if (Array.isArray(images) && images.length > 0) {
-              assets.Images = images;
-              hasImages = true;
-              this.addDebugLine(`✓ Loaded ${images.length} images in ${elapsed}s`, 'success');
-            } else {
-              this.addDebugLine('Scan complete but no images found', 'warn');
-            }
-            break;
-          }
-          
-          if (imageResp?.ok && imageResp.result?.scanning && attempts % 10 === 0) {
-            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-            const eta = attempts > 0 ? ((elapsed / attempts) * (maxAttempts - attempts) / 10).toFixed(0) : '?';
-            this._setAssetProgress(`Scanning images... ${imageResp.result.assets.length} found`, true);
-            this.addDebugLine(`Scanning images... (${imageResp.result.assets.length} found, ${elapsed}s elapsed, ~${eta}s remaining)`, 'info');
-          }
-          attempts++;
-        }
-        
-        if (attempts >= maxAttempts) {
-          this.addDebugLine(`Image scan timed out after ${scanTimeout}s`, 'warn');
-          // Check if any data was received before timeout
-          const finalCheck = await window.electronAPI.fetchServerImages();
-          if (finalCheck?.ok && finalCheck.result?.assets?.length > 0) {
-            this.addDebugLine(`⚠ Found ${finalCheck.result.assets.length} images after timeout, loading anyway`, 'warn');
-            assets.Images = finalCheck.result.assets;
-            hasImages = true;
-          }
-        }
+        await pollUntilComplete('images',
+          () => window.electronAPI.requestImageDump(),
+          () => window.electronAPI.fetchServerImages(),
+          (items) => { assets.Images = items; hasImages = true; },
+          'Scanning images...'
+        );
+      }
+
+      if (meshesEnabled && window.electronAPI?.requestMeshDump && window.electronAPI?.fetchServerMeshes) {
+        await pollUntilComplete('meshes',
+          () => window.electronAPI.requestMeshDump(),
+          () => window.electronAPI.fetchServerMeshes(),
+          (items) => { assets.Meshes = items; hasMeshes = true; },
+          'Scanning meshes...'
+        );
+      }
+
+      if (scriptRefsEnabled && window.electronAPI?.requestScriptRefDump && window.electronAPI?.fetchServerScriptRefs) {
+        await pollUntilComplete('script-refs',
+          () => window.electronAPI.requestScriptRefDump(),
+          () => window.electronAPI.fetchServerScriptRefs(),
+          (items) => { assets.ScriptRefs = items; hasScriptRefs = true; },
+          'Scanning script-refs...'
+        );
       }
 
       // Check if assets were scanned but not loaded due to unchecked checkboxes
-      if (!hasAudio && !hasAnimation && !hasImages) {
-        // Try to fetch any available data to see if checkboxes are the issue
+      if (!hasAudio && !hasAnimation && !hasImages && !hasMeshes && !hasScriptRefs) {
         let diagInfo = [];
         if (!audioEnabled && window.electronAPI?.fetchServerSounds) {
           const soundCheck = await window.electronAPI.fetchServerSounds();
-          if (soundCheck?.ok && soundCheck.result?.assets?.length > 0) {
+          if (soundCheck?.ok && soundCheck.result?.assets?.length > 0)
             diagInfo.push(`${soundCheck.result.assets.length} sounds available (checkbox unchecked)`);
-          }
         }
         if (!animationEnabled && window.electronAPI?.fetchServerAnimations) {
           const animCheck = await window.electronAPI.fetchServerAnimations();
-          if (animCheck?.ok && animCheck.result?.assets?.length > 0) {
+          if (animCheck?.ok && animCheck.result?.assets?.length > 0)
             diagInfo.push(`${animCheck.result.assets.length} animations available (checkbox unchecked)`);
-          }
         }
         if (!imagesEnabled && window.electronAPI?.fetchServerImages) {
           const imgCheck = await window.electronAPI.fetchServerImages();
-          if (imgCheck?.ok && imgCheck.result?.assets?.length > 0) {
+          if (imgCheck?.ok && imgCheck.result?.assets?.length > 0)
             diagInfo.push(`${imgCheck.result.assets.length} images available (checkbox unchecked)`);
-          }
+        }
+        if (!meshesEnabled && window.electronAPI?.fetchServerMeshes) {
+          const meshCheck = await window.electronAPI.fetchServerMeshes();
+          if (meshCheck?.ok && meshCheck.result?.assets?.length > 0)
+            diagInfo.push(`${meshCheck.result.assets.length} meshes available (checkbox unchecked)`);
+        }
+        if (!scriptRefsEnabled && window.electronAPI?.fetchServerScriptRefs) {
+          const srCheck = await window.electronAPI.fetchServerScriptRefs();
+          if (srCheck?.ok && srCheck.result?.assets?.length > 0)
+            diagInfo.push(`${srCheck.result.assets.length} script-refs available (checkbox unchecked)`);
         }
         
         this._setAssetProgress('No data', false);
@@ -756,7 +707,7 @@ class UIManager {
           this.addDebugLine('⚠ Assets found but not loaded: ' + diagInfo.join(', '), 'warn');
           this.addDebugLine('Enable the corresponding checkboxes in Explorer Settings and click Refresh', 'info');
         } else {
-          this.addDebugLine('No sounds, animations, or images selected or received', 'warn');
+          this.addDebugLine('No asset types selected or received', 'warn');
         }
         this.isLoadingAssets = false;
         if (this._refreshBtn) this._refreshBtn.disabled = false;
@@ -820,7 +771,7 @@ class UIManager {
       Humanoid: 'Humanoid', Animator: 'Animator', Camera: 'Camera',
       // Folders
       Sounds: 'Sound', Animations: 'Animation', Assets: 'Folder', Models: 'Model',
-      Imported: 'Folder',
+      Imported: 'Folder', Meshes: 'MeshPart', ScriptRefs: 'Script',
       // Values
       StringValue: 'Value', IntValue: 'Value', BoolValue: 'BoolValue', 
       ObjectValue: 'Value', NumberValue: 'Value',
@@ -861,7 +812,7 @@ class UIManager {
           const assetsRoot = findOrCreate(data, 'Assets', 'Folder');
           const soundFolder = findOrCreate(assetsRoot.children, 'Sounds', 'Sound');
           soundFolder.children.push({
-            name: sound.assetName || `Sound ${sound.assetId}`,
+            name: sound.name || sound.assetName || `Sound ${sound.assetId}`,
             assetId: sound.assetId,
             assetType: 'Sound',
             kind: sound.kind,
@@ -887,7 +838,7 @@ class UIManager {
 
         const targetChildren = scriptNode.children || (scriptNode.children = []);
         targetChildren.push({
-          name: sound.assetName || `Sound ${sound.assetId}`,
+          name: sound.name || sound.assetName || `Sound ${sound.assetId}`,
           assetId: sound.assetId,
           assetType: 'Sound',
           kind: sound.kind,
@@ -907,7 +858,7 @@ class UIManager {
           const assetsRoot = findOrCreate(data, 'Assets', 'Folder');
           const animFolder = findOrCreate(assetsRoot.children, 'Animations', 'Animation');
           animFolder.children.push({
-            name: anim.assetName || `Animation ${anim.assetId}`,
+            name: anim.name || anim.assetName || `Animation ${anim.assetId}`,
             assetId: anim.assetId,
             assetType: 'Animation',
             kind: anim.kind,
@@ -933,7 +884,7 @@ class UIManager {
 
         const targetChildren = scriptNode.children || (scriptNode.children = []);
         targetChildren.push({
-          name: anim.assetName || `Animation ${anim.assetId}`,
+          name: anim.name || anim.assetName || `Animation ${anim.assetId}`,
           assetId: anim.assetId,
           assetType: 'Animation',
           kind: anim.kind,
@@ -953,7 +904,7 @@ class UIManager {
           const assetsRoot = findOrCreate(data, 'Assets', 'Folder');
           const imgFolder = findOrCreate(assetsRoot.children, 'Images', 'Decal');
           imgFolder.children.push({
-            name: img.assetName || `Image ${img.assetId}`,
+            name: img.name || img.assetName || `Image ${img.assetId}`,
             assetId: img.assetId,
             assetType: 'Image',
             kind: img.kind,
@@ -979,13 +930,82 @@ class UIManager {
 
         const targetChildren = scriptNode.children || (scriptNode.children = []);
         targetChildren.push({
-          name: img.assetName || `Image ${img.assetId}`,
+          name: img.name || img.assetName || `Image ${img.assetId}`,
           assetId: img.assetId,
           assetType: 'Image',
           kind: img.kind,
           creator: img.creator,
           fullInfo: img,
           iconName: 'Decal'
+        });
+      });
+    }
+
+    // Meshes placed by fullName path (MeshPart and SpecialMesh)
+    if (Array.isArray(assets.Meshes)) {
+      assets.Meshes.forEach(mesh => {
+        const fullPath = (mesh.fullName || '').split('.').filter(Boolean);
+        if (fullPath.length === 0) {
+          const assetsRoot = findOrCreate(data, 'Assets', 'Folder');
+          const meshFolder = findOrCreate(assetsRoot.children, 'Meshes', 'MeshPart');
+          meshFolder.children.push({
+            name: mesh.name || `Mesh ${mesh.assetId}`,
+            assetId: mesh.assetId,
+            assetType: 'Mesh',
+            kind: mesh.kind,
+            fullInfo: mesh,
+            iconName: 'MeshPart'
+          });
+          return;
+        }
+        const parentPath = fullPath.slice(0, -1);
+        const leafName = fullPath[fullPath.length - 1];
+        const parentNode = ensurePath(parentPath);
+        if (!parentNode.children) parentNode.children = [];
+        parentNode.children.push({
+          name: leafName,
+          assetId: mesh.assetId,
+          assetType: 'Mesh',
+          kind: mesh.kind,
+          fullInfo: mesh,
+          iconName: mesh.kind === 'SpecialMesh' ? 'Model' : 'MeshPart'
+        });
+      });
+    }
+
+    // Script-refs: asset IDs found inside script source code, nested under their script
+    if (Array.isArray(assets.ScriptRefs)) {
+      assets.ScriptRefs.forEach(ref => {
+        const fullPath = (ref.script || '').split('.').filter(Boolean);
+        if (fullPath.length === 0) {
+          const assetsRoot = findOrCreate(data, 'Assets', 'Folder');
+          const refFolder = findOrCreate(assetsRoot.children, 'ScriptRefs', 'Script');
+          refFolder.children.push({
+            name: ref.rawUrl || `rbxassetid://${ref.assetId}`,
+            assetId: ref.assetId,
+            assetType: ref.scriptType || 'ScriptRef',
+            kind: 'ScriptReference',
+            fullInfo: ref,
+            iconName: 'Script'
+          });
+          return;
+        }
+        const parentPath = fullPath.slice(0, -1);
+        const leafName = fullPath[fullPath.length - 1];
+        const parentNode = ensurePath(parentPath);
+        if (!parentNode.children) parentNode.children = [];
+        // Group all refs under the script node
+        const scriptIconName = ref.scriptType === 'LocalScript' ? 'LocalScript'
+          : ref.scriptType === 'ModuleScript' ? 'ModuleScript' : 'Script';
+        const scriptNode = findOrCreate(parentNode.children, leafName, scriptIconName);
+        if (!scriptNode.children) scriptNode.children = [];
+        scriptNode.children.push({
+          name: ref.rawUrl || `rbxassetid://${ref.assetId}`,
+          assetId: ref.assetId,
+          assetType: ref.scriptType || 'ScriptRef',
+          kind: 'ScriptReference',
+          fullInfo: ref,
+          iconName: 'Script'
         });
       });
     }

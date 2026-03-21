@@ -39,6 +39,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Asset server: request Roblox to dump images
   requestImageDump: () => ipcRenderer.invoke('request-image-dump'),
 
+  // Asset server: fetch dumped meshes
+  fetchServerMeshes: () => ipcRenderer.invoke('fetch-server-meshes'),
+
+  // Asset server: request Roblox to dump meshes
+  requestMeshDump: () => ipcRenderer.invoke('request-mesh-dump'),
+
+  // Asset server: fetch script-references found in scripts
+  fetchServerScriptRefs: () => ipcRenderer.invoke('fetch-server-script-refs'),
+
+  // Asset server: request Roblox to scan script-references
+  requestScriptRefDump: () => ipcRenderer.invoke('request-script-ref-dump'),
+
   // Check if Roblox plugin is connected
   checkPluginStatus: () => ipcRenderer.invoke('check-plugin-status'),
 

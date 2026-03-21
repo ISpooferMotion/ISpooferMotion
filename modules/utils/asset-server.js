@@ -17,12 +17,38 @@ class AssetServer {
     this.requestSounds = false;
     this.requestAnimations = false;
     this.requestImages = false;
+    this.requestMeshes = false;
+    this.requestScriptRefs = false;
     this.skipOwnedCheck = true; // skip assets already owned by place creator by default
     this.lastSounds = { assets: [], scanning: false, complete: false, timestamp: null };
     this.lastAnimations = { assets: [], scanning: false, complete: false, timestamp: null };
     this.lastImages = { assets: [], scanning: false, complete: false, timestamp: null };
+    this.lastMeshes = { assets: [], scanning: false, complete: false, timestamp: null };
+    this.lastScriptRefs = { assets: [], scanning: false, complete: false, timestamp: null };
     this.storedMappings = [];
     this.lastPluginPollTime = null; // Track when plugin last polled
+    this._completionTimer = null; // Debounce timer for completion detection (new plugin)
+  }
+
+  // Called after every /assets-* POST so the new plugin (which sends no *-complete signals)
+  // still gets all in-flight stores marked complete after 2 seconds of silence.
+  _scheduleCompletion() {
+    if (this._completionTimer) clearTimeout(this._completionTimer);
+    this._completionTimer = setTimeout(() => {
+      this._completionTimer = null;
+      const complete = (store) => {
+        if (store.scanning) {
+          store.scanning = false;
+          store.complete = true;
+          console.log('[ASSET-SERVER] Auto-completing scan for store with', store.assets.length, 'assets');
+        }
+      };
+      complete(this.lastSounds);
+      complete(this.lastAnimations);
+      complete(this.lastImages);
+      complete(this.lastMeshes);
+      complete(this.lastScriptRefs);
+    }, 2000);
   }
 
   setSkipOwnedCheck(enabled) {
@@ -37,6 +63,29 @@ class AssetServer {
   start() {
     return new Promise((resolve, reject) => {
       this.app.use(express.json());
+
+      // ===== Unified Poll Endpoint (new plugin-optimized.lua) =====
+      // Single poll: triggers a full multi-type scan when any dump has been requested.
+      this.app.get('/poll', (req, res) => {
+        this.lastPluginPollTime = Date.now();
+        const requestAssets = this.requestSounds || this.requestAnimations || this.requestImages
+          || this.requestMeshes || this.requestScriptRefs;
+        if (requestAssets) {
+          const now = Date.now();
+          this.lastSounds     = { assets: [], scanning: true, complete: false, timestamp: now };
+          this.lastAnimations = { assets: [], scanning: true, complete: false, timestamp: now };
+          this.lastImages     = { assets: [], scanning: true, complete: false, timestamp: now };
+          this.lastMeshes     = { assets: [], scanning: true, complete: false, timestamp: now };
+          this.lastScriptRefs = { assets: [], scanning: true, complete: false, timestamp: now };
+          this.requestSounds = false;
+          this.requestAnimations = false;
+          this.requestImages = false;
+          this.requestMeshes = false;
+          this.requestScriptRefs = false;
+          console.log('[ASSET-SERVER] Unified /poll hit — full scan initiated');
+        }
+        res.json({ requestAssets });
+      });
 
       // ===== Sound Endpoints =====
       // Poll endpoint: Roblox script checks if sounds should be scanned
@@ -60,6 +109,7 @@ class AssetServer {
           this.lastSounds.assets.push(...batch.assets);
           console.log('[ASSET-SERVER] Total sounds accumulated:', this.lastSounds.assets.length);
         }
+        this._scheduleCompletion();
         res.send('ok');
       });
 
@@ -94,6 +144,7 @@ class AssetServer {
           this.lastAnimations.assets.push(...batch.assets);
           console.log('[ASSET-SERVER] Total animations accumulated:', this.lastAnimations.assets.length);
         }
+        this._scheduleCompletion();
         res.send('ok');
       });
 
@@ -127,6 +178,7 @@ class AssetServer {
           this.lastImages.assets.push(...batch.assets);
           console.log('[ASSET-SERVER] Total images accumulated:', this.lastImages.assets.length);
         }
+        this._scheduleCompletion();
         res.send('ok');
       });
 
@@ -135,6 +187,30 @@ class AssetServer {
         this.lastImages.scanning = false;
         this.lastImages.complete = true;
         console.log('[ASSET-SERVER] Image scan complete, total:', this.lastImages.assets.length);
+        res.send('ok');
+      });
+
+      // ===== Mesh Endpoints (new plugin) =====
+      this.app.post('/assets-meshes', (req, res) => {
+        const batch = req.body;
+        console.log('[ASSET-SERVER] Received mesh batch:', batch.assetCount || 0, 'assets');
+        if (batch.assets && Array.isArray(batch.assets)) {
+          this.lastMeshes.assets.push(...batch.assets);
+          console.log('[ASSET-SERVER] Total meshes accumulated:', this.lastMeshes.assets.length);
+        }
+        this._scheduleCompletion();
+        res.send('ok');
+      });
+
+      // ===== Script Reference Endpoints (new plugin) =====
+      this.app.post('/assets-script-refs', (req, res) => {
+        const batch = req.body;
+        console.log('[ASSET-SERVER] Received script-ref batch:', batch.assetCount || 0, 'assets');
+        if (batch.assets && Array.isArray(batch.assets)) {
+          this.lastScriptRefs.assets.push(...batch.assets);
+          console.log('[ASSET-SERVER] Total script-refs accumulated:', this.lastScriptRefs.assets.length);
+        }
+        this._scheduleCompletion();
         res.send('ok');
       });
 
@@ -192,6 +268,16 @@ class AssetServer {
         logDev('Sent last images to backend');
       });
 
+      this.app.get('/last-meshes', (req, res) => {
+        res.json(this.lastMeshes || {});
+        logDev('Sent last meshes to backend');
+      });
+
+      this.app.get('/last-script-refs', (req, res) => {
+        res.json(this.lastScriptRefs || {});
+        logDev('Sent last script-refs to backend');
+      });
+
       // ===== Request Endpoints =====
       // Trigger sound dump request
       this.app.post('/request-sounds', (req, res) => {
@@ -212,6 +298,20 @@ class AssetServer {
         this.requestImages = true;
         logDev('Image dump requested');
         res.send('image request queued');
+      });
+
+      // Trigger mesh dump request
+      this.app.post('/request-meshes', (req, res) => {
+        this.requestMeshes = true;
+        logDev('Mesh dump requested');
+        res.send('mesh request queued');
+      });
+
+      // Trigger script-ref dump request
+      this.app.post('/request-script-refs', (req, res) => {
+        this.requestScriptRefs = true;
+        logDev('Script-ref dump requested');
+        res.send('script-ref request queued');
       });
 
       this.server = this.app.listen(this.port, () => {
@@ -350,6 +450,62 @@ class AssetServer {
     }
     this.requestImages = true;
     logDev('Image dump request triggered');
+  }
+
+  requestMeshDump() {
+    if (!this.lastMeshes.scanning) {
+      this.lastMeshes = { assets: [], scanning: false, complete: false, timestamp: null };
+    }
+    this.requestMeshes = true;
+    logDev('Mesh dump request triggered');
+  }
+
+  getLastMeshes() {
+    const now = Date.now();
+    if (this.lastMeshes.timestamp && !this.lastMeshes.scanning && !this.lastMeshes.complete) {
+      if (now - this.lastMeshes.timestamp > 60000) {
+        this.lastMeshes = { assets: [], scanning: false, complete: false, timestamp: null };
+      }
+    }
+    const data = {
+      assets: [...this.lastMeshes.assets],
+      scanning: this.lastMeshes.scanning,
+      complete: this.lastMeshes.complete,
+      timestamp: this.lastMeshes.timestamp
+    };
+    if (this.lastMeshes.complete) {
+      this.lastMeshes = { assets: [], scanning: false, complete: false, timestamp: null };
+      console.log('[ASSET-SERVER] Returning', data.assets.length, 'meshes and resetting');
+    }
+    return data;
+  }
+
+  requestScriptRefDump() {
+    if (!this.lastScriptRefs.scanning) {
+      this.lastScriptRefs = { assets: [], scanning: false, complete: false, timestamp: null };
+    }
+    this.requestScriptRefs = true;
+    logDev('Script-ref dump request triggered');
+  }
+
+  getLastScriptRefs() {
+    const now = Date.now();
+    if (this.lastScriptRefs.timestamp && !this.lastScriptRefs.scanning && !this.lastScriptRefs.complete) {
+      if (now - this.lastScriptRefs.timestamp > 60000) {
+        this.lastScriptRefs = { assets: [], scanning: false, complete: false, timestamp: null };
+      }
+    }
+    const data = {
+      assets: [...this.lastScriptRefs.assets],
+      scanning: this.lastScriptRefs.scanning,
+      complete: this.lastScriptRefs.complete,
+      timestamp: this.lastScriptRefs.timestamp
+    };
+    if (this.lastScriptRefs.complete) {
+      this.lastScriptRefs = { assets: [], scanning: false, complete: false, timestamp: null };
+      console.log('[ASSET-SERVER] Returning', data.assets.length, 'script-refs and resetting');
+    }
+    return data;
   }
 
   getStoredMappings() {
