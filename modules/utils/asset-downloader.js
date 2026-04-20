@@ -122,7 +122,7 @@ async function downloadAssetsBatch(assets, placeIds, cookie, downloadsDir, sendO
             if (!asset || !item.location) return;
 
             const transferId = crypto.randomUUID();
-            const ext = { Sound: '.ogg', Audio: '.ogg', Animation: '.rbxm' }[asset.assetType] || '.dat';
+            const ext = { Sound: '.ogg', Audio: '.ogg', Animation: '.rbxm', Mesh: '.mesh', Model: '.mesh' }[asset.assetType] || '.dat';
             const sanitizedName = (asset.name || `Asset_${asset.assetId}`).replace(/[<>:"/\\|?*]/g, '_').substring(0, 200);
             const downloadPath = path.join(downloadsDir, `${sanitizedName}${ext}`);
 
@@ -261,7 +261,7 @@ async function downloadAssetsIndividual(assets, cookie, downloadsDir, sendOutput
         candidatePlaceIds.push(null); // try without placeId as last resort
       }
 
-      const ext = { Sound: '.ogg', Audio: '.ogg', Animation: '.rbxm', Image: '.png', Decal: '.png' }[asset.assetType] || '.dat';
+      const ext = { Sound: '.ogg', Audio: '.ogg', Animation: '.rbxm', Image: '.png', Decal: '.png', Mesh: '.mesh', Model: '.mesh' }[asset.assetType] || '.dat';
       const sanitizedName = (asset.name || `Asset_${asset.assetId}`).replace(/[<>:"/\\|?*]/g, '_').substring(0, 200);
       const downloadPath = path.join(downloadsDir, `${sanitizedName}${ext}`);
 

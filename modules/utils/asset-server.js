@@ -30,9 +30,10 @@ class AssetServer {
     this._completionTimer = null; // Debounce timer for completion detection (new plugin)
   }
 
-  // Called after every /assets-* POST so the new plugin (which sends no *-complete signals)
-  // still gets all in-flight stores marked complete after 2 seconds of silence.
-  _scheduleCompletion() {
+  // Called after every /assets-* POST (ms=2000) or on scan start (ms=15000).
+  // Uses the shorter timer once any data arrives; the longer timer is a fallback
+  // so empty scans (where the plugin sends nothing) still resolve.
+  _scheduleCompletion(ms = 2000) {
     if (this._completionTimer) clearTimeout(this._completionTimer);
     this._completionTimer = setTimeout(() => {
       this._completionTimer = null;
@@ -48,7 +49,7 @@ class AssetServer {
       complete(this.lastImages);
       complete(this.lastMeshes);
       complete(this.lastScriptRefs);
-    }, 2000);
+    }, ms);
   }
 
   setSkipOwnedCheck(enabled) {
@@ -83,6 +84,9 @@ class AssetServer {
           this.requestMeshes = false;
           this.requestScriptRefs = false;
           console.log('[ASSET-SERVER] Unified /poll hit — full scan initiated');
+          // Start a generous fallback timer so empty scans (plugin sends no POSTs)
+          // still resolve. Any incoming POST will reset this to the normal 2s.
+          this._scheduleCompletion(15000);
         }
         res.json({ requestAssets });
       });

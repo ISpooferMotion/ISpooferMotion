@@ -1,4 +1,3 @@
---[[Plugin Environment Stuff]]--
 local pluginEnvironment = script.Parent
 local pluginSettings = pluginEnvironment.Settings
 local modules = pluginEnvironment.Modules
@@ -9,21 +8,18 @@ local HttpService = game:GetService("HttpService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local ScriptEditorService = game:GetService("ScriptEditorService")
 
---[[Toolbar Stuff]]--
 local toolbar = plugin:CreateToolbar("AssetCollection Test")
 local button = toolbar:CreateButton("Run", "Gets the stuff", "rbxassetid://137844667859456")
 local pollButton = toolbar:CreateButton("Poll", "Toggle server polling", "rbxassetid://137844667859456")
 button.ClickableWhenViewportHidden = true
 pollButton.ClickableWhenViewportHidden = true
 
---[[Config]]--
 local PORT = 3100
 local BATCH_SIZE = 2000
-local SEND_CHUNK_SIZE = 500 -- Max assets per HTTP POST to avoid 413 errors
+local SEND_CHUNK_SIZE = 500
 local BASE_URL = "http://localhost:" .. PORT
-local TESTING = false -- Set to false to send via HTTP
+local TESTING = false
 
---[[Tables & Variables]]--
 local Assets = {}
 local Animations = {}
 local Sounds = {}
@@ -39,7 +35,6 @@ local seenMeshes = {}
 local polling = false
 local pollTask = nil
 
---[[Functions]]--
 local function timeit(func)
 	local startTime = os.clock()
 	func()
@@ -91,7 +86,6 @@ local function initialScan()
 	print("started")
 	local all = game:GetDescendants()
 	for _, obj in ipairs(all) do
-		-- Skip objects that live under ignored services
 		local root = obj
 		while root.Parent and root.Parent ~= game do
 			root = root.Parent
@@ -103,7 +97,6 @@ local function initialScan()
 	print("Filtered assets:", #Assets, "(excluded PluginGuiService, CoreGui)")
 end
 
--- Roblox AssetTypeId mapping from GetProductInfo
 -- 24 = Animation, 3 = Audio, 1 = Image, 13 = Decal, 40 = MeshPart, 4 = Mesh, 10 = Model
 local ASSET_TYPE_ANIMATION = {[24] = true, [61] = true}
 local ASSET_TYPE_SOUND = {[3] = true}
@@ -140,6 +133,24 @@ local function getAssetType(assetId)
 	end
 end
 
+local LOOSE_ID_PATTERNS = {
+	"%.AnimationId%s*=%s*(%d%d%d%d%d%d%d+)",
+	"%.SoundId%s*=%s*(%d%d%d%d%d%d%d+)",
+	"%.MeshId%s*=%s*(%d%d%d%d%d%d%d+)",
+	"%.TextureId%s*=%s*(%d%d%d%d%d%d%d+)",
+	"%.TextureID%s*=%s*(%d%d%d%d%d%d%d+)",
+	"%.Image%s*=%s*(%d%d%d%d%d%d%d+)",
+	"[Aa]nim[%a_]*%s*[=:]%s*(%d%d%d%d%d%d%d+)",
+	"[Ss]ound[%a_]*%s*[=:]%s*(%d%d%d%d%d%d%d+)",
+	"[Aa]udio[%a_]*%s*[=:]%s*(%d%d%d%d%d%d%d+)",
+	"[Mm]usic[%a_]*%s*[=:]%s*(%d%d%d%d%d%d%d+)",
+	"[Mm]esh[%a_]*%s*[=:]%s*(%d%d%d%d%d%d%d+)",
+	"[Aa]sset[Ii][Dd][%a_]*%s*[=:]%s*(%d%d%d%d%d%d%d+)",
+	'%["[Aa]nim[%a_]*"%]%s*=%s*(%d%d%d%d%d%d%d+)',
+	'%["[Ss]ound[%a_]*"%]%s*=%s*(%d%d%d%d%d%d%d+)',
+	'%["[Mm]esh[%a_]*"%]%s*=%s*(%d%d%d%d%d%d%d+)',
+}
+
 local function extractIdsFromSource(source)
 	local ids = {}
 	for id in source:gmatch("rbxassetid://(%d+)") do
@@ -150,6 +161,41 @@ local function extractIdsFromSource(source)
 	end
 	for id in source:gmatch("rbxthumb://type=Asset&id=(%d+)") do
 		ids[id] = true
+	end
+	for _, pattern in ipairs(LOOSE_ID_PATTERNS) do
+		for id in source:gmatch(pattern) do
+			ids[id] = true
+		end
+	end
+	local assetTablePatterns = {
+		"[Aa]nim[%a_0-9]*%s*=%s*{",
+		"[Ss]ound[%a_0-9]*%s*=%s*{",
+		"[Aa]udio[%a_0-9]*%s*=%s*{",
+		"[Mm]usic[%a_0-9]*%s*=%s*{",
+		"[Mm]esh[%a_0-9]*%s*=%s*{",
+		"[Tt]exture[%a_0-9]*%s*=%s*{",
+		"[Aa]sset[Ii][Dd][%a_0-9]*%s*=%s*{",
+	}
+	for _, tablePattern in ipairs(assetTablePatterns) do
+		local startPos = 1
+		while true do
+			local _, matchEnd = source:find(tablePattern, startPos)
+			if not matchEnd then break end
+			local depth = 1
+			local pos = matchEnd + 1
+			while pos <= #source and depth > 0 do
+				local ch = source:sub(pos, pos)
+				if ch == "{" then depth = depth + 1
+				elseif ch == "}" then depth = depth - 1
+				end
+				pos = pos + 1
+			end
+			local block = source:sub(matchEnd + 1, pos - 2)
+			for id in block:gmatch("(%d%d%d%d%d%d%d+)") do
+				ids[id] = true
+			end
+			startPos = pos
+		end
 	end
 	return ids
 end
@@ -211,7 +257,6 @@ local function scan()
 						resolvedType = assetType,
 					})
 
-					-- Add to the correct category based on MarketplaceService lookup
 					if assetType == "animation" and not seenAnimations[id] then
 						seenAnimations[id] = true
 						table.insert(animationData, {
@@ -342,19 +387,27 @@ local function scan()
 	print("[AssetCollection] All data sent.")
 end
 
+local function safeIdStr(v)
+	if type(v) == "number" then
+		return string.format("%.0f", v)
+	end
+	return tostring(v)
+end
+
 local function replaceIds(mappings)
-	-- Build a lookup table: oldId -> newId
 	local idMap = {}
 	for _, m in ipairs(mappings) do
-		local oldId = tostring(m.originalId)
-		local newId = tostring(m.newId)
+		local oldId = safeIdStr(m.originalId)
+		local newId = safeIdStr(m.newId)
 		idMap[oldId] = newId
+		print("[Replace] Mapping loaded:", oldId, "->", newId)
 	end
 
 	local replaced = 0
 	local descendants = game:GetDescendants()
 	local processedCount = 0
-	local YIELD_EVERY = 200 -- yield every N objects to prevent Studio freezing
+	local YIELD_EVERY = 200
+	local dbgAnimChecked, dbgScriptChecked, dbgSourceFail = 0, 0, 0
 
 	for _, obj in ipairs(descendants) do
 		processedCount += 1
@@ -362,16 +415,19 @@ local function replaceIds(mappings)
 			task.wait()
 		end
 
-		-- Animation instances
 		if obj:IsA("Animation") then
+			dbgAnimChecked += 1
 			local id = obj.AnimationId:match("rbxassetid://(%d+)")
+			if not id then
+				local bare = obj.AnimationId:match("^(%d+)$")
+				if bare then id = bare end
+			end
 			if id and idMap[id] then
 				obj.AnimationId = "rbxassetid://" .. idMap[id]
 				replaced += 1
 				print("[Replace] Animation", obj:GetFullName(), id, "→", idMap[id])
 			end
 
-		-- Sound instances
 		elseif obj:IsA("Sound") then
 			local id = obj.SoundId:match("rbxassetid://(%d+)")
 			if id and idMap[id] then
@@ -380,7 +436,6 @@ local function replaceIds(mappings)
 				print("[Replace] Sound", obj:GetFullName(), id, "→", idMap[id])
 			end
 
-		-- Decal / Texture
 		elseif obj:IsA("Decal") or obj:IsA("Texture") then
 			local id = obj.Texture:match("rbxassetid://(%d+)")
 			if id and idMap[id] then
@@ -389,7 +444,6 @@ local function replaceIds(mappings)
 				print("[Replace] " .. obj.ClassName, obj:GetFullName(), id, "→", idMap[id])
 			end
 
-		-- ImageLabel / ImageButton
 		elseif obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
 			local id = obj.Image:match("rbxassetid://(%d+)")
 			if id and idMap[id] then
@@ -398,7 +452,6 @@ local function replaceIds(mappings)
 				print("[Replace] " .. obj.ClassName, obj:GetFullName(), id, "→", idMap[id])
 			end
 
-		-- MeshPart (MeshId + TextureID)
 		elseif obj:IsA("MeshPart") then
 			local meshId = obj.MeshId:match("rbxassetid://(%d+)")
 			if meshId and idMap[meshId] then
@@ -413,7 +466,6 @@ local function replaceIds(mappings)
 				print("[Replace] MeshPart.TextureID", obj:GetFullName(), texId, "→", idMap[texId])
 			end
 
-		-- SpecialMesh
 		elseif obj:IsA("SpecialMesh") then
 			local id = obj.MeshId:match("rbxassetid://(%d+)")
 			if id and idMap[id] then
@@ -422,19 +474,26 @@ local function replaceIds(mappings)
 				print("[Replace] SpecialMesh", obj:GetFullName(), id, "→", idMap[id])
 			end
 
-		-- Scripts: replace IDs in source code
 		elseif obj:IsA("Script") or obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
+			dbgScriptChecked += 1
 			local sourceOk, source = pcall(function() return obj.Source end)
+			if not sourceOk or not source or source == "" then
+				dbgSourceFail += 1
+			end
 			if sourceOk and source then
 				local newSource = source
 				for oldId, newId in pairs(idMap) do
+					if source:find(oldId, 1, true) then
+						print("[Replace] Found", oldId, "in", obj:GetFullName())
+					end
 					newSource = newSource:gsub("rbxassetid://" .. oldId, "rbxassetid://" .. newId)
 					newSource = newSource:gsub("(roblox%.com/[Aa]sset/%?[Ii][Dd]=)" .. oldId, "%1" .. newId)
+					newSource = newSource:gsub("([=:{,]%s*)" .. oldId .. "(%f[%D])", "%1" .. newId .. "%2")
 				end
 				if newSource ~= source then
 					local writeOk, writeErr
 					if #newSource >= 200000 then
-						-- Source too large for direct property assignment; use ScriptEditorService instead
+						-- ScriptEditorService required for large sources
 						writeOk, writeErr = pcall(function()
 							ScriptEditorService:UpdateSourceAsync(obj, function()
 								return newSource
@@ -456,6 +515,7 @@ local function replaceIds(mappings)
 		end
 	end
 
+	print(string.format("[Replace] Stats: %d animations checked, %d scripts checked (%d unreadable)", dbgAnimChecked, dbgScriptChecked, dbgSourceFail))
 	print(string.format("[AssetCollection] Replacement complete: %d properties updated across %d mappings", replaced, #mappings))
 end
 
@@ -472,7 +532,6 @@ local function startPolling()
 	polling = true
 	pollTask = task.spawn(function()
 		while polling do
-			-- Check for scan requests
 			local ok, response = pcall(function()
 				return HttpService:GetAsync(BASE_URL .. "/poll")
 			end)
@@ -486,7 +545,6 @@ local function startPolling()
 				end
 			end
 
-			-- Check for ID replacement mappings
 			local replOk, replResponse = pcall(function()
 				return HttpService:GetAsync(BASE_URL .. "/poll-replacements")
 			end)
@@ -511,7 +569,6 @@ local function stopPolling()
 	print("[AssetCollection] Polling stopped")
 end
 
---[[Button Events]]--
 button.Click:Connect(function()
 	button.Enabled = false
 	local time = timeit(init)
@@ -527,3 +584,9 @@ pollButton.Click:Connect(function()
 		startPolling()
 	end
 end)
+
+-- Test helper: run from Studio command bar
+-- Usage: _G.ISMReplace("515151", "15015")
+_G.ISMReplace = function(oldId, newId)
+	task.spawn(replaceIds, {{ originalId = tostring(oldId), newId = tostring(newId) }})
+end

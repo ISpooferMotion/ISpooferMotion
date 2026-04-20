@@ -7,8 +7,9 @@ const ASSET_TYPE_MAP = {
   Animation: 24,
   Audio: 3,
   Decal: 13,
-  Image: 13, // alias to Decal
+  Image: 13,
   Model: 10,
+  Mesh: 4,
 };
 
 function logDev(...args) {

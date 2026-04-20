@@ -1029,13 +1029,12 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
     return;
   }
 
-  // Validate that animation uploads have an API key (required since legacy endpoint was deprecated early 2026)
-  const animationAssets = (data.assets || []).filter(a => a && a.assetType === 'Animation');
-  if (!downloadOnly && animationAssets.length > 0 && !data.apiKey) {
+  // All uploads now require an Open Cloud API key
+  if (!downloadOnly && data.assets && data.assets.length > 0 && !data.apiKey) {
     const ts = new Date().toLocaleTimeString();
-    sendStatusMessage('API key required for animation uploads');
+    sendStatusMessage('API key required for uploads');
     sendSpooferResultToRenderer({
-      output: `[${ts}] [ERROR] Animation uploads now require an Open Cloud API key.\n\nThe legacy Roblox upload endpoint was deprecated in early 2026.\n\nTo fix this:\n1. Go to create.roblox.com → Open Cloud → API Keys\n2. Create a key with Assets Read & Write permissions\n3. Paste the key into the "Open Cloud API Key" field\n`,
+      output: `[${ts}] [ERROR] All uploads (animations, sounds, images) now require an Open Cloud API key.\n\nTo fix this:\n1. Go to create.roblox.com → Open Cloud → API Keys\n2. Create a key with Assets Read & Write permissions\n3. Paste the key into the "Open Cloud API Key" field\n`,
       success: false,
       completed: true,
     });
