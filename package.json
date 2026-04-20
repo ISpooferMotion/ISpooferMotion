@@ -3,7 +3,10 @@
   "version": "2.1.3",
   "main": "main.js",
   "description": "Animation spoofing utility for Roblox",
-  "author": "IncredibroXP",
+  "author": {
+    "name": "IncredibroXP",
+    "email": "incredibroxpdev@gmail.com"
+  },
   "license": "GPL-3.0-or-later",
   "scripts": {
     "start": "electron .",
