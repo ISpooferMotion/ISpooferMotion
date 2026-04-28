@@ -11,59 +11,69 @@ local AssetService = game:GetService("AssetService")
 local CollectionService = game:GetService("CollectionService")
 
 -- Copies all relevant BasePart + MeshPart properties, attributes, tags, and
--- children from src to dst, then re-wires any external Part0/Part1 references.
+-- children from src to dst, then re-wires Part0/Part1 references within the parent.
 local function copyMeshPartInto(src, dst, overrideTextureId)
-	-- BasePart properties
-	dst.Name                    = src.Name
-	dst.CFrame                  = src.CFrame
-	dst.Size                    = src.Size
-	dst.Anchored                = src.Anchored
-	dst.CanCollide              = src.CanCollide
-	dst.CanTouch                = src.CanTouch
-	dst.CanQuery                = src.CanQuery
-	dst.CastShadow              = src.CastShadow
-	dst.Color                   = src.Color
-	dst.Material                = src.Material
-	dst.MaterialVariant         = src.MaterialVariant
-	dst.Transparency            = src.Transparency
-	dst.Reflectance             = src.Reflectance
-	dst.Locked                  = src.Locked
-	dst.Massless                = src.Massless
-	dst.RootPriority            = src.RootPriority
-	dst.CustomPhysicalProperties = src.CustomPhysicalProperties
-	-- MeshPart-specific
-	dst.TextureID               = overrideTextureId or src.TextureID
+	-- Core transform + physics (always safe)
+	pcall(function()
+		dst.Name     = src.Name
+		dst.CFrame   = src.CFrame
+		dst.Size     = src.Size
+		dst.Anchored = src.Anchored
+	end)
+	-- Collision
+	pcall(function()
+		dst.CanCollide = src.CanCollide
+		dst.CanTouch   = src.CanTouch
+		dst.CanQuery   = src.CanQuery
+		dst.CastShadow = src.CastShadow
+	end)
+	-- Appearance (MaterialVariant is newer — isolate so it can't abort the rest)
+	pcall(function()
+		dst.Color        = src.Color
+		dst.Material     = src.Material
+		dst.Transparency = src.Transparency
+		dst.Reflectance  = src.Reflectance
+	end)
+	pcall(function() dst.MaterialVariant = src.MaterialVariant end)
+	-- Simulation
+	pcall(function()
+		dst.Locked                   = src.Locked
+		dst.Massless                 = src.Massless
+		dst.RootPriority             = src.RootPriority
+		dst.CustomPhysicalProperties = src.CustomPhysicalProperties
+	end)
+	-- Texture
+	pcall(function() dst.TextureID = overrideTextureId or src.TextureID end)
 
 	-- Attributes
-	for k, v in pairs(src:GetAttributes()) do
-		dst:SetAttribute(k, v)
-	end
+	pcall(function()
+		for k, v in pairs(src:GetAttributes()) do
+			pcall(function() dst:SetAttribute(k, v) end)
+		end
+	end)
 
 	-- CollectionService tags
-	for _, tag in ipairs(CollectionService:GetTags(src)) do
-		CollectionService:AddTag(dst, tag)
-	end
+	pcall(function()
+		for _, tag in ipairs(CollectionService:GetTags(src)) do
+			pcall(function() CollectionService:AddTag(dst, tag) end)
+		end
+	end)
 
-	-- Move all children
+	-- Move children
 	for _, child in ipairs(src:GetChildren()) do
-		child.Parent = dst
+		pcall(function() child.Parent = dst end)
 	end
 
-	-- Re-wire external constraints/welds that reference src as Part0 or Part1
-	local function rewire(container)
-		for _, obj in ipairs(container:GetDescendants()) do
+	-- Re-wire Part0/Part1 only within the immediate parent — scanning the entire
+	-- Workspace is too expensive in large games and causes long hangs.
+	if src.Parent then
+		for _, obj in ipairs(src.Parent:GetDescendants()) do
 			if obj ~= dst then
-				pcall(function()
-					if obj.Part0 == src then obj.Part0 = dst end
-				end)
-				pcall(function()
-					if obj.Part1 == src then obj.Part1 = dst end
-				end)
+				pcall(function() if obj.Part0 == src then obj.Part0 = dst end end)
+				pcall(function() if obj.Part1 == src then obj.Part1 = dst end end)
 			end
 		end
 	end
-	if src.Parent then rewire(src.Parent) end
-	rewire(game:GetService("Workspace"))
 end
 
 local toolbar = plugin:CreateToolbar("AssetCollection Test")
@@ -471,7 +481,7 @@ local function replaceIds(mappings)
 	local replaced = 0
 	local descendants = game:GetDescendants()
 	local processedCount = 0
-	local YIELD_EVERY = 200
+	local YIELD_EVERY = 50  -- low enough to keep Studio responsive in large games
 	local dbgAnimChecked, dbgScriptChecked, dbgSourceFail = 0, 0, 0
 
 	for _, obj in ipairs(descendants) do
@@ -480,90 +490,147 @@ local function replaceIds(mappings)
 			task.wait()
 		end
 
+		-- Guard: skip instances that were destroyed earlier in this loop
+		-- (e.g. a MeshPart whose children we already moved to a new part)
+		local stillValid, _ = pcall(function() return obj.Parent end)
+		if not stillValid then continue end
+
 		if obj:IsA("Animation") then
 			dbgAnimChecked += 1
-			local id = obj.AnimationId:match("rbxassetid://(%d+)")
-			if not id then
-				local bare = obj.AnimationId:match("^(%d+)$")
-				if bare then id = bare end
-			end
-			if id and idMap[id] then
-				obj.AnimationId = "rbxassetid://" .. idMap[id]
-				replaced += 1
-				print("[Replace] Animation", obj:GetFullName(), id, "→", idMap[id])
+			local readOk, id = pcall(function()
+				local v = obj.AnimationId:match("rbxassetid://(%d+)")
+				if not v then v = obj.AnimationId:match("^(%d+)$") end
+				return v
+			end)
+			if readOk and id and idMap[id] then
+				local writeOk, writeErr = pcall(function()
+					obj.AnimationId = "rbxassetid://" .. idMap[id]
+				end)
+				if writeOk then
+					replaced += 1
+					print("[Replace] Animation", obj:GetFullName(), id, "→", idMap[id])
+				else
+					warn("[Replace] Animation write failed:", obj:GetFullName(), writeErr)
+				end
 			end
 
 		elseif obj:IsA("Sound") then
-			local id = obj.SoundId:match("rbxassetid://(%d+)")
-			if id and idMap[id] then
-				obj.SoundId = "rbxassetid://" .. idMap[id]
-				replaced += 1
-				print("[Replace] Sound", obj:GetFullName(), id, "→", idMap[id])
+			local readOk, id = pcall(function() return obj.SoundId:match("rbxassetid://(%d+)") end)
+			if readOk and id and idMap[id] then
+				local writeOk, writeErr = pcall(function()
+					obj.SoundId = "rbxassetid://" .. idMap[id]
+				end)
+				if writeOk then
+					replaced += 1
+					print("[Replace] Sound", obj:GetFullName(), id, "→", idMap[id])
+				else
+					warn("[Replace] Sound write failed:", obj:GetFullName(), writeErr)
+				end
 			end
 
 		elseif obj:IsA("Decal") or obj:IsA("Texture") then
-			local id = obj.Texture:match("rbxassetid://(%d+)")
-			if id and idMap[id] then
-				obj.Texture = "rbxassetid://" .. idMap[id]
-				replaced += 1
-				print("[Replace] " .. obj.ClassName, obj:GetFullName(), id, "→", idMap[id])
+			local readOk, id = pcall(function() return obj.Texture:match("rbxassetid://(%d+)") end)
+			if readOk and id and idMap[id] then
+				local writeOk, writeErr = pcall(function()
+					obj.Texture = "rbxassetid://" .. idMap[id]
+				end)
+				if writeOk then
+					replaced += 1
+					print("[Replace] " .. obj.ClassName, obj:GetFullName(), id, "→", idMap[id])
+				else
+					warn("[Replace] Texture write failed:", obj:GetFullName(), writeErr)
+				end
 			end
 
 		elseif obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
-			local id = obj.Image:match("rbxassetid://(%d+)")
-			if id and idMap[id] then
-				obj.Image = "rbxassetid://" .. idMap[id]
-				replaced += 1
-				print("[Replace] " .. obj.ClassName, obj:GetFullName(), id, "→", idMap[id])
+			local readOk, id = pcall(function() return obj.Image:match("rbxassetid://(%d+)") end)
+			if readOk and id and idMap[id] then
+				local writeOk, writeErr = pcall(function()
+					obj.Image = "rbxassetid://" .. idMap[id]
+				end)
+				if writeOk then
+					replaced += 1
+					print("[Replace] " .. obj.ClassName, obj:GetFullName(), id, "→", idMap[id])
+				else
+					warn("[Replace] Image write failed:", obj:GetFullName(), writeErr)
+				end
 			end
 
 		elseif obj:IsA("MeshPart") then
-			-- MeshId and MeshContent are both NotAccessible from scripts.
-			-- The only way to replace the mesh is CreateMeshPartAsync + instance swap.
-			local meshId = obj.MeshId ~= "" and obj.MeshId:match("rbxassetid://(%d+)") or nil
-			if not meshId then
-				local ok, contentStr = pcall(function() return tostring(obj.MeshContent) end)
-				if ok and contentStr then
-					meshId = contentStr:match("rbxassetid://(%d+)") or contentStr:match("^(%d+)$")
+			-- MeshId and MeshContent are both NotAccessible — must swap via CreateMeshPartAsync.
+			local meshId
+			pcall(function()
+				local v = obj.MeshId ~= "" and obj.MeshId:match("rbxassetid://(%d+)") or nil
+				if not v then
+					local ok2, contentStr = pcall(function() return tostring(obj.MeshContent) end)
+					if ok2 and contentStr then
+						v = contentStr:match("rbxassetid://(%d+)") or contentStr:match("^(%d+)$")
+					end
 				end
-			end
+				meshId = v
+			end)
 			local targetMeshId = meshId and idMap[meshId]
-			local texId = obj.TextureID ~= "" and obj.TextureID:match("rbxassetid://(%d+)") or nil
+
+			local texId
+			pcall(function()
+				local raw = obj.TextureID
+				texId = (raw and raw ~= "") and raw:match("rbxassetid://(%d+)") or nil
+			end)
 			local targetTexId = texId and idMap[texId]
 
 			if targetMeshId then
-				local ok, newPart = pcall(function()
+				-- CreateMeshPartAsync yields — re-check obj is still valid after it returns
+				local swapOk, newPart = pcall(function()
 					return AssetService:CreateMeshPartAsync("rbxassetid://" .. targetMeshId, {
 						CollisionFidelity = obj.CollisionFidelity,
 						RenderFidelity    = obj.RenderFidelity,
 					})
 				end)
-				if ok and newPart then
+
+				-- Re-validate obj after the async yield
+				local objStillValid = pcall(function() return obj.Parent end)
+				if swapOk and newPart and objStillValid then
 					local overrideTex = targetTexId and ("rbxassetid://" .. targetTexId) or nil
-					copyMeshPartInto(obj, newPart, overrideTex)
-					newPart.Parent = obj.Parent
-					obj:Destroy()
+					local copyOk, copyErr = pcall(copyMeshPartInto, obj, newPart, overrideTex)
+					if not copyOk then
+						warn("[Replace] MeshPart copy failed:", copyErr)
+					end
+					pcall(function() newPart.Parent = obj.Parent end)
+					pcall(function() obj:Destroy() end)
 					replaced += 1
-					print("[Replace] MeshPart", newPart:GetFullName(), meshId, "→", targetMeshId)
+					pcall(function()
+						print("[Replace] MeshPart", newPart:GetFullName(), meshId, "→", targetMeshId)
+					end)
 					if targetTexId then
 						replaced += 1
-						print("[Replace] MeshPart.TextureID", newPart:GetFullName(), texId, "→", targetTexId)
 					end
-				else
-					warn("[Replace] MeshPart swap failed for", obj:GetFullName(), ":", tostring(newPart))
+				elseif not swapOk then
+					warn("[Replace] CreateMeshPartAsync failed for", pcall(function() return obj:GetFullName() end) and obj:GetFullName() or "unknown", ":", tostring(newPart))
 				end
 			elseif targetTexId then
-				obj.TextureID = "rbxassetid://" .. targetTexId
-				replaced += 1
-				print("[Replace] MeshPart.TextureID", obj:GetFullName(), texId, "→", targetTexId)
+				local writeOk, writeErr = pcall(function()
+					obj.TextureID = "rbxassetid://" .. targetTexId
+				end)
+				if writeOk then
+					replaced += 1
+					print("[Replace] MeshPart.TextureID", obj:GetFullName(), texId, "→", targetTexId)
+				else
+					warn("[Replace] MeshPart.TextureID write failed:", obj:GetFullName(), writeErr)
+				end
 			end
 
 		elseif obj:IsA("SpecialMesh") then
-			local id = obj.MeshId:match("rbxassetid://(%d+)")
-			if id and idMap[id] then
-				obj.MeshId = "rbxassetid://" .. idMap[id]
-				replaced += 1
-				print("[Replace] SpecialMesh", obj:GetFullName(), id, "→", idMap[id])
+			local readOk, id = pcall(function() return obj.MeshId:match("rbxassetid://(%d+)") end)
+			if readOk and id and idMap[id] then
+				local writeOk, writeErr = pcall(function()
+					obj.MeshId = "rbxassetid://" .. idMap[id]
+				end)
+				if writeOk then
+					replaced += 1
+					print("[Replace] SpecialMesh", obj:GetFullName(), id, "→", idMap[id])
+				else
+					warn("[Replace] SpecialMesh write failed:", obj:GetFullName(), writeErr)
+				end
 			end
 
 		elseif obj:IsA("Script") or obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
@@ -575,9 +642,6 @@ local function replaceIds(mappings)
 			if sourceOk and source then
 				local newSource = source
 				for oldId, newId in pairs(idMap) do
-					if source:find(oldId, 1, true) then
-						print("[Replace] Found", oldId, "in", obj:GetFullName())
-					end
 					newSource = newSource:gsub("rbxassetid://" .. oldId, "rbxassetid://" .. newId)
 					newSource = newSource:gsub("(roblox%.com/[Aa]sset/%?[Ii][Dd]=)" .. oldId, "%1" .. newId)
 					newSource = newSource:gsub("([=:{,]%s*)" .. oldId .. "(%f[%D])", "%1" .. newId .. "%2")
@@ -585,22 +649,17 @@ local function replaceIds(mappings)
 				if newSource ~= source then
 					local writeOk, writeErr
 					if #newSource >= 200000 then
-						-- ScriptEditorService required for large sources
 						writeOk, writeErr = pcall(function()
-							ScriptEditorService:UpdateSourceAsync(obj, function()
-								return newSource
-							end)
+							ScriptEditorService:UpdateSourceAsync(obj, function() return newSource end)
 						end)
 					else
-						writeOk, writeErr = pcall(function()
-							obj.Source = newSource
-						end)
+						writeOk, writeErr = pcall(function() obj.Source = newSource end)
 					end
 					if writeOk then
 						replaced += 1
 						print("[Replace] Script source", obj:GetFullName())
 					else
-						warn("[Replace] Could not write source of " .. obj:GetFullName() .. ": " .. tostring(writeErr))
+						warn("[Replace] Script write failed:", obj:GetFullName(), writeErr)
 					end
 				end
 			end

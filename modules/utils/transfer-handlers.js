@@ -123,6 +123,19 @@ async function downloadAnimationAssetWithProgress(url, robloxCookie, filePath, t
  * Shared upload logic for all asset types via Open Cloud Assets API.
  * Handles rate-limit retries and async operation polling.
  */
+const CONTENT_TYPE_EXT = {
+  'model/x-file-mesh-data': '.mesh',
+  'model/x-rbxm':           '.rbxm',
+  'audio/ogg':              '.ogg',
+  'image/png':              '.png',
+};
+
+function buildFileName(name, contentType, fallbackFileName) {
+  const ext = CONTENT_TYPE_EXT[contentType] || require('path').extname(fallbackFileName) || '';
+  const safe = (name || 'asset').replace(/[<>:"/\\|?*\r\n]/g, '_').substring(0, 100);
+  return safe + ext;
+}
+
 async function uploadViaOpenCloud({ fileBuffer, contentType, fileName, assetType, name, groupId, userId, apiKey, transferId, sendTransferUpdate }) {
   if (!apiKey) {
     const errorMsg = `${assetType} uploads require an Open Cloud API key. Go to create.roblox.com → Open Cloud → API Keys, create a key with Assets Read & Write permissions, and paste it into the app.`;
@@ -138,14 +151,15 @@ async function uploadViaOpenCloud({ fileBuffer, contentType, fileName, assetType
     creationContext: { creator: creatorObj },
   };
 
-  if (DEVELOPER_MODE) console.log(`[UPLOAD DEBUG] Uploading "${name}" as ${assetType} via Open Cloud API`);
+  const formFileName = buildFileName(name, contentType, fileName);
+  if (DEVELOPER_MODE) console.log(`[UPLOAD DEBUG] Uploading "${name}" as ${assetType} via Open Cloud API (file: ${formFileName})`);
 
   let response, responseData;
 
   for (let attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
     const formData = new FormData();
     formData.append('request', JSON.stringify(requestMetadata));
-    formData.append('fileContent', new Blob([fileBuffer], { type: contentType }), fileName);
+    formData.append('fileContent', new Blob([fileBuffer], { type: contentType }), formFileName);
 
     await waitRateLimit();
     response = await fetch('https://apis.roblox.com/assets/v1/assets', {

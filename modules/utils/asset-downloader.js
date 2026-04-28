@@ -59,8 +59,8 @@ async function downloadAssetsBatch(assets, placeIds, cookie, downloadsDir, sendO
     const downloadImage = async (asset) => {
       const transferId = crypto.randomUUID();
       try {
-        const sanitizedName = (asset.name || `Image_${asset.assetId}`).replace(/[<>:"/\\|?*]/g, '_').substring(0, 200);
-        const downloadPath = path.join(downloadsDir, `${sanitizedName}.png`);
+        const sanitizedName = (asset.name || `Image_${asset.assetId}`).replace(/[<>:"/\\|?*]/g, '_').substring(0, 150);
+        const downloadPath = path.join(downloadsDir, `${sanitizedName}_${asset.assetId}.png`);
         sendTransferUpdate({ id: transferId, name: asset.name, direction: 'download', status: 'processing', progress: 0 });
 
         const assetResp = await fetch(`https://assetdelivery.roblox.com/v1/asset/?id=${asset.assetId}`, {
@@ -154,8 +154,8 @@ async function downloadAssetsBatch(assets, placeIds, cookie, downloadsDir, sendO
 
             const transferId = crypto.randomUUID();
             const ext = { Sound: '.ogg', Audio: '.ogg', Animation: '.rbxm', Mesh: '.mesh', Model: '.mesh' }[asset.assetType] || '.dat';
-            const sanitizedName = (asset.name || `Asset_${asset.assetId}`).replace(/[<>:"/\\|?*]/g, '_').substring(0, 200);
-            const downloadPath = path.join(downloadsDir, `${sanitizedName}${ext}`);
+            const sanitizedName = (asset.name || `Asset_${asset.assetId}`).replace(/[<>:"/\\|?*]/g, '_').substring(0, 150);
+            const downloadPath = path.join(downloadsDir, `${sanitizedName}_${asset.assetId}${ext}`);
 
             sendTransferUpdate({ id: transferId, name: asset.name, direction: 'download', status: 'processing', progress: 0 });
 
@@ -304,8 +304,8 @@ async function downloadAssetsIndividual(assets, cookie, downloadsDir, sendOutput
       }
 
       const ext = { Sound: '.ogg', Audio: '.ogg', Animation: '.rbxm', Image: '.png', Decal: '.png', Mesh: '.mesh', Model: '.mesh' }[asset.assetType] || '.dat';
-      const sanitizedName = (asset.name || `Asset_${asset.assetId}`).replace(/[<>:"/\\|?*]/g, '_').substring(0, 200);
-      const downloadPath = path.join(downloadsDir, `${sanitizedName}${ext}`);
+      const sanitizedName = (asset.name || `Asset_${asset.assetId}`).replace(/[<>:"/\\|?*]/g, '_').substring(0, 150);
+      const downloadPath = path.join(downloadsDir, `${sanitizedName}_${asset.assetId}${ext}`);
 
       sendTransferUpdate({ id: transferId, name: asset.name, direction: 'download', status: 'processing', progress: 0 });
 

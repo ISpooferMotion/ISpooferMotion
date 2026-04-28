@@ -242,17 +242,6 @@ class AssetServer {
         res.json({ ok: true, message: `Stored ${mappings.length} mappings for plugin replacement` });
       });
 
-      // Poll endpoint: Plugin checks for ID replacements
-      this.app.get('/poll-replacements', (req, res) => {
-        const mappings = this.getStoredMappings();
-        if (mappings && mappings.length > 0) {
-          console.log(`[ASSET-SERVER] Plugin polling replacements, sending ${mappings.length} mappings`);
-          res.json({ mappings: mappings });
-        } else {
-          res.json({ mappings: [] });
-        }
-      });
-
       // ===== End Endpoints =====
 
       // ===== Query Endpoints =====
