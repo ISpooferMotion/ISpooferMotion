@@ -361,19 +361,6 @@ async function getPlaceSuggestionsFromCreator(creatorType, creatorId, cookie, ma
   return collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie, maxPlaceIds);
 }
 
-/**
- * Gets multiple place IDs from a creator to use as fallbacks.
- */
-async function getMultiplePlaceIds(creatorType, creatorId, cookie, maxPlaceIds = 10) {
-  try {
-    const places = await getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds);
-    return Array.isArray(places) ? places : [places];
-  } catch (err) {
-    debugWarn('(Dev) Failed to get place IDs:', err.message);
-    return [];
-  }
-}
-
 const assetCache = new Map();
 
 async function findAssetByName(cookie, assetType, name, groupId = null) {
@@ -458,6 +445,5 @@ module.exports = {
   getPlaceIdFromCreator,
   getPlaceSuggestionsFromCreator,
   getPlaceSuggestionByPlaceId,
-  getMultiplePlaceIds,
   findAssetByName,
 };

@@ -74,6 +74,11 @@ export default function SettingsView({ isActive }) {
       setNotifications(profile.notifications ?? true);
       setDefRetries(profile.defRetries ?? 3);
       setDefDelay(profile.defDelay ?? 5000);
+      setRenameToggle(profile.renameToggle ?? false);
+      setRenamePrefix(profile.renamePrefix ?? '');
+      setRenameSuffix(profile.renameSuffix ?? '');
+      setRenameFind(profile.renameFind ?? '');
+      setRenameReplace(profile.renameReplace ?? '');
       setConcurrent(profile.concurrent ?? true);
       setMaxConcurrentDownload(profile.maxConcurrentDownloads ?? 20);
       setMaxConcurrent(profile.maxConcurrentUploads ?? 10);
@@ -96,12 +101,11 @@ export default function SettingsView({ isActive }) {
   async function updateSetting(key, val) {
     if (!activeProfileId) return;
     try {
-      const secrets = await window.electronAPI?.loadProfileSecrets?.();
-      if (!secrets) return;
-      const profile = secrets.profiles[activeProfileId];
-      if (!profile) return;
-      profile[key] = val;
-      await window.electronAPI?.saveProfileSecrets?.({ action: 'saveProfile', profileId: activeProfileId, secrets: profile });
+      await window.electronAPI?.saveProfileSecrets?.({
+        action: 'patchProfile',
+        profileId: activeProfileId,
+        secrets: { [key]: val },
+      });
     } catch (error) {
       console.error('Failed to update setting', error);
     }
@@ -359,7 +363,10 @@ export default function SettingsView({ isActive }) {
                     type="checkbox"
                     id="setting-rename-toggle"
                     checked={renameToggle}
-                    onChange={e => setRenameToggle(e.target.checked)}
+                    onChange={e => {
+                      setRenameToggle(e.target.checked);
+                      updateSetting('renameToggle', e.target.checked);
+                    }}
                   />
                   <i></i>
                 </span>
@@ -367,20 +374,32 @@ export default function SettingsView({ isActive }) {
               <div className={`rename-options-wrap ${renameToggle ? 'is-visible' : ''}`} id="rename-options-group">
                 <div className="rename-options-inner bento-fields advanced-fields">
                   <label className="floating-label" style={{ gridColumn: '1 / -1' }}>
-                    <input className="ui-input" type="text" id="renamePrefix" placeholder=" " value={renamePrefix} onChange={e => setRenamePrefix(e.target.value)} />
+                    <input className="ui-input" type="text" id="renamePrefix" placeholder=" " value={renamePrefix} onChange={e => {
+                      setRenamePrefix(e.target.value);
+                      updateSetting('renamePrefix', e.target.value);
+                    }} />
                     <span>Name Prefix (e.g. [Spoofed])</span>
                   </label>
                   <label className="floating-label" style={{ gridColumn: '1 / -1' }}>
-                    <input className="ui-input" type="text" id="renameSuffix" placeholder=" " value={renameSuffix} onChange={e => setRenameSuffix(e.target.value)} />
+                    <input className="ui-input" type="text" id="renameSuffix" placeholder=" " value={renameSuffix} onChange={e => {
+                      setRenameSuffix(e.target.value);
+                      updateSetting('renameSuffix', e.target.value);
+                    }} />
                     <span>Name Suffix</span>
                   </label>
                   <div style={{ display: 'flex', gap: '10px', gridColumn: '1 / -1' }}>
                     <label className="floating-label" style={{ flex: 1 }}>
-                      <input className="ui-input" type="text" id="renameFind" placeholder=" " value={renameFind} onChange={e => setRenameFind(e.target.value)} />
+                      <input className="ui-input" type="text" id="renameFind" placeholder=" " value={renameFind} onChange={e => {
+                        setRenameFind(e.target.value);
+                        updateSetting('renameFind', e.target.value);
+                      }} />
                       <span>Find in name</span>
                     </label>
                     <label className="floating-label" style={{ flex: 1 }}>
-                      <input className="ui-input" type="text" id="renameReplace" placeholder=" " value={renameReplace} onChange={e => setRenameReplace(e.target.value)} />
+                      <input className="ui-input" type="text" id="renameReplace" placeholder=" " value={renameReplace} onChange={e => {
+                        setRenameReplace(e.target.value);
+                        updateSetting('renameReplace', e.target.value);
+                      }} />
                       <span>Replace with</span>
                     </label>
                   </div>

@@ -4,6 +4,7 @@ const { setupAppLifecycle, getMainWindow } = require('./window');
 const { registerIpcHandlers } = require('./services/ipc-handlers');
 const { DEVELOPER_MODE, initializeFileLogging } = require('./services/common');
 const { startLocalhostPluginServer, stopLocalhostPluginServer } = require('./services/localhost-plugin-server');
+const { checkForUpdates } = require('./services/updater');
 
 let latestReplacementText = '';
 
@@ -78,6 +79,9 @@ function bootstrap() {
       getReplacementText: () => latestReplacementText,
     });
     app.once('before-quit', stopLocalhostPluginServer);
+    void checkForUpdates().catch((error) => {
+      console.error('[UPDATE ERROR] Update check failed:', error);
+    });
   });
 }
 

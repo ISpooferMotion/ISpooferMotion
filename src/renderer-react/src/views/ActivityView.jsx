@@ -41,7 +41,13 @@ export default function ActivityView({ isActive }) {
 
     const cleanupProgress = window.electronAPI?.onSpooferProgress?.((data) => {
       if (data.total) {
-        setCurrentJobProgress(`Progress: ${data.current} / ${data.total}`);
+        const phaseLabel = {
+          preparing: 'Preparing',
+          locations: 'Resolving download locations',
+          download: 'Downloading',
+          upload: 'Uploading',
+        }[data.phase] || 'Processing';
+        setCurrentJobProgress(`${phaseLabel}: ${data.current} / ${data.total}`);
       }
     });
 
@@ -50,8 +56,6 @@ export default function ActivityView({ isActive }) {
       setCurrentJobProgress('Initializing...');
     };
 
-    // Some events may be broadcast via custom window events or IPC
-    window.electronAPI?.onIpc?.('clear-session', handleClearSession);
     window.addEventListener('clear-session', handleClearSession);
 
     return () => {
@@ -121,7 +125,7 @@ export default function ActivityView({ isActive }) {
             <div className="job-card expanded">
               <div className="job-card-header">
                 <strong>Upload Job • {new Date().toLocaleTimeString()}</strong>
-                <span className="job-status uploading">Uploading...</span>
+                <span className="job-status uploading">{currentJobProgress.split(':')[0]}...</span>
               </div>
               <div className="job-details">
                 <span className="job-progress-text">{currentJobProgress}</span>
@@ -312,11 +316,7 @@ function JobCard({ job, redoJob, deleteJob, retryFailed }) {
       </div>
 
       <div className="job-extended-details">
-        {output ? (
-          <div dangerouslySetInnerHTML={{ __html: output.replace(/\n/g, '<br/>') }} />
-        ) : (
-          'No additional output details available.'
-        )}
+        {output || 'No additional output details available.'}
       </div>
     </div>
   );

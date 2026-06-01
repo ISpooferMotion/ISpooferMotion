@@ -4,9 +4,9 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const { spawn } = require('node:child_process');
-const { app, dialog, ipcMain, shell } = require('electron');
+const { app, dialog, ipcMain, shell, Notification, nativeImage } = require('electron');
 const { DEVELOPER_MODE, buildRobloxCookieHeader, clearDownloadsDirectory, retryAsync, sanitizeFilename } = require('./common');
-const { getPlaceIdFromCreator, getMultiplePlaceIds, getPlaceSuggestionsFromCreator, getPlaceSuggestionByPlaceId } = require('./assets');
+const { getPlaceIdFromCreator, getPlaceSuggestionsFromCreator, getPlaceSuggestionByPlaceId } = require('./assets');
 const { getCookieFromAutoDetect, getAuthenticatedUserId, getCsrfToken, readResponseText } = require('./auth');
 const { downloadAnimationAssetWithProgress, publishAnimationRbxmWithProgress } = require('./transfer-handlers');
 const { loadJobs, saveJobRecord, deleteJobRecord } = require('./jobs');
@@ -16,6 +16,10 @@ const { pushReplacement } = require('./localhost-plugin-server');
 
 // --- Global batch rate limiting for assetdelivery ---
 let batchRateLimitUntil = 0;
+let batchNextRequestAt = 0;
+let batchRequestIntervalMs = 100;
+let spooferRunActive = false;
+let profileSecretsWriteQueue = Promise.resolve();
 
 function setBatchRateLimit(ms) {
   batchRateLimitUntil = Math.max(batchRateLimitUntil, Date.now() + ms);
@@ -26,6 +30,31 @@ async function waitBatchRateLimit() {
   if (waitMs > 0) {
     await new Promise((r) => setTimeout(r, waitMs));
   }
+}
+
+async function waitBatchRequestSlot() {
+  await waitBatchRateLimit();
+  const waitMs = batchNextRequestAt - Date.now();
+  if (waitMs > 0) {
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+  batchNextRequestAt = Date.now() + batchRequestIntervalMs;
+}
+
+function updateBatchRateLimitFromHeaders(response) {
+  const remaining = Number.parseInt(response?.headers?.get('x-ratelimit-remaining') || '', 10);
+  const resetSeconds = Number.parseFloat(response?.headers?.get('x-ratelimit-reset') || '');
+  if (!Number.isFinite(remaining) || !Number.isFinite(resetSeconds) || resetSeconds <= 0) return;
+
+  if (remaining <= 2) {
+    setBatchRateLimit(Math.ceil(resetSeconds * 1000) + 250);
+    return;
+  }
+
+  batchRequestIntervalMs = Math.max(
+    50,
+    Math.min(5_000, Math.ceil((resetSeconds * 1000) / Math.max(1, remaining - 2))),
+  );
 }
 
 function getBatchRetryAfterMs(response, attempt = 1) {
@@ -82,6 +111,24 @@ async function pathExists(filePath) {
 
 function uniquePaths(paths) {
   return [...new Set(paths.filter(Boolean).map((entry) => path.normalize(entry)))];
+}
+
+function showDesktopNotification(title, body) {
+  try {
+    if (!Notification.isSupported()) return false;
+    const iconName = process.platform === 'win32' ? 'app_icon.ico' : 'app_icon.png';
+    const rawIconPath = path.join(__dirname, '..', '..', 'assets', iconName);
+    const iconPath = app.isPackaged ? rawIconPath.replace('app.asar', 'app.asar.unpacked') : rawIconPath;
+    new Notification({
+      title: title || 'ISpooferMotion',
+      body: body || '',
+      icon: nativeImage.createFromPath(iconPath),
+    }).show();
+    return true;
+  } catch (error) {
+    if (DEVELOPER_MODE) console.warn('Failed to show notification', error);
+    return false;
+  }
 }
 
 function spawnDetached(filePath, args = []) {
@@ -232,17 +279,6 @@ function getReleaseSourceLabel() {
   return `${owner}/${repo}`;
 }
 
-function getRuntimeInfo() {
-  return {
-    appVersion: app.getVersion(),
-    electron: process.versions.electron,
-    chrome: process.versions.chrome,
-    node: process.versions.node,
-    platform: process.platform,
-    arch: process.arch,
-  };
-}
-
 async function readJsonFile(filePath, fallback) {
   try {
     return JSON.parse(await fs.readFile(filePath, 'utf8'));
@@ -271,10 +307,6 @@ async function writeJsonFile(filePath, value) {
     await fs.copyFile(tmpPath, filePath);
     await fs.rm(tmpPath, { force: true }).catch(() => {});
   }
-}
-
-function getRendererSettingsPath() {
-  return path.join(app.getPath('userData'), 'renderer-settings.json');
 }
 
 function getProfileSecretsPath() {
@@ -354,7 +386,13 @@ function normalizeProfileSecrets(secrets) {
   return normalized;
 }
 
-async function saveProfileSecrets(data) {
+function queueProfileSecretsWrite(operation) {
+  const result = profileSecretsWriteQueue.catch(() => {}).then(operation);
+  profileSecretsWriteQueue = result.catch(() => {});
+  return result;
+}
+
+async function saveProfileSecretsUnlocked(data) {
   const payload = normalizePayload(data);
   const allSecrets = await loadProfileSecrets();
 
@@ -400,20 +438,8 @@ async function saveProfileSecrets(data) {
   return allSecrets;
 }
 
-async function clearProfileSecrets(profileId) {
-  const allSecrets = await loadProfileSecrets();
-  if (profileId && allSecrets.profiles[profileId]) {
-    delete allSecrets.profiles[profileId];
-    if (allSecrets.activeProfileId === profileId) {
-      const remaining = Object.keys(allSecrets.profiles);
-      allSecrets.activeProfileId = remaining.length > 0 ? remaining[0] : null;
-    }
-  } else {
-    allSecrets.profiles = {};
-    allSecrets.activeProfileId = null;
-  }
-  await writeJsonFile(getProfileSecretsPath(), allSecrets);
-  return true;
+function saveProfileSecrets(data) {
+  return queueProfileSecretsWrite(() => saveProfileSecretsUnlocked(data));
 }
 
 async function fetchJson(url, options = {}) {
@@ -634,15 +660,8 @@ function registerIpcHandlers(getMainWindowFn, sendTransferUpdate, sendSpooferRes
   });
 
   handleIpc('get-release-source', () => getReleaseSourceLabel());
-  handleIpc('get-runtime-info', () => getRuntimeInfo());
-  handleIpc('load-renderer-settings', () => readJsonFile(getRendererSettingsPath(), {}));
-  handleIpc('save-renderer-settings', async (_event, settings) => {
-    await writeJsonFile(getRendererSettingsPath(), normalizePayload(settings));
-    return true;
-  });
   handleIpc('load-profile-secrets', () => loadProfileSecrets());
   handleIpc('save-profile-secrets', (_event, data) => saveProfileSecrets(data));
-  handleIpc('clear-profile-secrets', (_event, profileId) => clearProfileSecrets(profileId));
   handleIpc('get-roblox-profile', (_event, context) => getRobloxProfile(context));
   handleIpc('validate-opencloud-api-key', async (_event, apiKey) => validateOpenCloudApiKey(apiKey));
   handleIpc('search-place-ids', async (_event, payload) => {
@@ -720,21 +739,6 @@ function registerIpcHandlers(getMainWindowFn, sendTransferUpdate, sendSpooferRes
       usedCookie: Boolean(cookie),
     };
   });
-  handleIpc('clear-asset-history', async () => true);
-  handleIpc('copy-debug-info', async (_event, context) => {
-    const info = JSON.stringify({ ...getRuntimeInfo(), context: normalizePayload(context) }, null, 2);
-    return info;
-  });
-  handleIpc('export-support-report', async (_event, context) => {
-    const reportPath = path.join(app.getPath('userData'), `support-report-${Date.now()}.json`);
-    await writeJsonFile(reportPath, {
-      ...getRuntimeInfo(),
-      context: normalizePayload(context),
-      createdAt: new Date().toISOString(),
-    });
-    return reportPath;
-  });
-
   handleIpc('open-data-folder', async () => {
     try {
       await shell.openPath(app.getPath('userData'));
@@ -819,27 +823,6 @@ function registerIpcHandlers(getMainWindowFn, sendTransferUpdate, sendSpooferRes
     }
   });
 
-  handleIpc('show-notification', async (_event, options) => {
-    try {
-      const { Notification, nativeImage } = require('electron');
-      if (Notification.isSupported()) {
-        const path = require('node:path');
-        const iconPath = process.platform === 'win32' ? path.join(__dirname, '..', '..', 'assets', 'app_icon.ico') : path.join(__dirname, '..', '..', 'assets', 'app_icon.png');
-
-        new Notification({
-          title: options.title || 'ISpooferMotion',
-          body: options.body || '',
-          icon: nativeImage.createFromPath(iconPath),
-        }).show();
-        return true;
-      }
-      return false;
-    } catch (e) {
-      if (DEVELOPER_MODE) console.warn('Failed to show notification', e);
-      return false;
-    }
-  });
-
   handleIpc('open-dev-console', async () => {
     try {
       const logsDir = path.join(app.getPath('userData'), 'ispoofer_logs');
@@ -891,18 +874,13 @@ function registerIpcHandlers(getMainWindowFn, sendTransferUpdate, sendSpooferRes
     }
   });
 
-  handleIpc('open-plugins-folder', async () => {
-    const pluginDir = path.join(app.getPath('userData'), 'plugins');
-    try {
-      await fs.mkdir(pluginDir, { recursive: true });
-      return await shell.openPath(pluginDir);
-    } catch (err) {
-      console.error('Failed to open plugins folder:', err);
-      return false;
-    }
-  });
-
   onIpc('run-spoofer-action', async (event, data) => {
+    if (spooferRunActive) {
+      sendStatusMessage('A spoofing operation is already running. Cancel it before starting another.');
+      return;
+    }
+    spooferRunActive = true;
+
     const originalConsoleLog = console.log;
     const originalConsoleWarn = console.warn;
     const originalConsoleError = console.error;
@@ -956,6 +934,7 @@ function registerIpcHandlers(getMainWindowFn, sendTransferUpdate, sendSpooferRes
       console.log = originalConsoleLog;
       console.warn = originalConsoleWarn;
       console.error = originalConsoleError;
+      spooferRunActive = false;
     }
   });
 
@@ -1339,7 +1318,12 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
 
   const totalAnimations = animationEntries.length;
   try {
-    sendStatusMessage(`0/${totalAnimations} spoofed`);
+    sendStatusMessage(`Preparing ${totalAnimations} ${isSoundMode ? 'sounds' : 'animations'}...`);
+    sendSpooferProgress({
+      phase: 'preparing',
+      current: 0,
+      total: totalAnimations,
+    });
   } catch (e) {
     if (DEVELOPER_MODE) console.warn('(Dev) Failed to send initial status message', e);
   }
@@ -1362,6 +1346,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
     }
     if (DEVELOPER_MODE) console.log(`(Dev) Resolved placeIdMap with override:`, placeIdMap);
   } else if (animationEntries.length > 0) {
+    sendStatusMessage('Discovering compatible Roblox places...');
     if (DEVELOPER_MODE) console.log(`(Dev) Found ${animationEntries.length > 0 ? [...new Set(animationEntries.map((e) => `${e.creatorType}:${e.creatorId}`))].length : 0} unique creators. Fetching placeIds (max ${maxPlaceIds} per creator, ${maxPlaceIdRetries} retries)...`);
 
     const uniqueCreators = [...new Set(animationEntries.map((e) => `${e.creatorType}:${e.creatorId}`))];
@@ -1383,7 +1368,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
           if (DEVELOPER_MODE) console.log(`(Dev) Got ${placeIdMap[creatorKey].length} placeIds for ${creatorKey}`);
         } catch (error) {
           if (DEVELOPER_MODE) console.warn(`(Dev) Could not get placeIds for ${creatorKey}: ${error.message}`);
-          placeIdMap[creatorKey] = [99840799534728];
+          placeIdMap[creatorKey] = [];
         }
       }),
     );
@@ -1403,8 +1388,14 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
   const BATCH_MAX_RETRIES = parseInt(data.batchRetries, 10) || 5;
   const BATCH_RETRY_DELAY_MS = parseInt(data.batchRetryDelay, 10) || 2000;
   const BATCH_TIMEOUT_MS = parseInt(data.batchTimeoutMs, 10) || 15000; // 15s per batch
-  const chunkSize = parseInt(data.batchChunkSize, 10) || 10; // Reduce from 50 to 10 by default to mitigate rate limits
+  const chunkSize = Math.min(50, Math.max(1, parseInt(data.batchChunkSize, 10) || 10));
 
+  sendStatusMessage('Resolving download locations...');
+  sendSpooferProgress({
+    phase: 'locations',
+    current: 0,
+    total: batchItems.length,
+  });
   if (DEVELOPER_MODE) console.log(`(Dev) Fetching batch locations for ${batchItems.length} ${isSoundMode ? 'sounds' : 'animations'} with creator-specific placeIds`);
   for (let i = 0; i < batchItems.length; i += chunkSize) {
     checkCancelled();
@@ -1413,10 +1404,14 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
     try {
       // Group items by creator to use the correct placeId
       const creatorGroups = {};
-      for (const item of chunk) {
-        const creatorKey = `${item.creatorType}:${item.creatorId}`;
-        if (!creatorGroups[creatorKey]) creatorGroups[creatorKey] = [];
-        creatorGroups[creatorKey].push(item);
+      if (overridePlaceId) {
+        creatorGroups[`override:${overridePlaceId}`] = chunk;
+      } else {
+        for (const item of chunk) {
+          const creatorKey = `${item.creatorType}:${item.creatorId}`;
+          if (!creatorGroups[creatorKey]) creatorGroups[creatorKey] = [];
+          creatorGroups[creatorKey].push(item);
+        }
       }
 
       // Process each creator group separately, with a small inter-group delay to avoid rate limits
@@ -1427,7 +1422,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
         if (creatorGroupIndex > 0) await new Promise((r) => setTimeout(r, 500));
         creatorGroupIndex++;
         let [creatorType, creatorId] = creatorKey.split(':');
-        let placeIdArray = placeIdMap[creatorKey] || [99840799534728];
+        let placeIdArray = overridePlaceId ? [overridePlaceId] : placeIdMap[creatorKey] || [];
         let placeIdIndex = 0;
         let retryCount = 0;
         const maxRetries = maxPlaceIdRetries;
@@ -1447,7 +1442,10 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
           // Batch fetch with retry + timeout (retry on 429/5xx/504/timeout)
           let locations;
           for (let attempt = 1; attempt <= BATCH_MAX_RETRIES; attempt++) {
-            await waitBatchRateLimit();
+            if (attempt > 1) {
+              sendStatusMessage(`Resolving download locations... retry ${attempt}/${BATCH_MAX_RETRIES}`);
+            }
+            await waitBatchRequestSlot();
 
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), BATCH_TIMEOUT_MS);
@@ -1470,6 +1468,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
             } finally {
               clearTimeout(timeout);
             }
+            if (resp) updateBatchRateLimitFromHeaders(resp);
 
             if (resp && resp.ok) {
               locations = await resp.json();
@@ -1504,9 +1503,10 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
             // On 429, respect retry-after header and use exponential backoff; otherwise use configured delay
             if (status === 429 && resp) {
               const delayMs = getBatchRetryAfterMs(resp, attempt);
+              sendStatusMessage(`Roblox rate limited download lookup. Retrying in ${Math.ceil(delayMs / 1000)}s...`);
               if (DEVELOPER_MODE) console.warn(`(Dev) Rate limited (429). Pausing batch globally for ${delayMs}ms`);
               setBatchRateLimit(delayMs);
-              // We do NOT wait here; waitBatchRateLimit() is called at the start of the next attempt
+              // The next request slot waits for this shared backoff window.
             } else {
               const delayMs = BATCH_RETRY_DELAY_MS + Math.floor(Math.random() * 300);
               await new Promise((r) => setTimeout(r, delayMs));
@@ -1600,6 +1600,13 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
           });
       }
     }
+    const resolvedLocations = Math.min(i + chunk.length, batchItems.length);
+    sendSpooferProgress({
+      phase: 'locations',
+      current: resolvedLocations,
+      total: batchItems.length,
+    });
+    sendStatusMessage(`Resolved download locations ${resolvedLocations}/${batchItems.length}`);
   }
 
   const UPLOAD_RETRIES = parseInt(data.uploadRetries, 10) || 3;
@@ -1628,7 +1635,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
     const downloadTransfer = initialTransferStates.find((t) => t.originalAssetId === entry.id);
     const downloadTransferId = downloadTransfer.id;
     const creatorKey = `${entry.creatorType}:${entry.creatorId}`;
-    const entryPlaceIds = placeIdMap[creatorKey] || [99840799534728];
+    const entryPlaceIds = placeIdMap[creatorKey] || [];
     const normalizedEntryPlaceIds = Array.isArray(entryPlaceIds) ? entryPlaceIds : [entryPlaceIds];
     const entryPlaceId = normalizedEntryPlaceIds[0];
     let result = null;
@@ -1686,6 +1693,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
 
     downloadCompleted++;
     sendSpooferProgress({
+      phase: 'download',
       current: downloadCompleted,
       total: animationEntries.length,
     });
@@ -1854,6 +1862,11 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
           await saveSession(session);
         }
         uploadCompleted++;
+        sendSpooferProgress({
+          phase: 'upload',
+          current: uploadCompleted,
+          total: successfulDownloads.length,
+        });
         const elapsed = (Date.now() - uploadStartTime) / 1000;
         const avgTimePerItem = elapsed / uploadCompleted;
         const remaining = successfulDownloads.length - uploadCompleted;
@@ -1877,6 +1890,11 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
           error: `All upload attempts failed: ${finalRetryError.message}`,
         });
         uploadCompleted++;
+        sendSpooferProgress({
+          phase: 'upload',
+          current: uploadCompleted,
+          total: successfulDownloads.length,
+        });
         const elapsed = (Date.now() - uploadStartTime) / 1000;
         const avgTimePerItem = elapsed / uploadCompleted;
         const remaining = successfulDownloads.length - uploadCompleted;
@@ -2068,6 +2086,13 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
     status: jobStatus,
     job: jobRecord,
   });
+  if (data.desktopNotifications !== false) {
+    const action = data.downloadOnly ? 'downloaded' : 'uploaded';
+    showDesktopNotification(
+      'ISpooferMotion Complete',
+      `${isSoundMode ? 'Sounds' : 'Animations'} ${action}: ${data.downloadOnly ? downloadedSuccessfullyCount : successfulUploadCount}/${animationEntries.length}.`,
+    );
+  }
 
   // Clear session on completion (all done or all failed - no point resuming)
   await clearSession();

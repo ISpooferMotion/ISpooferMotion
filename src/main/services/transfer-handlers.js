@@ -12,9 +12,13 @@ const DOWNLOAD_DEFAULTS = Object.freeze({
 const MAX_UPLOAD_RATE_LIMIT_RETRIES = 5;
 const MAX_UPLOAD_POLL_ATTEMPTS = 120;
 const UPLOAD_POLL_INTERVAL_MS = 2_000;
+const UPLOAD_START_FALLBACK_INTERVAL_MS = 1_100;
 const ASSET_UPLOAD_URL = 'https://apis.roblox.com/assets/v1/assets';
 
 let rateLimitUntil = 0;
+let nextUploadStartAt = 0;
+let uploadStartIntervalMs = UPLOAD_START_FALLBACK_INTERVAL_MS;
+let uploadStartQueue = Promise.resolve();
 
 // Per-replacement-name lock: prevents overlapping PATCH requests for the same
 // asset, which causes Roblox to return
@@ -71,6 +75,33 @@ function setRateLimit(ms) {
 async function waitRateLimit() {
   const waitMs = rateLimitUntil - Date.now();
   if (waitMs > 0) await delay(waitMs);
+}
+
+function updateUploadRateLimitFromHeaders(response) {
+  const remaining = Number.parseInt(response?.headers?.get('x-ratelimit-remaining') || '', 10);
+  const resetSeconds = Number.parseFloat(response?.headers?.get('x-ratelimit-reset') || '');
+  if (!Number.isFinite(remaining) || !Number.isFinite(resetSeconds) || resetSeconds <= 0) return;
+
+  if (remaining <= 2) {
+    setRateLimit(Math.ceil(resetSeconds * 1000) + 250);
+    return;
+  }
+
+  uploadStartIntervalMs = Math.max(
+    250,
+    Math.min(5_000, Math.ceil((resetSeconds * 1000) / Math.max(1, remaining - 2))),
+  );
+}
+
+function waitUploadStartSlot() {
+  const result = uploadStartQueue.catch(() => {}).then(async () => {
+    await waitRateLimit();
+    const waitMs = nextUploadStartAt - Date.now();
+    if (waitMs > 0) await delay(waitMs);
+    nextUploadStartAt = Date.now() + uploadStartIntervalMs;
+  });
+  uploadStartQueue = result.catch(() => {});
+  return result;
 }
 
 async function removeFileIfExists(filePath) {
@@ -363,13 +394,14 @@ async function uploadAsset(
     formData.append('request', JSON.stringify(requestMetadata));
     formData.append('fileContent', new Blob([fileBuffer], { type: fileType }), fileName);
 
-    await waitRateLimit();
+    await waitUploadStartSlot();
 
     response = await fetch(customUrl, {
       method: customMethod,
       headers: { 'x-api-key': apiKey },
       body: formData,
     });
+    updateUploadRateLimitFromHeaders(response);
 
     responseData = await readJsonResponse(response);
 
