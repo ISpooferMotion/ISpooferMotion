@@ -2,21 +2,25 @@
 'use strict';
 
 const { spawnSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 
-function commandForPlatform(command) {
-  if (process.platform !== 'win32') return command;
-  return command === 'npm' || command === 'npx' ? `${command}.cmd` : command;
+function resolveCommand(command, args) {
+  if (process.platform !== 'win32' || command !== 'npm') return { command, args };
+  const npmCliPath = process.env.npm_execpath || path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  if (!fs.existsSync(npmCliPath)) throw new Error(`npm CLI not found: ${npmCliPath}`);
+  return { command: process.execPath, args: [npmCliPath, ...args] };
 }
 
 function run(command, args, cwd = root) {
   console.log(`\n> ${[command, ...args].join(' ')}`);
-  const result = spawnSync(commandForPlatform(command), args, {
+  const invocation = resolveCommand(command, args);
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
+    shell: false,
   });
   if (result.status !== 0) {
     console.error(result.error);

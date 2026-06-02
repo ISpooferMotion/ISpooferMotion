@@ -18,21 +18,13 @@ const SEND_CHANNELS = new Set([
 const INVOKE_CHANNELS = new Set([
   'get-app-version',
   'get-release-source',
-  'get-runtime-info',
-  'load-renderer-settings',
-  'save-renderer-settings',
   'load-profile-secrets',
   'save-profile-secrets',
-  'clear-profile-secrets',
   'get-roblox-profile',
   'validate-opencloud-api-key',
   'search-place-ids',
   'fetch-audio-quota',
   'select-folder',
-  'open-plugins-folder',
-  'copy-debug-info',
-  'export-support-report',
-  'clear-asset-history',
   'check-session',
   'open-data-folder',
   'open-logs-folder',
@@ -41,7 +33,6 @@ const INVOKE_CHANNELS = new Set([
   'get-jobs',
   'delete-job',
   'push-to-studio',
-  'show-notification',
   'open-dev-console',
 ]);
 
@@ -60,10 +51,6 @@ function isRecord(value) {
 
 function asRecord(value) {
   return isRecord(value) ? value : {};
-}
-
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
 }
 
 function sanitizeExternalUrl(value) {
@@ -112,7 +99,6 @@ const electronAPI = Object.freeze({
   close: () => send('window-close'),
 
   onStatusUpdate: (callback) => subscribe('update-status-message', callback),
-  onStatusMessage: (callback) => subscribe('update-status-message', callback),
   onSpooferResult: (callback) => subscribe('spoofer-result', callback),
   onTransferUpdate: (callback) => subscribe('transfer-update', callback),
   onSpooferLog: (callback) => subscribe('spoofer-log', callback),
@@ -121,7 +107,6 @@ const electronAPI = Object.freeze({
 
   getAppVersion: () => invoke('get-app-version'),
   getReleaseSource: () => invoke('get-release-source'),
-  getRuntimeInfo: () => invoke('get-runtime-info'),
 
   openExternal: (url) => {
     const safeUrl = sanitizeExternalUrl(url);
@@ -130,11 +115,8 @@ const electronAPI = Object.freeze({
     return true;
   },
 
-  loadRendererSettings: () => invoke('load-renderer-settings'),
-  saveRendererSettings: (settings) => invoke('save-renderer-settings', asRecord(settings)),
   loadProfileSecrets: () => invoke('load-profile-secrets'),
   saveProfileSecrets: (data) => invoke('save-profile-secrets', asRecord(data)),
-  clearProfileSecrets: (profileId) => invoke('clear-profile-secrets', profileId),
   getRobloxProfile: (context) => invoke('get-roblox-profile', asRecord(context)),
   validateOpenCloudApiKey: (apiKey) => invoke('validate-opencloud-api-key', String(apiKey || '')),
   searchPlaceIds: (context) => invoke('search-place-ids', asRecord(context)),
@@ -145,18 +127,11 @@ const electronAPI = Object.freeze({
   cancelSpoofer: () => send('spoofer-cancel'),
   resumeSession: (data) => send('run-spoofer-action', { ...asRecord(data), resumeSession: true }),
 
-  fetchAudioQuota: (cookie, autoDetect) =>
-    invoke('fetch-audio-quota', { cookie, autoDetect: Boolean(autoDetect) }),
   getAudioQuota: (context) => invoke('fetch-audio-quota', asRecord(context)),
   selectFolder: () => invoke('select-folder'),
   openLogsFolder: () => invoke('open-logs-folder'),
-  openPluginsFolder: () => invoke('open-plugins-folder'),
-  copyDebugInfo: (context) => invoke('copy-debug-info', asRecord(context)),
-  exportSupportReport: (context) => invoke('export-support-report', asRecord(context)),
-  clearCache: () => invoke('clear-asset-history'),
   openDataFolder: () => invoke('open-data-folder'),
   clearAppCache: () => invoke('clear-app-cache'),
-  showNotification: (options) => invoke('show-notification', asRecord(options)),
   openDevConsole: () => invoke('open-dev-console'),
 
   checkSession: () => invoke('check-session'),

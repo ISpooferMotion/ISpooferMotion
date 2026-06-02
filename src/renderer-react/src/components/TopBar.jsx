@@ -19,6 +19,8 @@ export default function TopBar({ toggleSidebar }) {
       }
     };
     fetchProfiles();
+    window.addEventListener('profile-changed', fetchProfiles);
+    return () => window.removeEventListener('profile-changed', fetchProfiles);
   }, []);
 
   const activeProfileName = profilesInfo.profiles[profilesInfo.activeId]?.name || 'Profile 1';

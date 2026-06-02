@@ -34,7 +34,6 @@ export default function SpooferView({ isActive }) {
 
   const [running, setRunning] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [lastInput, setLastInput] = useState('');
 
   // transfers tracking
   const transfersRef = useRef({
@@ -201,9 +200,22 @@ export default function SpooferView({ isActive }) {
     const cleanupLocalhostScan = window.electronAPI?.onLocalhostScanResults?.((scan) => {
       if (!scan) return;
       const importedText = String(scan.text || '').trim();
+      const scannedPlaceId = String(scan.placeId || '').replace(/\D/g, '');
+      const hasScannedPlaceId = scannedPlaceId && scannedPlaceId !== '0';
       handleInputTextChange(importedText);
       setSpoofSounds(scan.kind === 'sound');
-      setStatusText(`${scan.label || 'Plugin'} scan imported: ${scan.count || 0} ID${scan.count === 1 ? '' : 's'}.`);
+      void updateProfileValue('spoofSounds', scan.kind === 'sound');
+      if (hasScannedPlaceId) {
+        setOverridePlaceId(scannedPlaceId);
+        setPlaceSearchInput(scannedPlaceId);
+        setPlaceCreatorType('place');
+        void updateProfileValue('overridePlaceId', scannedPlaceId);
+        void updateProfileValue('placeSearchInput', scannedPlaceId);
+        void updateProfileValue('placeCreatorType', 'place');
+      }
+      setStatusText(
+        `${scan.label || 'Plugin'} scan imported: ${scan.count || 0} ID${scan.count === 1 ? '' : 's'}.${hasScannedPlaceId ? ` Selected Studio place ${scannedPlaceId}.` : ''}`,
+      );
     });
 
     return () => {
@@ -262,8 +274,6 @@ export default function SpooferView({ isActive }) {
       download: { total: 0, completed: 0, failed: 0, seen: new Map() },
       upload: { total: 0, completed: 0, failed: 0, seen: new Map() },
     };
-    setLastInput(animationId);
-
     // Fetch the rest of the settings from active profile
     const profile = (await getActiveProfileSettings()) || {};
 
@@ -287,17 +297,17 @@ export default function SpooferView({ isActive }) {
       batchRetries: profile.defRetries ?? 3,
       batchRetryDelay: profile.defDelay ?? 5000,
       batchTimeoutMs: 15000,
-      batchChunkSize: 20,
+      batchChunkSize: overridePlaceId ? 50 : 20,
       downloadRetries: 2,
       downloadRetryDelayMs: 2000,
       downloadTimeoutMs: 15000,
       concurrentUploads: profile.concurrent ?? true,
       maxConcurrentUploads: profile.maxConcurrentUploads ?? 10,
       replaceExisting,
-      renamePrefix: '', // Can be loaded from settings
-      renameSuffix: '',
-      renameFind: '',
-      renameReplace: '',
+      renamePrefix: profile.renameToggle ? profile.renamePrefix ?? '' : '',
+      renameSuffix: profile.renameToggle ? profile.renameSuffix ?? '' : '',
+      renameFind: profile.renameToggle ? profile.renameFind ?? '' : '',
+      renameReplace: profile.renameToggle ? profile.renameReplace ?? '' : '',
       maxConcurrentDownloads: profile.maxConcurrentDownloads ?? 20,
       desktopNotifications: profile.notifications ?? true,
     };
@@ -421,43 +431,6 @@ export default function SpooferView({ isActive }) {
     setOverridePlaceId(place.placeId);
     setPlaceSearchMessage(`Selected ${place.name} (${place.placeId}).`);
     await updateProfileValue('overridePlaceId', place.placeId);
-  };
-
-  const extractReplacementMappings = (text) => {
-    const mappings = [];
-    const seen = new Set();
-    const patterns = [
-      /(\d{5,})\s*=\s*(\d{5,})/g,
-      /Original ID:\s*(\d{5,}).*?(?:New Asset ID|Overwrote Asset ID):\s*(\d{5,})/gi,
-    ];
-
-    for (const pattern of patterns) {
-      let match;
-      while ((match = pattern.exec(text))) {
-        if (match[1] === match[2]) continue;
-        const key = `${match[1]}:${match[2]}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        mappings.push(`${match[1]} = ${match[2]},`);
-      }
-    }
-
-    return mappings.join('\n');
-  };
-
-  const copyReplacementMappings = async () => {
-    const mappings = extractReplacementMappings(outputData);
-    if (!mappings) {
-      setStatusText('No replacement mappings found in output.');
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(mappings);
-      setStatusText(`Copied ${mappings.split(/\r?\n/).length} replacement mapping(s).`);
-    } catch {
-      setStatusText('Could not copy replacement mappings.');
-    }
   };
 
   return (

@@ -1,5 +1,6 @@
 local HttpService = game:GetService("HttpService")
 local MarketplaceService = game:GetService("MarketplaceService")
+local CollectionService = game:GetService("CollectionService")
 
 local PLUGIN_VERSION = "__ISPOOFERMOTION_VERSION__"
 if PLUGIN_VERSION:match("^__") then
@@ -42,10 +43,28 @@ local ASSET_TYPE_BY_KIND = {
 
 local IGNORED_ROOTS = {
   CoreGui = true,
+  CorePackages = true,
   PluginGuiService = true,
-  TextChatService = true,
-  Chat = true,
-  MaterialService = true,
+  RobloxPluginGuiService = true,
+  RobloxReplicatedStorage = true,
+  StudioData = true,
+  StudioService = true,
+  ChangeHistoryService = true,
+  DebuggerManager = true,
+  PluginDebugService = true,
+  PluginManagementService = true,
+  ScriptEditorService = true,
+  Selection = true,
+  AnalyticsService = true,
+  ContextActionService = true,
+  GuiService = true,
+  HapticService = true,
+  LogService = true,
+  NetworkClient = true,
+  NetworkServer = true,
+  Stats = true,
+  UserInputService = true,
+  VRService = true,
 }
 
 local ANIMATION_SIGNALS = {
@@ -79,6 +98,17 @@ local SOUND_SIGNALS = {
   "volume",
   "looped",
   "rolloff",
+}
+
+local HUMANOID_DESCRIPTION_ANIMATION_PROPERTIES = {
+  "ClimbAnimation",
+  "FallAnimation",
+  "IdleAnimation",
+  "JumpAnimation",
+  "MoodAnimation",
+  "RunAnimation",
+  "SwimAnimation",
+  "WalkAnimation",
 }
 
 local function setButtonsEnabled(enabled)
@@ -219,12 +249,24 @@ end
 
 local function addId(ids, value)
   local text = tostring(value or "")
-  local id = text:match("rbxassetid://%s*(%d%d%d%d%d+)")
-      or text:match("[?&][Ii][Dd]=(%d%d%d%d%d+)")
-      or text:match("^%s*(%d%d%d%d%d+)%s*$")
-      or text:match("(%d%d%d%d%d+)")
-  if id then
+  for id in text:gmatch("%f[%d](%d%d%d%d%d+)%f[%D]") do
     ids[id] = true
+  end
+end
+
+local function addNestedIds(ids, value, visited)
+  if type(value) ~= "table" then
+    addId(ids, value)
+    return
+  end
+
+  visited = visited or {}
+  if visited[value] then return end
+  visited[value] = true
+
+  for key, nestedValue in pairs(value) do
+    addId(ids, key)
+    addNestedIds(ids, nestedValue, visited)
   end
 end
 
@@ -311,6 +353,8 @@ local function collectIdsFromSource(source, kind, ids)
 
   collectContextualAssetUrls(source, kind, ids)
   collectLooseContextIds(source, kind, ids)
+  -- Roblox metadata validation filters these broad static candidates by asset type.
+  addId(ids, source)
 end
 
 local function traverseValidDescendants(callback, progressCallback)
@@ -394,6 +438,54 @@ local function replaceNumericValue(value, replacements)
     return tonumber(replacement), 1
   end
   return value, 0
+end
+
+local function replaceNestedValue(value, replacements, ordered, visited)
+  if type(value) == "string" then
+    return replaceIdsInText(value, replacements, ordered)
+  elseif type(value) == "number" then
+    return replaceNumericValue(value, replacements)
+  elseif type(value) ~= "table" then
+    return value, 0
+  end
+
+  visited = visited or {}
+  if visited[value] then return value, 0 end
+  visited[value] = true
+
+  local changed = 0
+  for key, nestedValue in pairs(value) do
+    local nextValue, nestedChanged = replaceNestedValue(nestedValue, replacements, ordered, visited)
+    if nestedChanged > 0 then
+      value[key] = nextValue
+      changed += nestedChanged
+    end
+  end
+  return value, changed
+end
+
+local function replacePropertyValue(obj, propertyName, replacements, ordered, stats)
+  local okRead, value = pcall(function()
+    return obj[propertyName]
+  end)
+  if not okRead or value == nil then
+    return
+  end
+
+  local nextValue, changed = replaceNestedValue(value, replacements, ordered)
+  if changed <= 0 or nextValue == value then
+    return
+  end
+
+  local okWrite = pcall(function()
+    obj[propertyName] = nextValue
+  end)
+  if okWrite then
+    stats.replacements += changed
+    stats.objects += 1
+  else
+    stats.failed += 1
+  end
 end
 
 local function replacePropertyText(obj, propertyName, replacements, ordered, stats)
@@ -487,12 +579,75 @@ local function replaceAttributes(obj, replacements, ordered, stats)
   end
 end
 
+local function replaceTags(obj, replacements, ordered, stats)
+  local okTags, tags = pcall(function()
+    return CollectionService:GetTags(obj)
+  end)
+  if not okTags or not tags then
+    return
+  end
+
+  local changedTags = 0
+  for _, tag in ipairs(tags) do
+    local nextTag, changed = replaceIdsInText(tag, replacements, ordered)
+    if changed > 0 and nextTag ~= tag then
+      local okWrite = pcall(function()
+        CollectionService:RemoveTag(obj, tag)
+        CollectionService:AddTag(obj, nextTag)
+      end)
+      if okWrite then
+        stats.replacements += changed
+        changedTags += 1
+      else
+        stats.failed += 1
+      end
+    end
+  end
+
+  if changedTags > 0 then
+    stats.objects += 1
+  end
+end
+
+local function replaceHumanoidDescriptionAnimations(obj, replacements, ordered, stats)
+  for _, propertyName in ipairs(HUMANOID_DESCRIPTION_ANIMATION_PROPERTIES) do
+    replacePropertyValue(obj, propertyName, replacements, ordered, stats)
+  end
+
+  local okEmotes, emotes = pcall(function()
+    return obj:GetEmotes()
+  end)
+  if not okEmotes or not emotes then
+    return
+  end
+
+  local nextEmotes, changed = replaceNestedValue(emotes, replacements, ordered)
+  if changed <= 0 then
+    return
+  end
+
+  local okWrite = pcall(function()
+    obj:SetEmotes(nextEmotes)
+  end)
+  if okWrite then
+    stats.replacements += changed
+    stats.objects += 1
+  else
+    stats.failed += 1
+  end
+end
+
 local function replaceIdsInObject(obj, replacements, ordered, stats)
 
   if obj:IsA("Animation") then
     replacePropertyText(obj, "AnimationId", replacements, ordered, stats)
   elseif obj:IsA("Sound") then
     replacePropertyText(obj, "SoundId", replacements, ordered, stats)
+  elseif obj:IsA("AudioPlayer") then
+    replacePropertyText(obj, "Asset", replacements, ordered, stats)
+    replacePropertyText(obj, "AssetId", replacements, ordered, stats)
+  elseif obj:IsA("HumanoidDescription") then
+    replaceHumanoidDescriptionAnimations(obj, replacements, ordered, stats)
   elseif obj:IsA("LuaSourceContainer") then
     replacePropertyText(obj, "Source", replacements, ordered, stats)
   elseif obj:IsA("StringValue") or obj:IsA("IntValue") or obj:IsA("NumberValue") then
@@ -500,6 +655,7 @@ local function replaceIdsInObject(obj, replacements, ordered, stats)
   end
 
   replaceAttributes(obj, replacements, ordered, stats)
+  replaceTags(obj, replacements, ordered, stats)
 end
 
 local function collectValidObjects(progressCallback)
@@ -591,17 +747,58 @@ local function replaceOpenGame(text, progressCallback)
   return true, stats
 end
 
-local function collectIdsFromAttribute(attributeName, attributeValue, kind, ids)
-  if not contextLooksLikeKind(attributeName, kind) then return end
-  addId(ids, attributeValue)
+local function objectContextLooksLikeKind(obj, kind)
+  local current = obj
+  for _ = 1, 3 do
+    if not current then break end
+    if contextLooksLikeKind(current.Name, kind) then
+      return true
+    end
+    current = current.Parent
+  end
+  return false
+end
+
+local function addPropertyIdsFromObject(obj, propertyName, ids)
+  local okRead, value = pcall(function()
+    return obj[propertyName]
+  end)
+  if okRead and value ~= nil then
+    addNestedIds(ids, value)
+  end
+end
+
+local function collectHumanoidDescriptionAnimationIds(obj, ids)
+  for _, propertyName in ipairs(HUMANOID_DESCRIPTION_ANIMATION_PROPERTIES) do
+    addPropertyIdsFromObject(obj, propertyName, ids)
+  end
+
+  local okEmotes, emotes = pcall(function()
+    return obj:GetEmotes()
+  end)
+  if okEmotes and emotes then
+    addNestedIds(ids, emotes)
+  end
 end
 
 local function collectIdsFromObject(obj, kind, ids)
+  local hasObjectContext = objectContextLooksLikeKind(obj, kind)
+
+  if hasObjectContext then
+    addId(ids, obj.Name)
+  end
 
   if kind == "animation" and obj:IsA("Animation") then
     addId(ids, obj.AnimationId)
   elseif kind == "sound" and obj:IsA("Sound") then
     addId(ids, obj.SoundId)
+    addPropertyIdsFromObject(obj, "AudioContent", ids)
+  elseif kind == "sound" and obj:IsA("AudioPlayer") then
+    addPropertyIdsFromObject(obj, "Asset", ids)
+    addPropertyIdsFromObject(obj, "AssetId", ids)
+    addPropertyIdsFromObject(obj, "AudioContent", ids)
+  elseif kind == "animation" and obj:IsA("HumanoidDescription") then
+    collectHumanoidDescriptionAnimationIds(obj, ids)
   elseif obj:IsA("LuaSourceContainer") then
     local ok, source = pcall(function()
       return obj.Source
@@ -610,13 +807,11 @@ local function collectIdsFromObject(obj, kind, ids)
       collectIdsFromSource(source, kind, ids)
     end
   elseif obj:IsA("StringValue") or obj:IsA("IntValue") or obj:IsA("NumberValue") then
-    if contextLooksLikeKind(obj.Name, kind) then
-      local ok, value = pcall(function()
-        return obj.Value
-      end)
-      if ok then
-        addId(ids, value)
-      end
+    local ok, value = pcall(function()
+      return obj.Value
+    end)
+    if ok then
+      addId(ids, value)
     end
   end
 
@@ -624,8 +819,17 @@ local function collectIdsFromObject(obj, kind, ids)
     return obj:GetAttributes()
   end)
   if okAttributes and attributes then
-    for attributeName, attributeValue in pairs(attributes) do
-      collectIdsFromAttribute(attributeName, attributeValue, kind, ids)
+    for _, attributeValue in pairs(attributes) do
+      addId(ids, attributeValue)
+    end
+  end
+
+  local okTags, tags = pcall(function()
+    return CollectionService:GetTags(obj)
+  end)
+  if okTags and tags then
+    for _, tag in ipairs(tags) do
+      addId(ids, tag)
     end
   end
 end
@@ -727,7 +931,7 @@ local function resolveIds(kind, ids, progressCallback, options)
   local completed = 0
 
   local queueIndex = 1
-  local concurrency = math.min(5, math.max(1, #ids))
+  local concurrency = math.min(10, math.max(1, #ids))
   local workersFinished = 0
 
   local function worker()
@@ -1116,7 +1320,7 @@ local function runScan(kind)
             etaLabel.Text = ""
           end
         end
-      end)
+      end, { ignoreOwnUserId = ignoreOwnUserId })
       etaLabel.Text = ""
       local lines = {}
       for _, asset in ipairs(assets) do

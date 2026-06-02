@@ -20,9 +20,12 @@ function getVersionFromNameOrTag(value) {
 }
 
 function parseVersionParts(value) {
-  const match = String(value || '').match(/v?(\d+)\.(\d+)\.(\d+)/i);
+  const match = String(value || '').match(/v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z][0-9A-Za-z.-]*))?/i);
   if (!match) return null;
-  return match.slice(1, 4).map((part) => Number(part));
+  return {
+    core: match.slice(1, 4).map((part) => Number(part)),
+    suffix: match[4] ? match[4].split('.') : [],
+  };
 }
 
 function compareVersions(a, b) {
@@ -30,8 +33,32 @@ function compareVersions(a, b) {
   const right = parseVersionParts(b);
   if (!left || !right) return 0;
   for (let i = 0; i < 3; i += 1) {
-    if (left[i] > right[i]) return 1;
-    if (left[i] < right[i]) return -1;
+    if (left.core[i] > right.core[i]) return 1;
+    if (left.core[i] < right.core[i]) return -1;
+  }
+
+  if (left.suffix.length === 0 || right.suffix.length === 0) {
+    if (left.suffix.length === right.suffix.length) return 0;
+    return left.suffix.length > 0 ? 1 : -1;
+  }
+
+  const suffixLength = Math.max(left.suffix.length, right.suffix.length);
+  for (let i = 0; i < suffixLength; i += 1) {
+    if (left.suffix[i] === undefined) return -1;
+    if (right.suffix[i] === undefined) return 1;
+
+    const leftNumber = /^\d+$/.test(left.suffix[i]) ? Number(left.suffix[i]) : null;
+    const rightNumber = /^\d+$/.test(right.suffix[i]) ? Number(right.suffix[i]) : null;
+    if (leftNumber !== null && rightNumber !== null) {
+      if (leftNumber > rightNumber) return 1;
+      if (leftNumber < rightNumber) return -1;
+      continue;
+    }
+
+    const suffixComparison = left.suffix[i].localeCompare(right.suffix[i], undefined, {
+      sensitivity: 'base',
+    });
+    if (suffixComparison !== 0) return suffixComparison > 0 ? 1 : -1;
   }
   return 0;
 }
@@ -98,6 +125,7 @@ function downloadFile(url, destination) {
         });
       },
     );
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => req.destroy(new Error('Timeout')));
     req.on('error', reject);
   });
 }

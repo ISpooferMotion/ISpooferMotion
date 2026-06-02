@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.3.13-hotfix.2
+
+- Sound spoofing is more reliable when using the Studio plugin. Scans now carry over the open game's Place ID automatically instead of making you enter it again.
+- Improved automatic Place ID discovery. If Roblox does not return a usable place, the app now falls back cleanly instead of trying an unrelated experience.
+- Added clearer progress updates for preparing, Place ID discovery, downloads, and uploads so larger jobs no longer look stuck at `0/100`.
+- Made large Studio scans much faster by batching download lookups more efficiently when the open game's Place ID is known.
+- Added smarter rate-limit handling so the app can move quickly while automatically easing off when Roblox reports that a limit is close.
+- Expanded Studio plugin scans to find more animations and sounds stored in scripts, tags, attributes, grouped values, avatar descriptions, emote tables, newer AudioPlayer objects, and other custom setups.
+- Sped up Studio plugin metadata checks so larger animation and sound scans finish sooner.
+- Skipped Studio-only engine containers during plugin scans so the broader search spends less time on places that cannot contain game assets.
+- Fixed rename settings not saving or applying consistently. Prefixes, suffixes, and find-and-replace rules now carry through to uploads.
+- Fixed Studio scans picking up freshly spoofed copies after replacements were applied.
+- Prevented duplicate jobs from starting while another spoof is already running.
+- Improved profile saving, job history, and interrupted-session recovery.
+- Added a completion notification when a job finishes. This still follows your notification setting.
+- Fixed the built-in updater so hotfix releases are detected correctly.
+- Cleaned up the Activity page and profile switcher so results, multiline details, and the active profile name stay in sync.
+
 ## v1.3.13-hotfix.1
 
 - Fixed Roblox "Too Many Requests" errors by properly throttling batch requests and adding exponential backoff.

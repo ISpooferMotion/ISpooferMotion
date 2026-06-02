@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-const FALLBACK_APP_VERSION = '1.3.13';
+const FALLBACK_APP_VERSION = '1.3.13-hotfix.2';
 const TOUR_VERSION_KEY = 'ism_seen_tour_version';
 
 const STEPS = [
