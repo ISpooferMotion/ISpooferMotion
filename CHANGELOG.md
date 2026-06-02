@@ -12,6 +12,7 @@
 + Added a custom electron-builder signer (`scripts/azure-sign.js`) that authenticates to Azure with a service principal and signs the installer with SHA-256 + RFC 3161 timestamping.
 + CI/CD now installs the Microsoft Trusted Signing client on the Windows runner and passes the required signing secrets through to the build step.
 - Removed Replace Existing.
++ Some other QOL stuff.
 
 ## v1.3.13-hotfix.2
 

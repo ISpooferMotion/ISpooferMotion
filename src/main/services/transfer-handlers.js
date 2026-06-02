@@ -9,10 +9,10 @@ const DOWNLOAD_DEFAULTS = Object.freeze({
   retryDelayMs: 2_000,
 });
 
-const MAX_UPLOAD_RATE_LIMIT_RETRIES = 5;
+const MAX_UPLOAD_RATE_LIMIT_RETRIES = 10000;
 const MAX_UPLOAD_POLL_ATTEMPTS = 120;
 const UPLOAD_POLL_INTERVAL_MS = 2_000;
-const UPLOAD_START_FALLBACK_INTERVAL_MS = 1_100;
+const UPLOAD_START_FALLBACK_INTERVAL_MS = 100;
 const ASSET_UPLOAD_URL = 'https://apis.roblox.com/assets/v1/assets';
 
 let rateLimitUntil = 0;
@@ -108,11 +108,11 @@ function sanitizeUploadName(name, fallback = 'asset') {
 function getRetryAfterMs(response, attempt = 1) {
   const retryAfterSeconds = Number.parseInt(response?.headers?.get('retry-after'), 10);
   if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
-    return Math.min(Math.max(retryAfterSeconds, 1), 60) * 1000;
+    return Math.min(Math.max(retryAfterSeconds, 1), 300) * 1000;
   }
-  const baseMs = 5000;
+  const baseMs = 30000;
   const expMs = baseMs * Math.pow(1.5, attempt - 1);
-  const safeMs = Math.min(expMs, 60000);
+  const safeMs = Math.min(expMs, 120000);
   return Math.floor(safeMs + Math.random() * 2000);
 }
 
@@ -636,7 +636,129 @@ async function publishAnimationRbxmWithProgress(
   }
 }
 
+async function publishAudioViaIdeEndpoint(
+  filePath,
+  name,
+  cookie,
+  csrfToken,
+  groupId = null,
+  transferId,
+  sendTransferUpdate,
+  options = {},
+) {
+  let fileBuffer;
+  try {
+    fileBuffer = await fs.readFile(filePath);
+  } catch (error) {
+    const message = `File system error: ${getErrorMessage(error)}`;
+    sendTransferUpdateSafe(sendTransferUpdate, {
+      id: transferId, name, status: 'error', direction: 'upload', error: message,
+    });
+    return { success: false, error: message };
+  }
+
+  sendTransferUpdateSafe(sendTransferUpdate, {
+    id: transferId, name, size: fileBuffer.length, status: 'processing', direction: 'upload', progress: 0, error: null,
+  });
+
+  if (!cookie || !csrfToken) {
+    const error = 'Missing Roblox credentials for audio upload.';
+    sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error, progress: 0 });
+    return { success: false, error };
+  }
+
+  const base64File = fileBuffer.toString('base64');
+  let currentName = sanitizeUploadName(name);
+
+  for (let attempt = 0; attempt <= MAX_UPLOAD_RATE_LIMIT_RETRIES; attempt += 1) {
+    const bodyPayload = {
+      name: currentName,
+      file: base64File,
+      estimatedFileSize: fileBuffer.length,
+    };
+    if (groupId) {
+      bodyPayload.groupId = Number(groupId);
+    }
+
+    await waitUploadStartSlot();
+
+    let response;
+    try {
+      response = await fetchWithTimeout('https://publish.roblox.com/v1/audio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'RobloxStudio/WinInet',
+          'Cookie': cookie.includes('.ROBLOSECURITY') ? cookie : `.ROBLOSECURITY=${cookie}`,
+          'x-csrf-token': csrfToken,
+        },
+        body: JSON.stringify(bodyPayload),
+        signal: options.abortSignal,
+      }, 60000);
+    } catch (err) {
+      if (attempt >= MAX_UPLOAD_RATE_LIMIT_RETRIES) {
+        const errMsg = `Upload failed after ${MAX_UPLOAD_RATE_LIMIT_RETRIES} retries: ${getErrorMessage(err)}`;
+        sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: errMsg, progress: 0 });
+        return { success: false, error: errMsg };
+      }
+      await delay(getRetryAfterMs(null, attempt + 1));
+      continue;
+    }
+
+    const responseData = await readJsonResponse(response);
+
+    if (response.status === 429) {
+      const waitMs = getRetryAfterMs(response, attempt + 1);
+      if (DEVELOPER_MODE) console.log(`[UPLOAD DEBUG] Audio rate limited, pausing for ${waitMs}ms`);
+      sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'processing', progress: 0 });
+      setRateLimit(waitMs);
+      await waitRateLimit();
+      continue;
+    }
+
+    if (!response.ok) {
+      const errors = responseData?.errors || [];
+      if (response.status === 400 && errors.length > 0) {
+        if (errors[0].message === 'Audio name or description is moderated.') {
+          currentName = 'Audio';
+          continue; 
+        }
+        const msg = `Audio upload rejected: ${errors[0].message}`;
+        sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
+        return { success: false, error: msg };
+      }
+      if (response.status === 403 && errors.length > 0) {
+        if (errors[0].message.includes('Token Validation Failed')) {
+           const msg = 'CSRF Token Invalid';
+           sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
+           return { success: false, error: msg };
+        }
+      }
+      const msg = `Audio upload failed (${response.status}): ${JSON.stringify(responseData || {})}`;
+      sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
+      return { success: false, error: msg };
+    }
+
+    const assetId = responseData?.id;
+    if (assetId) {
+      sendTransferUpdateSafe(sendTransferUpdate, {
+        id: transferId, progress: 100, status: 'completed', newAssetId: String(assetId),
+      });
+      return { success: true, assetId: String(assetId) };
+    }
+
+    const msg = `Unexpected audio response: ${JSON.stringify(responseData || {})}`;
+    sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
+    return { success: false, error: msg };
+  }
+
+  const errStr = `Rate limit hit after ${MAX_UPLOAD_RATE_LIMIT_RETRIES} retries.`;
+  sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: errStr, progress: 0 });
+  return { success: false, error: errStr };
+}
+
 module.exports = {
   downloadAnimationAssetWithProgress,
   publishAnimationRbxmWithProgress,
+  publishAudioViaIdeEndpoint,
 };

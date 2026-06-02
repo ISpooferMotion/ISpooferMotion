@@ -362,14 +362,20 @@
 .workspace {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
-  padding: 18px 20px 18px 16px;
+  display: flex;
+  flex-direction: column;
 }
 
 .view {
   display: none;
-  height: 100%;
+  flex: 1;
   min-height: 0;
+  min-width: 0;
+  padding: 18px 20px 18px 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 @keyframes view-enter {

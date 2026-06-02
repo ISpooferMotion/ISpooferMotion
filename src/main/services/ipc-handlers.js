@@ -8,7 +8,7 @@ const { app, dialog, ipcMain, shell, Notification, nativeImage } = require('elec
 const { DEVELOPER_MODE, buildRobloxCookieHeader, clearDownloadsDirectory, retryAsync, sanitizeFilename } = require('./common');
 const { getPlaceIdFromCreator, getPlaceSuggestionsFromCreator, getPlaceSuggestionByPlaceId } = require('./assets');
 const { getCookieFromAutoDetect, getAuthenticatedUserId, getCsrfToken, readResponseText } = require('./auth');
-const { downloadAnimationAssetWithProgress, publishAnimationRbxmWithProgress } = require('./transfer-handlers');
+const { downloadAnimationAssetWithProgress, publishAnimationRbxmWithProgress, publishAudioViaIdeEndpoint } = require('./transfer-handlers');
 const { loadJobs, saveJobRecord, deleteJobRecord } = require('./jobs');
 const { saveSession, loadSession, clearSession } = require('./session');
 const { pauseSpoofer, resumeSpoofer, cancelSpoofer, resetRunControls, checkCancelled, checkPaused, getAbortSignal } = require('./ProcessManager');
@@ -1424,7 +1424,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
   await runWithConcurrency(batchTasks, 5, async (task) => {
     checkCancelled();
     await checkPaused();
-    
+
     const { creatorKey, items } = task;
     let [creatorType, creatorId] = creatorKey.split(':');
     let placeIdArray = overridePlaceId ? [overridePlaceId] : placeIdMap[creatorKey] || [];
@@ -1484,7 +1484,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
           const isTimeout = caughtErr && (caughtErr.name === 'AbortError' || /aborted|timeout/i.test(caughtErr.message));
           const retryable = isTimeout || status === 429 || status === 502 || status === 503 || status === 504 || status === 500;
           const statusText = resp ? `${status}` : isTimeout ? 'timeout' : caughtErr ? caughtErr.message : 'unknown';
-          
+
           if (DEVELOPER_MODE) {
             console.warn(`(Dev) Batch attempt ${attempt}/${BATCH_MAX_RETRIES} for ${creatorKey} @ place ${placeId} failed: ${statusText}${retryable && attempt < BATCH_MAX_RETRIES ? ' -> retrying' : ''}`);
             console.warn(`(Dev) [Diagnostics] Creator Key: ${creatorKey}, Items: ${items.length}, Place ID: ${placeId}, Attempt: ${attempt}`);
@@ -1528,7 +1528,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
             console.log('(Dev) Full batch item with error:', JSON.stringify(locErr, null, 2).substring(0, 500));
           }
         }
-        
+
         if (hasBatchErrors) {
           if (placeIdIndex < placeIdArray.length - 1) {
             if (DEVELOPER_MODE) console.log(`(Dev) Batch errors detected for ${creatorKey} with placeId ${placeId}. Trying next place...`);
@@ -1592,7 +1592,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
           });
       }
     }
-    
+
     resolvedLocationsCount += items.length;
     sendSpooferProgress({
       phase: 'locations',
@@ -1737,16 +1737,12 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
     let uploadCompleted = 0;
     const uploadStartTime = Date.now();
     // Open Cloud API rate limit is 60 req/min.
-    // Normal uploads can run in parallel, but Replace Existing must be serialized.
-    // Roblox rejects overlapping PATCH operations on the same existing asset with:
-    // "A newer version was created from a different request..."
-    const defaultLimit = 10;
+    // Normal uploads can run in parallel
+    const defaultLimit = 15;
 
-    let userLimit = data.concurrentUploads
-      ? data.maxConcurrentUploads
-        ? parseInt(data.maxConcurrentUploads, 10)
-        : defaultLimit
-      : 1;
+    let userLimit = data.maxConcurrentUploads
+      ? parseInt(data.maxConcurrentUploads, 10)
+      : defaultLimit;
 
     if (!Number.isFinite(userLimit) || userLimit < 1) {
       userLimit = defaultLimit;
@@ -1794,7 +1790,12 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
         await checkPaused();
         const finalName = buildFinalUploadName(entry, data);
 
-        const result = await publishAnimationRbxmWithProgress(filePath, finalName, robloxCookie, csrfToken, data.groupId && String(data.groupId).trim() ? data.groupId : null, uploadTransferId, sendTransferUpdate, assetTypeName, data.apiKey || null, authenticatedUserId || null, { abortSignal: getAbortSignal() });
+        let result;
+        if (assetTypeName === 'Audio') {
+          result = await publishAudioViaIdeEndpoint(filePath, finalName, robloxCookie, csrfToken, data.groupId && String(data.groupId).trim() ? data.groupId : null, uploadTransferId, sendTransferUpdate, { abortSignal: getAbortSignal() });
+        } else {
+          result = await publishAnimationRbxmWithProgress(filePath, finalName, robloxCookie, csrfToken, data.groupId && String(data.groupId).trim() ? data.groupId : null, uploadTransferId, sendTransferUpdate, assetTypeName, data.apiKey || null, authenticatedUserId || null, { abortSignal: getAbortSignal() });
+        }
         if (!result.success) throw new Error(result.error || 'Upload failed');
         return result;
       };
@@ -2055,17 +2056,35 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
 const runWithConcurrency = async (items, limit, worker) => {
   const results = new Array(items.length);
   let index = 0;
+  let cancelled = false;
   const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
     while (true) {
-      checkCancelled();
-      await checkPaused();
+      if (cancelled) break;
+      try {
+        checkCancelled();
+        await checkPaused();
+      } catch (err) {
+        if (err.message === 'Operation cancelled by user' || err.message === 'Operation cancelled') {
+          cancelled = true;
+          break;
+        }
+        throw err;
+      }
       const current = index++;
       if (current >= items.length) break;
-      results[current] = await worker(items[current]);
+      try {
+        results[current] = await worker(items[current]);
+      } catch (err) {
+        if (err.message === 'Operation cancelled by user' || err.message === 'Operation cancelled') {
+          cancelled = true;
+          break;
+        }
+        throw err;
+      }
     }
   });
   await Promise.all(workers);
-  return results;
+  return results.filter(r => r !== undefined);
 };
 
 module.exports = {
