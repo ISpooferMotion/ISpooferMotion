@@ -11,7 +11,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "test": "node scripts/run-syntax-check.js && node --test scripts/test-cases/*.test.js",
+    "test": "node scripts/run-syntax-check.js && node --test \"scripts/test-cases/*.test.js\"",
     "build:renderer": "node scripts/build-renderer.js",
     "build": "npm run build:renderer && electron-builder",
     "build:plugin": "node scripts/build-plugin-rbxmx.js",
