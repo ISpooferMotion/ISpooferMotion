@@ -319,9 +319,6 @@
   opacity: 0;
   pointer-events: none;
   transform: translateY(-4px);
-  transition:
-    opacity 130ms ease,
-    transform 130ms ease;
   padding: 6px;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -332,10 +329,16 @@
   z-index: var(--z-popup);
 }
 
+@keyframes menuMountFade {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .profile-picker.open .profile-menu {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
+  animation: menuMountFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .profile-option {
