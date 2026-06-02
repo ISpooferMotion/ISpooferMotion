@@ -757,8 +757,16 @@ async function publishAudioViaIdeEndpoint(
   return { success: false, error: errStr };
 }
 
+function buildUploadFileDescriptor(name, payloadMetadata) {
+  return {
+    fileName: `${name}${payloadMetadata.extension}`,
+    fileType: payloadMetadata.mimeType || 'model/x-rbxm',
+  };
+}
+
 module.exports = {
   downloadAnimationAssetWithProgress,
   publishAnimationRbxmWithProgress,
   publishAudioViaIdeEndpoint,
+  buildUploadFileDescriptor,
 };
