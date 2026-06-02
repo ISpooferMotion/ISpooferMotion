@@ -61,6 +61,7 @@
       "signAndEditExecutable": true,
       "legalTrademarks": "ISpooferMotion",
       "azureSignOptions": {
+        "publisherName": "ispoofermotion.com",
         "endpoint": "https://weu.codesigning.azure.net/",
         "codeSigningAccountName": "IncrediDev",
         "certificateProfileName": "ispoofermotion-cert"
