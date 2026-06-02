@@ -68,20 +68,6 @@ jobs:
       - name: Run release hardening check
         run: npm run release:hardening-check
 
-      - name: Install Azure Trusted Signing client (Windows only)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $dest = "$env:GITHUB_WORKSPACE\azure-trusted-signing"
-          New-Item -ItemType Directory -Force -Path $dest | Out-Null
-          nuget install Microsoft.Trusted.Signing.Client -Version 1.0.60 -OutputDirectory $dest -ExcludeVersion
-          $dll = Get-ChildItem -Path $dest -Recurse -Filter "Azure.CodeSigning.Dlib.dll" | Where-Object { $_.FullName -like "*\bin\x64\*" } | Select-Object -First 1
-          if (-not $dll) {
-            Write-Error "Azure.CodeSigning.Dlib.dll not found after install."
-            exit 1
-          }
-          echo "AZURE_DLIB_PATH=$($dll.FullName)" >> $env:GITHUB_ENV
-
       - name: Build Windows app EXE
         if: runner.os == 'Windows'
         env:
@@ -89,9 +75,6 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
-          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
-          AZURE_TRUSTED_SIGNING_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
         run: npm run build -- --win nsis --publish never
 
       - name: Build Roblox Studio plugin (Windows only)

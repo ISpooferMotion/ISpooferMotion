@@ -60,10 +60,11 @@
       "icon": "src/assets/app_icon.ico",
       "signAndEditExecutable": true,
       "legalTrademarks": "ISpooferMotion",
-      "sign": "scripts/azure-sign.js",
-      "signingHashAlgorithms": [
-        "sha256"
-      ]
+      "azureSignOptions": {
+        "endpoint": "https://weu.codesigning.azure.net/",
+        "codeSigningAccountName": "IncrediDev",
+        "certificateProfileName": "ispoofermotion-cert"
+      }
     },
     "nsis": {
       "oneClick": false,
