@@ -19,6 +19,27 @@ local PRODUCT_INFO_YIELD_EVERY = 25
 local PRODUCT_INFO_RETRIES = 3
 local ICON_ID = "rbxassetid://11778372908"
 
+local KNOWN_ASSET_PROPERTIES = {
+  Animation = { "AnimationId" },
+  Sound = { "SoundId" },
+  AudioPlayer = { "Asset", "AssetId" },
+  Decal = { "Texture" },
+  Texture = { "Texture" },
+  ImageLabel = { "Image" },
+  ImageButton = { "Image", "HoverImage", "PressedImage" },
+  MeshPart = { "MeshId", "TextureID" },
+  SpecialMesh = { "MeshId", "TextureId" },
+  Shirt = { "ShirtTemplate" },
+  Pants = { "PantsTemplate" },
+  ShirtGraphic = { "Graphic" },
+  SurfaceAppearance = { "ColorMap", "MetalnessMap", "NormalMap", "RoughnessMap" },
+  VideoFrame = { "Video" },
+  ParticleEmitter = { "Texture" },
+  Beam = { "Texture" },
+  Trail = { "Texture" },
+  Sky = { "SkyboxBk", "SkyboxDn", "SkyboxFt", "SkyboxLf", "SkyboxRt", "SkyboxUp" },
+}
+
 local API_DUMP_URL = "https://raw.githubusercontent.com/MaximumADHD/Roblox-Client-Tracker/refs/heads/roblox/API-Dump.json"
 local cachedApiDump = nil
 local classIndexMap = {}
@@ -44,36 +65,54 @@ end
 
 local function getWritableProperties(className)
   if classPropertiesCache[className] then return classPropertiesCache[className] end
-  if not cachedApiDump then return {} end
   
   local properties = {}
-  local classIndex = classIndexMap[className]
-  if classIndex then
-    local class = cachedApiDump.Classes[classIndex]
-    if class then
-      for _, member in ipairs(class.Members or {}) do
-        if member.MemberType == "Property" and member.Security and member.Security.Write == "None" then
-          local okTag = true
-          if member.Tags then
-            for _, tag in ipairs(member.Tags) do
-              if blacklistedTags[tag] then okTag = false break end
+  if KNOWN_ASSET_PROPERTIES[className] then
+    for _, p in ipairs(KNOWN_ASSET_PROPERTIES[className]) do
+      table.insert(properties, p)
+    end
+  end
+  
+  if cachedApiDump then
+    local apiProps = {}
+    local classIndex = classIndexMap[className]
+    if classIndex then
+      local class = cachedApiDump.Classes[classIndex]
+      if class then
+        for _, member in ipairs(class.Members or {}) do
+          if member.MemberType == "Property" and member.Security and member.Security.Write == "None" then
+            local okTag = true
+            if member.Tags then
+              for _, tag in ipairs(member.Tags) do
+                if blacklistedTags[tag] then okTag = false break end
+              end
+            end
+            if okTag and member.ValueType and (member.ValueType.Name == "Content" or member.ValueType.Name == "string" or member.ValueType.Category == "Primitive") then
+               table.insert(apiProps, member.Name)
             end
           end
-          if okTag and member.ValueType and (member.ValueType.Name == "Content" or member.ValueType.Name == "string" or member.ValueType.Category == "Primitive") then
-             table.insert(properties, member.Name)
-          end
         end
-      end
-      if class.Superclass and class.Superclass ~= "<<<ROOT>>>" then
-        for _, p in ipairs(getWritableProperties(class.Superclass)) do
-          table.insert(properties, p)
+        if class.Superclass and class.Superclass ~= "<<<ROOT>>>" then
+          for _, p in ipairs(getWritableProperties(class.Superclass)) do
+            table.insert(apiProps, p)
+          end
         end
       end
     end
+    local dedupe = {}
+    for _, p in ipairs(properties) do dedupe[p] = true end
+    for _, p in ipairs(apiProps) do
+      if not dedupe[p] then
+        table.insert(properties, p)
+        dedupe[p] = true
+      end
+    end
   end
+  
   classPropertiesCache[className] = properties
   return properties
 end
+
 
 local toolbar = plugin:CreateToolbar("ISpooferMotion")
 local animationsButton = toolbar:CreateButton("Animations",
@@ -305,7 +344,7 @@ end
 
 local function addId(ids, value)
   local text = tostring(value or "")
-  for id in text:gmatch("%f[%d](%d%d%d%d%d+)%f[%D]") do
+  for id in text:gmatch("(%d%d%d%d%d+)") do
     ids[id] = true
   end
 end
@@ -415,6 +454,7 @@ end
 
 local function traverseValidDescendants(callback, progressCallback)
   local count = 0
+  local lastYield = os.clock()
   for _, service in ipairs(game:GetChildren()) do
     if not IGNORED_ROOTS[service.Name] then
       count += 1
@@ -424,9 +464,10 @@ local function traverseValidDescendants(callback, progressCallback)
       for i, obj in ipairs(descendants) do
         count += 1
         callback(obj, count)
-        if i % 10000 == 0 then
+        if os.clock() - lastYield > 0.05 then
           if progressCallback then progressCallback(count) end
           task.wait()
+          lastYield = os.clock()
         end
       end
     end
@@ -475,7 +516,9 @@ end
 
 local function replaceIdsInText(text, replacements, ordered)
   local total = 0
-  local nextText = tostring(text or ""):gsub("%f[%d](%d%d%d%d%d+)%f[%D]", function(id)
+  local nextText = tostring(text or "")
+  
+  nextText = nextText:gsub("(%d%d%d%d%d+)", function(id)
     local replacement = replacements[id]
     if replacement then
       total += 1
@@ -710,9 +753,7 @@ local function replaceIdsInObject(obj, replacements, ordered, stats)
   local props = getWritableProperties(obj.ClassName)
   if #props > 0 then
     for _, propName in ipairs(props) do
-      if propName == "Source" and obj:IsA("LuaSourceContainer") then
-        replacePropertyText(obj, "Source", replacements, ordered, stats)
-      elseif propName ~= "Value" and propName ~= "Source" then
+      if propName ~= "Value" then
         replacePropertyText(obj, propName, replacements, ordered, stats)
       end
     end
@@ -736,6 +777,7 @@ end
 
 local function collectValidObjects(progressCallback)
   local objects = {}
+  local lastYield = os.clock()
   for _, service in ipairs(game:GetChildren()) do
     if not IGNORED_ROOTS[service.Name] then
       table.insert(objects, service)
@@ -744,9 +786,10 @@ local function collectValidObjects(progressCallback)
       local descendants = service:GetDescendants()
       for i, obj in ipairs(descendants) do
         table.insert(objects, obj)
-        if i % 10000 == 0 then
-          if progressCallback then progressCallback(#objects, obj) end
+        if os.clock() - lastYield > 0.05 then
+          if progressCallback then progressCallback(#objects, service) end
           task.wait()
+          lastYield = os.clock()
         end
       end
     end
@@ -805,13 +848,15 @@ local function replaceOpenGame(text, progressCallback)
   stats.currentObject = ""
   publish(true)
 
+  local lastYield = os.clock()
   for i, obj in ipairs(objects) do
     stats.scannedObjects = i
     stats.currentObject = shortenText(safeFullName(obj), 120)
     replaceIdsInObject(obj, replacements, ordered, stats)
-    if i % 250 == 0 or i == #objects then
+    if os.clock() - lastYield > 0.05 or i == #objects then
       publish(i == #objects)
       task.wait()
+      lastYield = os.clock()
     end
   end
 
@@ -939,18 +984,31 @@ local function scanOpenGame(kind, progressCallback)
   return sortedIds(ids), scannedObjects
 end
 
-local function getProductInfo(assetId)
-  for attempt = 1, PRODUCT_INFO_RETRIES do
+local function getProductInfo(assetId, onRateLimitChanged)
+  local isRateLimited = false
+  for attempt = 1, 5 do
     local ok, info = pcall(function()
       return MarketplaceService:GetProductInfo(tonumber(assetId))
     end)
     if ok and info then
+      if isRateLimited and onRateLimitChanged then onRateLimitChanged(-1) end
       return info
     end
-    if attempt < PRODUCT_INFO_RETRIES then
-      task.wait(0.15 * attempt)
+    
+    local errString = tostring(info or "")
+    if string.find(errString, "404") or string.find(errString, "400") or string.find(errString, "403") or string.find(errString, "Invalid") then
+      break
+    end
+
+    if attempt < 5 then
+      if not isRateLimited and onRateLimitChanged then
+        isRateLimited = true
+        onRateLimitChanged(1)
+      end
+      task.wait(1.5 * attempt)
     end
   end
+  if isRateLimited and onRateLimitChanged then onRateLimitChanged(-1) end
   return nil
 end
 
@@ -1017,10 +1075,18 @@ local function resolveIds(kind, ids, progressCallback, options)
   local completed = 0
 
   local queueIndex = 1
-  local concurrency = math.min(10, math.max(1, #ids))
+  local concurrency = math.min(40, math.max(1, #ids))
   local workersFinished = 0
+  local rateLimitedWorkers = 0
 
-  local function worker()
+  local function onRateLimitChanged(delta)
+    rateLimitedWorkers += delta
+  end
+
+  local function worker(workerId)
+    if workerId > 1 then
+      task.wait(workerId * 0.05)
+    end
     while true do
       local index = queueIndex
       queueIndex += 1
@@ -1031,7 +1097,7 @@ local function resolveIds(kind, ids, progressCallback, options)
       end
 
       local id = ids[index]
-      local info = getProductInfo(id)
+      local info = getProductInfo(id, onRateLimitChanged)
 
       if info and expectedTypes[info.AssetTypeId] then
         local creatorType = creatorTypeFromInfo(info)
@@ -1055,13 +1121,13 @@ local function resolveIds(kind, ids, progressCallback, options)
 
       completed += 1
       if progressCallback then
-        progressCallback(completed, #ids)
+        progressCallback(completed, #ids, rateLimitedWorkers > 0)
       end
     end
   end
 
   for i = 1, concurrency do
-    task.spawn(worker)
+    task.spawn(worker, i)
   end
 
   while workersFinished < concurrency do
@@ -1403,18 +1469,23 @@ local function runScan(kind)
 
       local ignoreOwnUserId = completedReplacementCount > 0
       local resolveStart = os.clock()
-      local assets, unresolved, wrongType, skippedCreator = resolveIds(kind, ids, function(current, total)
-        if current % 10 == 0 or current == total then
+      local lastUiUpdate = os.clock()
+      local assets, unresolved, wrongType, skippedCreator = resolveIds(kind, ids, function(current, total, isRateLimited)
+        if os.clock() - lastUiUpdate > 0.05 or current == total then
           local elapsed = os.clock() - resolveStart
           local avgTime = elapsed / current
           local remaining = total - current
           local etaSeconds = math.ceil(remaining * avgTime)
-          textLabel.Text = string.format("Resolving %s metadata... (%d/%d)", label, current, total)
+          
+          local warning = isRateLimited and " [THROTTLING]" or ""
+          textLabel.Text = string.format("Resolving %s metadata... (%d/%d)%s", label, current, total, warning)
+          
           if etaSeconds > 0 then
             etaLabel.Text = "ETA: " .. tostring(etaSeconds) .. "s"
           else
             etaLabel.Text = ""
           end
+          lastUiUpdate = os.clock()
         end
       end, { ignoreOwnUserId = ignoreOwnUserId })
       etaLabel.Text = ""

@@ -12,6 +12,7 @@ const WINDOW_OPTIONS = Object.freeze({
   frame: false,
   resizable: true,
   show: false,
+  backgroundColor: '#0a0a0a',
 });
 
 function resolveAssetPath(fileName) {
