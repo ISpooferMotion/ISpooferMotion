@@ -739,7 +739,7 @@ async function publishAudioViaIdeEndpoint(
       return { success: false, error: msg };
     }
 
-    const assetId = responseData?.id;
+    const assetId = responseData?.id || responseData?.Id;
     if (assetId) {
       sendTransferUpdateSafe(sendTransferUpdate, {
         id: transferId, progress: 100, status: 'completed', newAssetId: String(assetId),
