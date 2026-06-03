@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.3.14-hotfix.1
+
+- Fixed the weird Light theme thing
+- Improved the plugins speed and scan reliability
+
 ## v1.3.14
 
 + Added support for Roblox's 2026 `.ROBLOSECURITY` cookie rotation rollout. Cookie-authenticated requests now accept `Set-Cookie` updates, auto-detection supports newer cookie formats, and manual profile cookies are refreshed securely when Roblox rotates them. See [Roblox's announcement](https://devforum.roblox.com/t/upcoming-roblosecurity-cookie-format-changes/4328913).
