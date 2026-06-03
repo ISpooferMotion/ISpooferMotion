@@ -1,10 +1,18 @@
 # Changelog
 
-## v1.3.13-hotfix.3
+## v1.3.14
 
-- Windows builds are now code-signed using Azure Trusted Signing. Installers display a verified publisher (`ispoofermotion.com`) instead of an "Unknown publisher" warning, and Microsoft Defender SmartScreen reputation will build up over time across all signed downloads.
-- Added a custom electron-builder signer (`scripts/azure-sign.js`) that authenticates to Azure with a service principal and signs the installer with SHA-256 + RFC 3161 timestamping.
-- CI/CD now installs the Microsoft Trusted Signing client on the Windows runner and passes the required signing secrets through to the build step.
++ Added support for Roblox's 2026 `.ROBLOSECURITY` cookie rotation rollout. Cookie-authenticated requests now accept `Set-Cookie` updates, auto-detection supports newer cookie formats, and manual profile cookies are refreshed securely when Roblox rotates them. See [Roblox's announcement](https://devforum.roblox.com/t/upcoming-roblosecurity-cookie-format-changes/4328913).
++ Added Open Cloud Asset Delivery and recommended Asset Delivery v2 fallbacks before the legacy v1 download routes.
+* Fixed sound uploads being mislabeled as OGG. Downloaded sounds now preserve detected MP3, OGG, WAV, or FLAC formats, and downloaded animations are validated as RBXM or RBXMX before upload.
++ Added bounded failed-transfer diagnostics for both sounds and animations. Invalid payloads and Roblox parse failures now stop immediately instead of repeating upload attempts.
+* Fixed stale owned-asset lookups by scoping the in-memory index per account or group and clearing it at the start of skip-owned runs and through Clear App Cache.
++ Increased default download concurrency, enlarged normal batch lookups, shortened download retry waits, and reduced conservative upload startup spacing while preserving adaptive Roblox rate-limit backoff.
++ Windows builds are now code-signed using Azure Trusted Signing. Installers display a verified publisher (`ispoofermotion.com`) instead of an "Unknown publisher" warning, and Microsoft Defender SmartScreen reputation will build up over time across all signed downloads.
++ Added a custom electron-builder signer (`scripts/azure-sign.js`) that authenticates to Azure with a service principal and signs the installer with SHA-256 + RFC 3161 timestamping.
++ CI/CD now installs the Microsoft Trusted Signing client on the Windows runner and passes the required signing secrets through to the build step.
+- Removed Replace Existing.
++ Some other QOL stuff.
 
 ## v1.3.13-hotfix.2
 

@@ -3,6 +3,7 @@
 let isPaused = false;
 let isCancelled = false;
 const pauseResolvers = new Set();
+let abortController = new AbortController();
 
 function pauseSpoofer() {
   isPaused = true;
@@ -16,11 +17,13 @@ function resumeSpoofer() {
 
 function cancelSpoofer() {
   isCancelled = true;
+  abortController.abort();
   resumeSpoofer();
 }
 
 function resetRunControls() {
   isCancelled = false;
+  abortController = new AbortController();
   resumeSpoofer();
 }
 
@@ -37,6 +40,10 @@ async function checkPaused() {
   checkCancelled();
 }
 
+function getAbortSignal() {
+  return abortController.signal;
+}
+
 module.exports = {
   pauseSpoofer,
   resumeSpoofer,
@@ -44,4 +51,5 @@ module.exports = {
   resetRunControls,
   checkCancelled,
   checkPaused,
+  getAbortSignal,
 };

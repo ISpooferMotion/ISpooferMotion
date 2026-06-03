@@ -1,6 +1,7 @@
 'use strict';
 
-const { buildRobloxCookieHeader } = require('./common');
+const crypto = require('node:crypto');
+const { createRobloxSession } = require('./roblox-session');
 const {
   withTimeout,
   readResponseText,
@@ -59,14 +60,14 @@ function buildCreatorGamesUrl(creatorType, creatorId, cursor, limit, accessFilte
   return url;
 }
 
-async function fetchJsonWithRetries(url, cookieHeader, label, maxAttempts = 3) {
+async function fetchJsonWithRetries(url, cookieOrSession, label, maxAttempts = 3) {
+  const robloxSession = createRobloxSession(cookieOrSession);
   const headers = { 'User-Agent': ROBLOX_USER_AGENT };
-  if (cookieHeader) headers.Cookie = cookieHeader;
 
   let lastError = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const response = await fetch(url, withTimeout({ headers }));
+      const response = await robloxSession.fetch(url, withTimeout({ headers }));
       if (!response.ok) {
         const errorText = await readResponseText(response, 300);
         const error = new Error(`HTTP ${response.status}${errorText ? `: ${errorText}` : ''}`);
@@ -151,8 +152,8 @@ function makePlaceSuggestion(game, creatorType, creatorId, source = 'creator-gam
   };
 }
 
-async function fetchCreatorGamesPage(url, cookieHeader) {
-  const data = await fetchJsonWithRetries(url, cookieHeader, 'Games API');
+async function fetchCreatorGamesPage(url, robloxSession) {
+  const data = await fetchJsonWithRetries(url, robloxSession, 'Games API');
   if (!Array.isArray(data.data)) {
     throw new Error(`Invalid games response format: ${JSON.stringify(data).slice(0, 200)}`);
   }
@@ -160,7 +161,7 @@ async function fetchCreatorGamesPage(url, cookieHeader) {
   return data;
 }
 
-async function fetchUniverseDetailsByIds(universeIds, cookieHeader) {
+async function fetchUniverseDetailsByIds(universeIds, robloxSession) {
   const uniqueIds = [...new Set((universeIds || []).map(normalizeNumericId).filter(Boolean))];
   const details = new Map();
 
@@ -170,7 +171,7 @@ async function fetchUniverseDetailsByIds(universeIds, cookieHeader) {
     url.searchParams.set('universeIds', chunk.join(','));
 
     try {
-      const data = await fetchJsonWithRetries(url, cookieHeader, 'Universe details API');
+      const data = await fetchJsonWithRetries(url, robloxSession, 'Universe details API');
       if (Array.isArray(data?.data)) {
         for (const item of data.data) {
           const universeId = getUniverseId(item);
@@ -185,18 +186,18 @@ async function fetchUniverseDetailsByIds(universeIds, cookieHeader) {
   return details;
 }
 
-async function fetchUniverseIdForPlaceId(placeId, cookieHeader) {
+async function fetchUniverseIdForPlaceId(placeId, robloxSession) {
   const normalizedPlaceId = normalizePlaceId(placeId);
   if (!normalizedPlaceId) throw new Error('Place ID must be numeric');
 
   const url = new URL(`https://apis.roblox.com/universes/v1/places/${normalizedPlaceId}/universe`);
-  const data = await fetchJsonWithRetries(url, cookieHeader, 'Place universe API');
+  const data = await fetchJsonWithRetries(url, robloxSession, 'Place universe API');
   const universeId = normalizeNumericId(data?.universeId || data?.UniverseId || data?.id);
   if (!universeId) throw new Error('No universe ID returned for that place');
   return universeId;
 }
 
-async function addSuggestionsFromGames(games, creatorType, creatorId, cookieHeader, state, source = 'creator-games') {
+async function addSuggestionsFromGames(games, creatorType, creatorId, robloxSession, state, source = 'creator-games') {
   const missingUniverseIds = [];
 
   for (const game of games) {
@@ -215,7 +216,7 @@ async function addSuggestionsFromGames(games, creatorType, creatorId, cookieHead
 
   if (!missingUniverseIds.length || state.suggestions.length >= state.maxResults) return;
 
-  const detailMap = await fetchUniverseDetailsByIds(missingUniverseIds, cookieHeader);
+  const detailMap = await fetchUniverseDetailsByIds(missingUniverseIds, robloxSession);
   for (const universeId of missingUniverseIds) {
     const detail = detailMap.get(universeId);
     if (!detail) continue;
@@ -239,7 +240,7 @@ async function collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie,
 
   const limit = 50;
   const maxResults = Math.min(asPositiveInteger(maxPlaceIds, 10), 100);
-  const cookieHeader = buildRobloxCookieHeader(cookie);
+  const robloxSession = createRobloxSession(cookie);
   const state = {
     suggestions: [],
     seenPlaceIds: new Set(),
@@ -247,7 +248,7 @@ async function collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie,
   };
   const errors = [];
   let pagesRequested = 0;
-  const accessFilters = cookieHeader ? ['All', 'Public', ''] : ['Public', ''];
+  const accessFilters = robloxSession.getCookieHeader() ? ['All', 'Public', ''] : ['Public', ''];
   const sortOrders = ['Desc', 'Asc'];
 
   for (const accessFilter of accessFilters) {
@@ -264,7 +265,7 @@ async function collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie,
 
         let pageData;
         try {
-          pageData = await fetchCreatorGamesPage(url, cookieHeader);
+          pageData = await fetchCreatorGamesPage(url, robloxSession);
         } catch (err) {
           errors.push(`${accessFilter || 'default'} ${sortOrder}: ${err.message}`);
           break;
@@ -278,7 +279,7 @@ async function collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie,
           break;
         }
 
-        await addSuggestionsFromGames(pageData.data, normalizedCreatorType, normalizedCreatorId, cookieHeader, state);
+        await addSuggestionsFromGames(pageData.data, normalizedCreatorType, normalizedCreatorId, robloxSession, state);
         if (state.suggestions.length >= maxResults) break;
 
         if (!pageData.nextPageCursor) {
@@ -306,10 +307,56 @@ async function getPlaceSuggestionByPlaceId(placeId, cookie) {
   const normalizedPlaceId = normalizePlaceId(placeId);
   if (!normalizedPlaceId) throw new Error('Place ID must be numeric');
 
-  const cookieHeader = buildRobloxCookieHeader(cookie);
+  const robloxSession = createRobloxSession(cookie);
   try {
-    const universeId = await fetchUniverseIdForPlaceId(normalizedPlaceId, cookieHeader);
-    const details = await fetchUniverseDetailsByIds([universeId], cookieHeader);
+    const universeId = await fetchUniverseIdForPlaceId(normalizedPlaceId, robloxSession);
+    const details = await fetchUniverseDetailsByIds([universeId], robloxSession);
+    const detail = details.get(universeId);
+    const suggestion = detail ? makePlaceSuggestion({ ...detail, rootPlaceId: normalizedPlaceId }, null, null, 'place-lookup') : null;
+    if (suggestion) {
+      return { ...suggestion, placeId: normalizedPlaceId, universeId, verified: true };
+    }
+    return {
+      placeId: normalizedPlaceId,
+      name: `Place ${normalizedPlaceId}`,
+      universeId,
+      creatorType: 'user',
+      creatorId: '',
+      source: 'place-lookup',
+      verified: true,
+    };
+  } catch (error) {
+    debugWarn('(Dev) Could not verify place ID:', error.message);
+    return {
+      placeId: normalizedPlaceId,
+      name: `Place ${normalizedPlaceId}`,
+      universeId: null,
+      creatorType: 'user',
+      creatorId: '',
+      source: 'manual-place-id',
+      verified: false,
+      warning: error.message,
+    };
+  }
+}
+
+/**
+ * Gets the rootPlace from each game the creator owns.
+ */
+async function getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 10) {
+  const result = await collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie, maxPlaceIds);
+  const rootPlaces = result.places.map((place) => place.placeId);
+
+  if (rootPlaces.length === 0) throw new Error('No root places found in games');
+
+  debugLog(
+    `(Dev) Got ${rootPlaces.length} root places from ${result.pagesRequested} page(s): ${rootPlaces.join(', ')}`,
+  );
+  return rootPlaces;
+}
+
+/**
+ * Gets root place suggestions with display metadata for a creator.
     const detail = details.get(universeId);
     const suggestion = detail ? makePlaceSuggestion({ ...detail, rootPlaceId: normalizedPlaceId }, null, null, 'place-lookup') : null;
     if (suggestion) {
@@ -361,89 +408,8 @@ async function getPlaceSuggestionsFromCreator(creatorType, creatorId, cookie, ma
   return collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie, maxPlaceIds);
 }
 
-const assetCache = new Map();
-
-async function findAssetByName(cookie, assetType, name, groupId = null) {
-  const cookieHeader = buildRobloxCookieHeader(cookie);
-  if (!cookieHeader) return null;
-
-  const cacheKey = `${assetType}_${groupId || 'user'}`;
-  if (!assetCache.has(cacheKey)) {
-    assetCache.set(cacheKey, { items: new Map(), fullyLoaded: false, cursor: '', fetchPromise: null });
-  }
-
-  const cache = assetCache.get(cacheKey);
-
-  if (cache.items.has(name)) {
-    return cache.items.get(name);
-  }
-
-  // If already fully loaded and not found, it doesn't exist
-  if (cache.fullyLoaded) return null;
-
-  // Wait if another worker is currently fetching
-  if (cache.fetchPromise) {
-    await cache.fetchPromise;
-    if (cache.items.has(name)) return cache.items.get(name);
-    if (cache.fullyLoaded) return null;
-  }
-
-  // Create a new fetch promise
-  cache.fetchPromise = (async () => {
-    let baseUrl = `https://itemconfiguration.roblox.com/v1/creations/get-assets?assetType=${assetType}&isArchived=false&limit=100`;
-    if (groupId) baseUrl += `&groupId=${groupId}`;
-
-    try {
-      while (!cache.fullyLoaded) {
-        let url = baseUrl;
-        if (cache.cursor) url += `&cursor=${cache.cursor}`;
-
-        const response = await fetch(url, {
-          headers: { Cookie: cookieHeader, 'User-Agent': ROBLOX_USER_AGENT },
-        });
-
-        if (response.status === 429) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          continue;
-        }
-        if (!response.ok) break;
-
-        const data = await response.json();
-        if (!data || !data.data) break;
-
-        for (const item of data.data) {
-          if (!cache.items.has(item.name)) {
-             cache.items.set(item.name, item.assetId);
-          }
-        }
-
-        // If we found the specific item, we can return early but we must clear the promise
-        if (cache.items.has(name)) {
-          cache.cursor = data.nextPageCursor || '';
-          if (!cache.cursor) cache.fullyLoaded = true;
-          return;
-        }
-
-        if (!data.nextPageCursor) {
-          cache.fullyLoaded = true;
-          break;
-        }
-        cache.cursor = data.nextPageCursor;
-      }
-    } catch (err) {
-      debugWarn('(Dev) Error in findAssetByName pagination:', err);
-    }
-  })();
-
-  await cache.fetchPromise;
-  cache.fetchPromise = null;
-
-  return cache.items.get(name) || null;
-}
-
 module.exports = {
   getPlaceIdFromCreator,
   getPlaceSuggestionsFromCreator,
   getPlaceSuggestionByPlaceId,
-  findAssetByName,
 };

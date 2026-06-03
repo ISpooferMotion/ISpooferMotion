@@ -1,45 +1,45 @@
 :root {
-  --success: #4caf50;
-  --success-hover: #45a049;
+  --success: #10b981;
+  --success-hover: #34d399;
 
-  --bg: #0A0A0A;
-  --panel: rgba(18, 18, 18, 0.85);
-  --panel-2: rgba(22, 22, 22, 0.85);
-  --panel-3: rgba(28, 28, 28, 0.85);
-  --surface: rgba(28, 28, 28, 0.65);
-  --surface-raised: rgba(36, 36, 36, 0.7);
-  --surface-control: rgba(45, 45, 45, 0.5);
-  --surface-control-hover: rgba(60, 60, 60, 0.6);
-  --surface-input: rgba(22, 22, 22, 0.5);
+  --bg: transparent;
+  --panel: rgba(15, 23, 42, 0.4);
+  --panel-2: rgba(30, 41, 59, 0.5);
+  --panel-3: rgba(51, 65, 85, 0.6);
+  --surface: rgba(15, 23, 42, 0.4);
+  --surface-raised: rgba(30, 41, 59, 0.5);
+  --surface-control: rgba(51, 65, 85, 0.4);
+  --surface-control-hover: rgba(71, 85, 105, 0.6);
+  --surface-input: rgba(15, 23, 42, 0.5);
 
-  --line: rgba(255, 255, 255, 0.08);
-  --line-soft: rgba(255, 255, 255, 0.04);
-  --line-strong: rgba(255, 255, 255, 0.16);
+  --line: rgba(255, 255, 255, 0.1);
+  --line-soft: rgba(255, 255, 255, 0.05);
+  --line-strong: rgba(255, 255, 255, 0.2);
 
-  --text: #F2F2F2;
-  --muted: #A3A3A3;
-  --muted-2: #737373;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --muted-2: #64748b;
 
-  --accent: #4caf50;
-  --accent-hover: #5dc663;
-  --accent-soft: rgba(76, 175, 80, 0.12);
-  --accent-line: rgba(76, 175, 80, 0.35);
+  --accent: #8b5cf6;
+  --accent-hover: #a78bfa;
+  --accent-soft: rgba(139, 92, 246, 0.15);
+  --accent-line: rgba(139, 92, 246, 0.4);
 
-  --danger: #FF6B6B;
-  --danger-soft: rgba(255, 107, 107, 0.12);
-  --danger-line: rgba(255, 107, 107, 0.35);
-  --danger-line-strong: rgba(255, 107, 107, 0.5);
+  --danger: #f43f5e;
+  --danger-soft: rgba(244, 63, 94, 0.15);
+  --danger-line: rgba(244, 63, 94, 0.4);
+  --danger-line-strong: rgba(244, 63, 94, 0.6);
 
-  --warning: #F5C642;
+  --warning: #fbbf24;
 
-  --radius-sm: 4px;
-  --radius: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 
   --control-height-sm: 32px;
-  --control-height-md: 36px;
-  --control-height-lg: 42px;
+  --control-height-md: 38px;
+  --control-height-lg: 44px;
 
   --font-ui:
     'Outfit', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

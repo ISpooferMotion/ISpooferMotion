@@ -44,13 +44,13 @@ export default function ProfilesView({ isActive }) {
       setAutoDetect(profile.autoDetectCookie ?? true);
       setGroupId(profile.groupId || '');
       setApiKey(profile.apiKey || '');
-      fetchRobloxData(profile.cookie, profile.groupId, profile.autoDetectCookie ?? true);
+      fetchRobloxData(profile.cookie, profile.groupId, profile.autoDetectCookie ?? true, id);
     } else {
       setRobloxData(null);
     }
   }
 
-  async function fetchRobloxData(cookieVal, groupIdVal, autoDetectVal) {
+  async function fetchRobloxData(cookieVal, groupIdVal, autoDetectVal, profileId = activeId) {
     if (!cookieVal && !autoDetectVal) {
       setRobloxData(null);
       return;
@@ -61,6 +61,7 @@ export default function ProfilesView({ isActive }) {
         cookie: cookieVal,
         groupId: groupIdVal,
         autoDetect: autoDetectVal,
+        profileId,
       });
       setRobloxData(data);
     } catch {
@@ -118,7 +119,7 @@ export default function ProfilesView({ isActive }) {
       normalizedUpdates.autoDetectCookie !== undefined
     ) {
       const p = newProfiles[activeId];
-      fetchRobloxData(p.cookie, p.groupId, p.autoDetectCookie ?? true);
+      fetchRobloxData(p.cookie, p.groupId, p.autoDetectCookie ?? true, activeId);
     }
   };
 

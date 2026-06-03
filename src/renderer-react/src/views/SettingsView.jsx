@@ -45,15 +45,15 @@ export default function SettingsView({ isActive }) {
   // Settings states
   const [notifications, setNotifications] = useState(true);
   const [defRetries, setDefRetries] = useState(3);
-  const [defDelay, setDefDelay] = useState(5000);
+  const [defDelay, setDefDelay] = useState(3000);
   const [renameToggle, setRenameToggle] = useState(false);
   const [renamePrefix, setRenamePrefix] = useState('');
   const [renameSuffix, setRenameSuffix] = useState('');
   const [renameFind, setRenameFind] = useState('');
   const [renameReplace, setRenameReplace] = useState('');
   const [concurrent, setConcurrent] = useState(false);
-  const [maxConcurrentDownload, setMaxConcurrentDownload] = useState(20);
-  const [maxConcurrent, setMaxConcurrent] = useState(10);
+  const [maxConcurrentDownload, setMaxConcurrentDownload] = useState(32);
+  const [maxConcurrent, setMaxConcurrent] = useState(12);
 
   // Color Picker states
   const [colorOpen, setColorOpen] = useState(false);
@@ -73,15 +73,15 @@ export default function SettingsView({ isActive }) {
 
       setNotifications(profile.notifications ?? true);
       setDefRetries(profile.defRetries ?? 3);
-      setDefDelay(profile.defDelay ?? 5000);
+      setDefDelay(profile.defDelay ?? 3000);
       setRenameToggle(profile.renameToggle ?? false);
       setRenamePrefix(profile.renamePrefix ?? '');
       setRenameSuffix(profile.renameSuffix ?? '');
       setRenameFind(profile.renameFind ?? '');
       setRenameReplace(profile.renameReplace ?? '');
       setConcurrent(profile.concurrent ?? true);
-      setMaxConcurrentDownload(profile.maxConcurrentDownloads ?? 20);
-      setMaxConcurrent(profile.maxConcurrentUploads ?? 10);
+      setMaxConcurrentDownload(profile.maxConcurrentDownloads ?? 32);
+      setMaxConcurrent(profile.maxConcurrentUploads ?? 12);
 
       if (profile.colorR !== undefined) {
         handleColorChange(profile.colorR, profile.colorG, profile.colorB, false);
@@ -296,8 +296,8 @@ export default function SettingsView({ isActive }) {
                     type="button"
                     id="btn-clear-cache"
                     onClick={async () => {
-                      await window.electronAPI?.clearAppCache?.();
-                      setClearText('Cleared!');
+                      const cleared = await window.electronAPI?.clearAppCache?.();
+                      setClearText(cleared ? 'Cleared!' : 'Failed');
                       setTimeout(() => setClearText('Clear'), 1500);
                     }}
                   >

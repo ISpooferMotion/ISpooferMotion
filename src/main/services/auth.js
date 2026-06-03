@@ -6,11 +6,14 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const keytar = require('keytar');
 const fs = require('node:fs/promises');
-const { DEVELOPER_MODE, buildRobloxCookieHeader } = require('./common');
+const { DEVELOPER_MODE } = require('./common');
+const { createRobloxSession } = require('./roblox-session');
 
 const execFileAsync = promisify(execFile);
+// New Roblox cookies are not guaranteed to keep the old hex-only suffix. Keep
+// auto-detection format-agnostic so rotated cookies from the 2026 rollout work.
 const ROBLOX_COOKIE_PATTERN =
-  /_\|WARNING:-DO-NOT-SHARE-THIS\.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items\.\|_[A-F\d]+/i;
+  /_\|WARNING:-DO-NOT-SHARE-THIS\.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items\.\|_[^;\s"'\\]+/i;
 const ROBLOX_STUDIO_COOKIE_TARGET = 'https://www.roblox.com:RobloxStudioAuth.ROBLOSECURITY';
 const ROBLOX_USER_AGENT = 'RobloxStudio/WinInet';
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -156,8 +159,18 @@ async function getCookieFromBrowserProfiles() {
   for (const filePath of files) {
     const cookie = await readPossibleCookieFile(filePath);
     if (cookie) {
-      debugLog(`(Dev) Found Roblox cookie in browser profile file: ${filePath}`);
-      return cookie;
+      try {
+        await getAuthenticatedUserId(cookie);
+        debugLog(`(Dev) Found valid Roblox cookie in browser profile file: ${filePath}`);
+        return cookie;
+      } catch (err) {
+        if (err.message.includes('(401)')) {
+          debugWarn(`(Dev) Cookie from ${filePath} is expired (401).`);
+          continue;
+        }
+        debugWarn(`(Dev) Using browser cookie despite validation error:`, err.message);
+        return cookie;
+      }
     }
   }
   return undefined;
@@ -200,11 +213,24 @@ async function getCookieFromRobloxStudio(userId = null) {
         'Library/HTTPStorages/com.Roblox.RobloxStudio.binarycookies',
       );
       const binaryCookieData = await fs.readFile(cookieFile);
-      return extractRobloxCookie(binaryCookieData);
+      const cookie = extractRobloxCookie(binaryCookieData);
+      if (cookie) {
+        try {
+          await getAuthenticatedUserId(cookie);
+          return cookie;
+        } catch (err) {
+          if (err.message.includes('(401)')) {
+            debugWarn('(Dev) Binarycookies cookie is expired (401).');
+          } else {
+            debugWarn('(Dev) Using binarycookie despite validation error:', err.message);
+            return cookie;
+          }
+        }
+      }
     } catch (err) {
       debugWarn('(Dev) Could not read Roblox cookie from binarycookies:', err.message);
-      return undefined;
     }
+    return undefined;
   }
 
   try {
@@ -233,8 +259,18 @@ async function getCookieFromRobloxStudio(userId = null) {
       try {
         const token = await keytar.findPassword(target);
         if (token) {
-          debugLog(`(Dev) Using Roblox cookie from credential: ${target}`);
-          return token;
+          try {
+            await getAuthenticatedUserId(token);
+            debugLog(`(Dev) Using valid Roblox cookie from credential: ${target}`);
+            return token;
+          } catch (err) {
+            if (err.message.includes('(401)')) {
+              debugWarn(`(Dev) Cookie from credential ${target} is expired (401).`);
+              continue;
+            }
+            debugWarn(`(Dev) Using Studio cookie despite validation error:`, err.message);
+            return token;
+          }
         }
       } catch (err) {
         debugWarn('(Dev) Could not read credential target:', target, err.message);
@@ -252,18 +288,18 @@ async function getCookieFromRobloxStudio(userId = null) {
  */
 async function getCsrfToken(cookie) {
   const csrfUrl = 'https://auth.roblox.com/v2/logout';
-  const cookieHeader = buildRobloxCookieHeader(cookie);
+  const robloxSession = createRobloxSession(cookie);
+  const cookieHeader = robloxSession.getCookieHeader();
 
   if (!cookieHeader) throw new Error('Missing or invalid ROBLOSECURITY cookie');
 
   let response;
   try {
-    response = await fetch(
+    response = await robloxSession.fetch(
       csrfUrl,
       withTimeout({
         method: 'POST',
         headers: {
-          Cookie: cookieHeader,
           'Content-Type': 'application/json',
           'User-Agent': ROBLOX_USER_AGENT,
         },
@@ -289,14 +325,14 @@ async function getCsrfToken(cookie) {
  * Gets the authenticated user's ID from the Roblox API using their cookie.
  */
 async function getAuthenticatedUserId(cookie) {
-  const cookieHeader = buildRobloxCookieHeader(cookie);
+  const robloxSession = createRobloxSession(cookie);
+  const cookieHeader = robloxSession.getCookieHeader();
   if (!cookieHeader) throw new Error('Missing or invalid ROBLOSECURITY cookie');
 
-  const response = await fetch(
+  const response = await robloxSession.fetch(
     'https://users.roblox.com/v1/users/authenticated',
     withTimeout({
       headers: {
-        Cookie: cookieHeader,
         'User-Agent': ROBLOX_USER_AGENT,
       },
     }),

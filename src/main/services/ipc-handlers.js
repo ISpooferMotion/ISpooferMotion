@@ -8,10 +8,10 @@ const { app, dialog, ipcMain, shell, Notification, nativeImage } = require('elec
 const { DEVELOPER_MODE, buildRobloxCookieHeader, clearDownloadsDirectory, retryAsync, sanitizeFilename } = require('./common');
 const { getPlaceIdFromCreator, getPlaceSuggestionsFromCreator, getPlaceSuggestionByPlaceId } = require('./assets');
 const { getCookieFromAutoDetect, getAuthenticatedUserId, getCsrfToken, readResponseText } = require('./auth');
-const { downloadAnimationAssetWithProgress, publishAnimationRbxmWithProgress } = require('./transfer-handlers');
+const { downloadAnimationAssetWithProgress, publishAnimationRbxmWithProgress, publishAudioViaIdeEndpoint } = require('./transfer-handlers');
 const { loadJobs, saveJobRecord, deleteJobRecord } = require('./jobs');
 const { saveSession, loadSession, clearSession } = require('./session');
-const { pauseSpoofer, resumeSpoofer, cancelSpoofer, resetRunControls, checkCancelled, checkPaused } = require('./ProcessManager');
+const { pauseSpoofer, resumeSpoofer, cancelSpoofer, resetRunControls, checkCancelled, checkPaused, getAbortSignal } = require('./ProcessManager');
 const { pushReplacement } = require('./localhost-plugin-server');
 
 // --- Global batch rate limiting for assetdelivery ---
@@ -1352,26 +1352,24 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
     const uniqueCreators = [...new Set(animationEntries.map((e) => `${e.creatorType}:${e.creatorId}`))];
     if (DEVELOPER_MODE) console.log(`(Dev) Fetching placeIds for ${uniqueCreators.length} creator(s) in parallel...`);
 
-    await Promise.all(
-      uniqueCreators.map(async (creatorKey) => {
-        const [creatorType, creatorId] = creatorKey.split(':');
-        try {
-          const placeIds = await retryAsync(
-            () => getPlaceIdFromCreator(creatorType, creatorId, robloxCookie, maxPlaceIds),
-            maxPlaceIdRetries,
-            1000,
-            (attempt, max, err) => {
-              if (DEVELOPER_MODE) console.warn(`(Dev) Attempt ${attempt}/${max} for ${creatorKey}: ${err.message}`);
-            },
-          );
-          placeIdMap[creatorKey] = Array.isArray(placeIds) ? placeIds : [placeIds];
-          if (DEVELOPER_MODE) console.log(`(Dev) Got ${placeIdMap[creatorKey].length} placeIds for ${creatorKey}`);
-        } catch (error) {
-          if (DEVELOPER_MODE) console.warn(`(Dev) Could not get placeIds for ${creatorKey}: ${error.message}`);
-          placeIdMap[creatorKey] = [];
-        }
-      }),
-    );
+    await runWithConcurrency(uniqueCreators, 5, async (creatorKey) => {
+      const [creatorType, creatorId] = creatorKey.split(':');
+      try {
+        const placeIds = await retryAsync(
+          () => getPlaceIdFromCreator(creatorType, creatorId, robloxCookie, maxPlaceIds),
+          maxPlaceIdRetries,
+          1000,
+          (attempt, max, err) => {
+            if (DEVELOPER_MODE) console.warn(`(Dev) Attempt ${attempt}/${max} for ${creatorKey}: ${err.message}`);
+          },
+        );
+        placeIdMap[creatorKey] = Array.isArray(placeIds) ? placeIds : [placeIds];
+        if (DEVELOPER_MODE) console.log(`(Dev) Got ${placeIdMap[creatorKey].length} placeIds for ${creatorKey}`);
+      } catch (error) {
+        if (DEVELOPER_MODE) console.warn(`(Dev) Could not get placeIds for ${creatorKey}: ${error.message}`);
+        placeIdMap[creatorKey] = [];
+      }
+    });
 
     if (DEVELOPER_MODE) console.log('(Dev) Resolved placeIdMap:', placeIdMap);
   }
@@ -1397,200 +1395,194 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
     total: batchItems.length,
   });
   if (DEVELOPER_MODE) console.log(`(Dev) Fetching batch locations for ${batchItems.length} ${isSoundMode ? 'sounds' : 'animations'} with creator-specific placeIds`);
-  for (let i = 0; i < batchItems.length; i += chunkSize) {
+  const batchTasks = [];
+  if (overridePlaceId) {
+    for (let i = 0; i < batchItems.length; i += chunkSize) {
+      batchTasks.push({
+        creatorKey: `override:${overridePlaceId}`,
+        items: batchItems.slice(i, i + chunkSize),
+      });
+    }
+  } else {
+    const creatorGroups = {};
+    for (const item of batchItems) {
+      const creatorKey = `${item.creatorType}:${item.creatorId}`;
+      if (!creatorGroups[creatorKey]) creatorGroups[creatorKey] = [];
+      creatorGroups[creatorKey].push(item);
+    }
+    for (const [creatorKey, items] of Object.entries(creatorGroups)) {
+      for (let i = 0; i < items.length; i += chunkSize) {
+        batchTasks.push({
+          creatorKey,
+          items: items.slice(i, i + chunkSize),
+        });
+      }
+    }
+  }
+
+  let resolvedLocationsCount = 0;
+  await runWithConcurrency(batchTasks, 5, async (task) => {
     checkCancelled();
     await checkPaused();
-    const chunk = batchItems.slice(i, i + chunkSize);
-    try {
-      // Group items by creator to use the correct placeId
-      const creatorGroups = {};
-      if (overridePlaceId) {
-        creatorGroups[`override:${overridePlaceId}`] = chunk;
-      } else {
-        for (const item of chunk) {
-          const creatorKey = `${item.creatorType}:${item.creatorId}`;
-          if (!creatorGroups[creatorKey]) creatorGroups[creatorKey] = [];
-          creatorGroups[creatorKey].push(item);
-        }
-      }
 
-      // Process each creator group separately, with a small inter-group delay to avoid rate limits
-      let creatorGroupIndex = 0;
-      for (const [creatorKey, items] of Object.entries(creatorGroups)) {
+    const { creatorKey, items } = task;
+    let [creatorType, creatorId] = creatorKey.split(':');
+    let placeIdArray = overridePlaceId ? [overridePlaceId] : placeIdMap[creatorKey] || [];
+    let placeIdIndex = 0;
+    let retryCount = 0;
+    const maxRetries = maxPlaceIdRetries;
+
+    try {
+      while (placeIdIndex < placeIdArray.length) {
         checkCancelled();
         await checkPaused();
-        if (creatorGroupIndex > 0) await new Promise((r) => setTimeout(r, 500));
-        creatorGroupIndex++;
-        let [creatorType, creatorId] = creatorKey.split(':');
-        let placeIdArray = overridePlaceId ? [overridePlaceId] : placeIdMap[creatorKey] || [];
-        let placeIdIndex = 0;
-        let retryCount = 0;
-        const maxRetries = maxPlaceIdRetries;
+        const placeId = placeIdArray[placeIdIndex];
+        const itemsWithoutCreator = items.map(({ creatorType, creatorId, ...rest }) => ({
+          ...rest,
+          placeId: placeId,
+          serverPlaceId: placeId,
+        }));
 
-        while (placeIdIndex < placeIdArray.length) {
-          checkCancelled();
-          await checkPaused();
-          const placeId = placeIdArray[placeIdIndex];
-          const itemsWithoutCreator = items.map(({ creatorType, creatorId, ...rest }) => ({
-            ...rest,
-            placeId: placeId,
-            serverPlaceId: placeId,
-          }));
+        if (DEVELOPER_MODE) console.log(`(Dev) Batch request for ${creatorKey}: ${items.length} items with placeId ${placeId}${placeIdIndex > 0 ? ` (place index ${placeIdIndex}/${placeIdArray.length})` : ''}`);
 
-          if (DEVELOPER_MODE) console.log(`(Dev) Batch request for ${creatorKey}: ${items.length} items with placeId ${placeId}${placeIdIndex > 0 ? ` (place index ${placeIdIndex}/${placeIdArray.length})` : ''}`);
-
-          // Batch fetch with retry + timeout (retry on 429/5xx/504/timeout)
-          let locations;
-          for (let attempt = 1; attempt <= BATCH_MAX_RETRIES; attempt++) {
-            if (attempt > 1) {
-              sendStatusMessage(`Resolving download locations... retry ${attempt}/${BATCH_MAX_RETRIES}`);
-            }
-            await waitBatchRequestSlot();
-
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), BATCH_TIMEOUT_MS);
-            let resp;
-            let caughtErr = null;
-            try {
-              resp = await fetch('https://assetdelivery.roblox.com/v2/assets/batch', {
-                method: 'POST',
-                headers: {
-                  'User-Agent': 'RobloxStudio/WinInet',
-                  'Content-Type': 'application/json',
-                  Cookie: `.ROBLOSECURITY=${robloxCookie}`,
-                  'Roblox-Place-Id': String(placeId),
-                },
-                body: JSON.stringify(itemsWithoutCreator),
-                signal: controller.signal,
-              });
-            } catch (err) {
-              caughtErr = err;
-            } finally {
-              clearTimeout(timeout);
-            }
-            if (resp) updateBatchRateLimitFromHeaders(resp);
-
-            if (resp && resp.ok) {
-              locations = await resp.json();
-              break;
-            }
-
-            // Decide if retryable
-            const status = resp ? resp.status : 0;
-            const isTimeout = caughtErr && (caughtErr.name === 'AbortError' || /aborted|timeout/i.test(caughtErr.message));
-            const retryable = isTimeout || status === 429 || status === 502 || status === 503 || status === 504 || status === 500;
-            const statusText = resp ? `${status}` : isTimeout ? 'timeout' : caughtErr ? caughtErr.message : 'unknown';
-            
-            if (DEVELOPER_MODE) {
-              console.warn(`(Dev) Batch attempt ${attempt}/${BATCH_MAX_RETRIES} for ${creatorKey} @ place ${placeId} failed: ${statusText}${retryable && attempt < BATCH_MAX_RETRIES ? ' -> retrying' : ''}`);
-              console.warn(`(Dev) [Diagnostics] Creator Key: ${creatorKey}, Items: ${items.length}, Place ID: ${placeId}, Attempt: ${attempt}`);
-              if (resp) {
-                console.warn(`(Dev) [Diagnostics] Retry-After: ${resp.headers.get('retry-after') || 'none'}`);
-              }
-            }
-
-            if (!retryable || attempt === BATCH_MAX_RETRIES) {
-              if (DEVELOPER_MODE && resp) {
-                try {
-                  const clonedResp = resp.clone();
-                  const text = await clonedResp.text();
-                  console.warn(`(Dev) [Diagnostics] Response Body: ${text.substring(0, 500)}`);
-                } catch (e) {}
-              }
-              throw new Error(`Batch request failed for ${creatorKey}: ${statusText}`);
-            }
-
-            // On 429, respect retry-after header and use exponential backoff; otherwise use configured delay
-            if (status === 429 && resp) {
-              const delayMs = getBatchRetryAfterMs(resp, attempt);
-              sendStatusMessage(`Roblox rate limited download lookup. Retrying in ${Math.ceil(delayMs / 1000)}s...`);
-              if (DEVELOPER_MODE) console.warn(`(Dev) Rate limited (429). Pausing batch globally for ${delayMs}ms`);
-              setBatchRateLimit(delayMs);
-              // The next request slot waits for this shared backoff window.
-            } else {
-              const delayMs = BATCH_RETRY_DELAY_MS + Math.floor(Math.random() * 300);
-              await new Promise((r) => setTimeout(r, delayMs));
-            }
+        let locations;
+        for (let attempt = 1; attempt <= BATCH_MAX_RETRIES; attempt++) {
+          if (attempt > 1) {
+            sendStatusMessage(`Resolving download locations... retry ${attempt}/${BATCH_MAX_RETRIES}`);
           }
+          await waitBatchRequestSlot();
 
-          if (!locations) throw new Error(`Batch request failed for ${creatorKey}: no response`);
-          if (DEVELOPER_MODE) console.log(`(Dev) Batch response for ${creatorKey}:`, locations);
-
-          // Check if response contains batch errors (403s for restricted assets)
-          const hasBatchErrors = locations.some((loc) => loc.errors && loc.errors.length > 0 && loc.errors[0].code === 403);
-
-          // Print detailed batch errors for visibility (only in developer mode to prevent console spam)
-          const errorItems = locations.filter((loc) => loc.errors && loc.errors.length > 0);
-          if (errorItems.length > 0 && DEVELOPER_MODE) {
-            for (const locErr of errorItems) {
-              const firstErr = locErr.errors[0] || {};
-              console.warn(`Batch error for ${locErr.requestId} at place ${placeId}:`, JSON.stringify(firstErr));
-              console.log('(Dev) Full batch item with error:', JSON.stringify(locErr, null, 2).substring(0, 500));
-            }
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), BATCH_TIMEOUT_MS);
+          let resp;
+          let caughtErr = null;
+          try {
+            resp = await fetch('https://assetdelivery.roblox.com/v2/assets/batch', {
+              method: 'POST',
+              headers: {
+                'User-Agent': 'RobloxStudio/WinInet',
+                'Content-Type': 'application/json',
+                Cookie: `.ROBLOSECURITY=${robloxCookie}`,
+                'Roblox-Place-Id': String(placeId),
+              },
+              body: JSON.stringify(itemsWithoutCreator),
+              signal: controller.signal,
+            });
+          } catch (err) {
+            caughtErr = err;
+          } finally {
+            clearTimeout(timeout);
           }
-          if (hasBatchErrors) {
-            if (placeIdIndex < placeIdArray.length - 1) {
-              // Try next place ID
-              if (DEVELOPER_MODE) console.log(`(Dev) Batch errors detected for ${creatorKey} with placeId ${placeId}. Trying next place...`);
-              placeIdIndex++;
-              continue;
-            } else {
-              // All places exhausted
-              // If an override is set, do NOT fetch fresh place IDs; accept errors
-              if (overridePlaceId) {
-                if (DEVELOPER_MODE) console.log(`(Dev) Override Place ID in use for ${creatorKey}. Skipping fresh placeId fetch and accepting batch errors.`);
-                for (const loc of locations) {
-                  locationsMap[loc.requestId] = loc;
-                }
-                break;
-              }
-              // Otherwise, try to get fresh place IDs with retries
-              if (retryCount < maxRetries) {
-                retryCount++;
-                if (DEVELOPER_MODE) console.log(`(Dev) All places exhausted for ${creatorKey}. Fetching fresh placeIds (retry ${retryCount}/${maxRetries})...`);
-                try {
-                  const freshPlaceIds = await retryAsync(() => getPlaceIdFromCreator(creatorType, creatorId, robloxCookie, maxPlaceIds), 1, 1000);
-                  placeIdMap[creatorKey] = Array.isArray(freshPlaceIds) ? freshPlaceIds : [freshPlaceIds];
-                  placeIdArray = placeIdMap[creatorKey];
-                  placeIdIndex = 0;
-                  if (DEVELOPER_MODE) console.log(`(Dev) Got fresh placeIds for ${creatorKey}: ${placeIdArray.join(', ')}`);
-                  continue;
-                } catch (refreshErr) {
-                  if (DEVELOPER_MODE) console.warn(`(Dev) Failed to refresh placeIds for ${creatorKey}: ${refreshErr.message}`);
-                  // Accept the errors and continue
-                  for (const loc of locations) {
-                    locationsMap[loc.requestId] = loc;
-                  }
-                  break;
-                }
-              } else {
-                // Max retries reached, accept the errors
-                if (DEVELOPER_MODE) console.log(`(Dev) Max retries reached for ${creatorKey}, accepting batch errors`);
-                for (const loc of locations) {
-                  locationsMap[loc.requestId] = loc;
-                }
-                break;
-              }
-            }
-          } else {
-            // Success - no errors
-            if (DEVELOPER_MODE) console.log(`(Dev) Batch request successful for ${creatorKey} with placeId ${placeId}`);
-            for (const loc of locations) {
-              locationsMap[loc.requestId] = loc;
-            }
+          if (resp) updateBatchRateLimitFromHeaders(resp);
+
+          if (resp && resp.ok) {
+            locations = await resp.json();
             break;
           }
+
+          const status = resp ? resp.status : 0;
+          const isTimeout = caughtErr && (caughtErr.name === 'AbortError' || /aborted|timeout/i.test(caughtErr.message));
+          const retryable = isTimeout || status === 429 || status === 502 || status === 503 || status === 504 || status === 500;
+          const statusText = resp ? `${status}` : isTimeout ? 'timeout' : caughtErr ? caughtErr.message : 'unknown';
+
+          if (DEVELOPER_MODE) {
+            console.warn(`(Dev) Batch attempt ${attempt}/${BATCH_MAX_RETRIES} for ${creatorKey} @ place ${placeId} failed: ${statusText}${retryable && attempt < BATCH_MAX_RETRIES ? ' -> retrying' : ''}`);
+            console.warn(`(Dev) [Diagnostics] Creator Key: ${creatorKey}, Items: ${items.length}, Place ID: ${placeId}, Attempt: ${attempt}`);
+            if (resp) {
+              console.warn(`(Dev) [Diagnostics] Retry-After: ${resp.headers.get('retry-after') || 'none'}`);
+            }
+          }
+
+          if (!retryable || attempt === BATCH_MAX_RETRIES) {
+            if (DEVELOPER_MODE && resp) {
+              try {
+                const clonedResp = resp.clone();
+                const text = await clonedResp.text();
+                console.warn(`(Dev) [Diagnostics] Response Body: ${text.substring(0, 500)}`);
+              } catch (e) {}
+            }
+            throw new Error(`Batch request failed for ${creatorKey}: ${statusText}`);
+          }
+
+          if (status === 429 && resp) {
+            const delayMs = getBatchRetryAfterMs(resp, attempt);
+            sendStatusMessage(`Roblox rate limited download lookup. Retrying in ${Math.ceil(delayMs / 1000)}s...`);
+            if (DEVELOPER_MODE) console.warn(`(Dev) Rate limited (429). Pausing batch globally for ${delayMs}ms`);
+            setBatchRateLimit(delayMs);
+          } else {
+            const delayMs = BATCH_RETRY_DELAY_MS + Math.floor(Math.random() * 300);
+            await new Promise((r) => setTimeout(r, delayMs));
+          }
+        }
+
+        if (!locations) throw new Error(`Batch request failed for ${creatorKey}: no response`);
+        if (DEVELOPER_MODE) console.log(`(Dev) Batch response for ${creatorKey}:`, locations);
+
+        const hasBatchErrors = locations.some((loc) => loc.errors && loc.errors.length > 0 && loc.errors[0].code === 403);
+
+        const errorItems = locations.filter((loc) => loc.errors && loc.errors.length > 0);
+        if (errorItems.length > 0 && DEVELOPER_MODE) {
+          for (const locErr of errorItems) {
+            const firstErr = locErr.errors[0] || {};
+            console.warn(`Batch error for ${locErr.requestId} at place ${placeId}:`, JSON.stringify(firstErr));
+            console.log('(Dev) Full batch item with error:', JSON.stringify(locErr, null, 2).substring(0, 500));
+          }
+        }
+
+        if (hasBatchErrors) {
+          if (placeIdIndex < placeIdArray.length - 1) {
+            if (DEVELOPER_MODE) console.log(`(Dev) Batch errors detected for ${creatorKey} with placeId ${placeId}. Trying next place...`);
+            placeIdIndex++;
+            continue;
+          } else {
+            if (overridePlaceId) {
+              if (DEVELOPER_MODE) console.log(`(Dev) Override Place ID in use for ${creatorKey}. Skipping fresh placeId fetch and accepting batch errors.`);
+              for (const loc of locations) {
+                locationsMap[loc.requestId] = loc;
+              }
+              break;
+            }
+            if (retryCount < maxRetries) {
+              retryCount++;
+              if (DEVELOPER_MODE) console.log(`(Dev) All places exhausted for ${creatorKey}. Fetching fresh placeIds (retry ${retryCount}/${maxRetries})...`);
+              try {
+                const freshPlaceIds = await retryAsync(() => getPlaceIdFromCreator(creatorType, creatorId, robloxCookie, maxPlaceIds), 1, 1000);
+                placeIdMap[creatorKey] = Array.isArray(freshPlaceIds) ? freshPlaceIds : [freshPlaceIds];
+                placeIdArray = placeIdMap[creatorKey];
+                placeIdIndex = 0;
+                if (DEVELOPER_MODE) console.log(`(Dev) Got fresh placeIds for ${creatorKey}: ${placeIdArray.join(', ')}`);
+                continue;
+              } catch (refreshErr) {
+                if (DEVELOPER_MODE) console.warn(`(Dev) Failed to refresh placeIds for ${creatorKey}: ${refreshErr.message}`);
+                for (const loc of locations) {
+                  locationsMap[loc.requestId] = loc;
+                }
+                break;
+              }
+            } else {
+              if (DEVELOPER_MODE) console.log(`(Dev) Max retries reached for ${creatorKey}, accepting batch errors`);
+              for (const loc of locations) {
+                locationsMap[loc.requestId] = loc;
+              }
+              break;
+            }
+          }
+        } else {
+          if (DEVELOPER_MODE) console.log(`(Dev) Batch request successful for ${creatorKey} with placeId ${placeId}`);
+          for (const loc of locations) {
+            locationsMap[loc.requestId] = loc;
+          }
+          break;
         }
       }
     } catch (error) {
       console.error('Batch request error:', error);
-      // Consider only 401/403 as auth errors; 5xx/504/timeout are not auth
       const msg = error && error.message ? error.message : '';
       if (/\b401\b|\b403\b/.test(msg)) {
         hasAuthError = true;
       }
       sendStatusMessage(`Batch request failed: ${error.message}`);
-      for (const item of chunk) {
+      for (const item of items) {
         const transfer = initialTransferStates.find((t) => t.originalAssetId === item.requestId);
         if (transfer)
           sendTransferUpdate({
@@ -1600,14 +1592,15 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
           });
       }
     }
-    const resolvedLocations = Math.min(i + chunk.length, batchItems.length);
+
+    resolvedLocationsCount += items.length;
     sendSpooferProgress({
       phase: 'locations',
-      current: resolvedLocations,
+      current: resolvedLocationsCount,
       total: batchItems.length,
     });
-    sendStatusMessage(`Resolved download locations ${resolvedLocations}/${batchItems.length}`);
-  }
+    sendStatusMessage(`Resolved download locations ${resolvedLocationsCount}/${batchItems.length}`);
+  });
 
   const UPLOAD_RETRIES = parseInt(data.uploadRetries, 10) || 3;
   const UPLOAD_RETRY_DELAY_MS = parseInt(data.uploadRetryDelay, 10) || 5000;
@@ -1657,6 +1650,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
         retries: DOWNLOAD_RETRIES,
         retryDelayMs: DOWNLOAD_RETRY_DELAY_MS,
         suppressErrorUpdate,
+        abortSignal: getAbortSignal(),
       });
     };
 
@@ -1738,68 +1732,17 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
   } else {
     const successfulDownloads = downloadResults.filter((r) => r.success);
 
-    if (data.replaceExisting) {
-      const seenFinalNames = new Map();
-      const duplicateFinalNames = new Map();
-
-      for (const downloadResult of successfulDownloads) {
-        const finalName = buildFinalUploadName(downloadResult.entry, data);
-        const key = finalName.trim().toLowerCase();
-
-        if (seenFinalNames.has(key)) {
-          if (!duplicateFinalNames.has(key)) {
-            duplicateFinalNames.set(key, {
-              name: finalName,
-              assetIds: [seenFinalNames.get(key)],
-            });
-          }
-          duplicateFinalNames.get(key).assetIds.push(downloadResult.entry.id);
-        } else {
-          seenFinalNames.set(key, downloadResult.entry.id);
-        }
-      }
-
-      if (duplicateFinalNames.size > 0) {
-        const duplicateList = [...duplicateFinalNames.values()]
-          .map((item) => `- ${item.name}: ${item.assetIds.join(', ')}`)
-          .join('\n');
-
-        sendStatusMessage('Replace Existing stopped: duplicate final names found');
-        sendSpooferResultToRenderer({
-          output:
-            `Replace Existing cannot safely continue because multiple uploads resolve to the same final name.\n\n` +
-            `Duplicate final names:\n${duplicateList}\n\n` +
-            `Fix this by renaming the source animations or changing the rename prefix/suffix settings so every replacement target is unique.`,
-          success: false,
-        });
-        return;
-      }
-    }
-
-    if (data.replaceExisting) {
-      sendStatusMessage('Looking for replacements...');
-      if (successfulDownloads.length > 0) {
-        const { findAssetByName } = require('./assets');
-        await findAssetByName(robloxCookie, isSoundMode ? 3 : 24, '___DUMMY_WARMUP___', data.groupId);
-      }
-      sendStatusMessage(`Replacing ${isSoundMode ? 'sounds' : 'animations'}...`);
-    } else {
-      sendStatusMessage(`Uploading ${isSoundMode ? 'sounds' : 'animations'}...`);
-    }
+    sendStatusMessage(`Uploading ${isSoundMode ? 'sounds' : 'animations'}...`);
 
     let uploadCompleted = 0;
     const uploadStartTime = Date.now();
     // Open Cloud API rate limit is 60 req/min.
-    // Normal uploads can run in parallel, but Replace Existing must be serialized.
-    // Roblox rejects overlapping PATCH operations on the same existing asset with:
-    // "A newer version was created from a different request..."
-    const defaultLimit = data.replaceExisting ? 1 : 10;
+    // Normal uploads can run in parallel
+    const defaultLimit = 15;
 
-    let userLimit = data.concurrentUploads
-      ? data.maxConcurrentUploads
-        ? parseInt(data.maxConcurrentUploads, 10)
-        : defaultLimit
-      : 1;
+    let userLimit = data.maxConcurrentUploads
+      ? parseInt(data.maxConcurrentUploads, 10)
+      : defaultLimit;
 
     if (!Number.isFinite(userLimit) || userLimit < 1) {
       userLimit = defaultLimit;
@@ -1847,7 +1790,12 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
         await checkPaused();
         const finalName = buildFinalUploadName(entry, data);
 
-        const result = await publishAnimationRbxmWithProgress(filePath, finalName, robloxCookie, csrfToken, data.groupId && String(data.groupId).trim() ? data.groupId : null, uploadTransferId, sendTransferUpdate, assetTypeName, data.apiKey || null, authenticatedUserId || null, { replaceExisting: data.replaceExisting });
+        let result;
+        if (assetTypeName === 'Audio') {
+          result = await publishAudioViaIdeEndpoint(filePath, finalName, robloxCookie, csrfToken, data.groupId && String(data.groupId).trim() ? data.groupId : null, uploadTransferId, sendTransferUpdate, { abortSignal: getAbortSignal() });
+        } else {
+          result = await publishAnimationRbxmWithProgress(filePath, finalName, robloxCookie, csrfToken, data.groupId && String(data.groupId).trim() ? data.groupId : null, uploadTransferId, sendTransferUpdate, assetTypeName, data.apiKey || null, authenticatedUserId || null, { abortSignal: getAbortSignal() });
+        }
         if (!result.success) throw new Error(result.error || 'Upload failed');
         return result;
       };
@@ -1874,14 +1822,13 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
         const etaMin = Math.floor(etaSeconds / 60);
         const etaSec = etaSeconds % 60;
         const etaStr = remaining > 0 ? ` (ETA: ${etaMin}:${String(etaSec).padStart(2, '0')})` : '';
-        const actionText = data.replaceExisting ? 'Processed' : 'Uploaded';
+        const actionText = 'Uploaded';
         sendStatusMessage(`${actionText} ${uploadCompleted}/${successfulDownloads.length} ${isSoundMode ? 'sounds' : 'animations'}${etaStr}`);
         return {
           entry,
           success: uploadResult.success,
           assetId: uploadResult.assetId,
           error: uploadResult.error,
-          replacedId: uploadResult.replacedId,
         };
       } catch (finalRetryError) {
         sendTransferUpdate({
@@ -1923,11 +1870,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
           if (uploadResult.success) {
             successfulUploadCount++;
             uploadMappingOutput += `${entry.id} = ${uploadResult.assetId},\n`;
-            if (uploadResult.replacedId) {
-              verboseOutputMessage += `Replaced Existing ${isSoundMode ? 'Sound' : 'Animation'}: ${entry.name} (Original ID: ${entry.id}) -> Overwrote Asset ID: ${uploadResult.replacedId}\n`;
-            } else {
-              verboseOutputMessage += `Uploaded ${isSoundMode ? 'Sound' : 'Animation'}: ${entry.name} (Original ID: ${entry.id}) -> New Asset ID: ${uploadResult.assetId}\n`;
-            }
+            verboseOutputMessage += `Uploaded ${isSoundMode ? 'Sound' : 'Animation'}: ${entry.name} (Original ID: ${entry.id}) -> New Asset ID: ${uploadResult.assetId}\n`;
           } else {
             console.error(`[${isSoundMode ? 'SOUND' : 'ANIMATION'} UPLOAD FAILED] ${entry.name} (ID: ${entry.id}): ${uploadResult.error || 'Unknown upload error'}`);
             verboseOutputMessage += `✗ ${isSoundMode ? 'Sound' : 'Animation'} Upload Failed: ${entry.name} (ID: ${entry.id}): ${uploadResult.error || 'Unknown upload error'}\n`;
@@ -2113,17 +2056,35 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
 const runWithConcurrency = async (items, limit, worker) => {
   const results = new Array(items.length);
   let index = 0;
+  let cancelled = false;
   const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
     while (true) {
-      checkCancelled();
-      await checkPaused();
+      if (cancelled) break;
+      try {
+        checkCancelled();
+        await checkPaused();
+      } catch (err) {
+        if (err.message === 'Operation cancelled by user' || err.message === 'Operation cancelled') {
+          cancelled = true;
+          break;
+        }
+        throw err;
+      }
       const current = index++;
       if (current >= items.length) break;
-      results[current] = await worker(items[current]);
+      try {
+        results[current] = await worker(items[current]);
+      } catch (err) {
+        if (err.message === 'Operation cancelled by user' || err.message === 'Operation cancelled') {
+          cancelled = true;
+          break;
+        }
+        throw err;
+      }
     }
   });
   await Promise.all(workers);
-  return results;
+  return results.filter(r => r !== undefined);
 };
 
 module.exports = {

@@ -1,7 +1,7 @@
 {
   "name": "renderer-react",
   "private": true,
-  "version": "1.3.13-hotfix.3",
+  "version": "1.3.14",
   "type": "module",
   "scripts": {
     "dev": "vite",

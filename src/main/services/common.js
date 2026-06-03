@@ -122,6 +122,7 @@ async function retryAsync(fn, retries = 3, delayMs = 1000, onRetryAttempt) {
       return await fn(attempt);
     } catch (err) {
       lastError = err;
+      if (isNonRetryableError(err)) throw err;
       if (typeof onRetryAttempt === 'function') {
         await onRetryAttempt(attempt, attempts, err);
       }
@@ -132,6 +133,20 @@ async function retryAsync(fn, retries = 3, delayMs = 1000, onRetryAttempt) {
   throw new Error(`After ${attempts} attempts: ${lastError?.message || lastError}`, {
     cause: lastError,
   });
+}
+
+function markNonRetryableError(error, code = 'NON_RETRYABLE') {
+  const normalizedError = error instanceof Error ? error : new Error(String(error || code));
+  normalizedError.nonRetryable = true;
+  normalizedError.code = normalizedError.code || code;
+  return normalizedError;
+}
+
+function isNonRetryableError(error) {
+  if (error?.nonRetryable === true) return true;
+  if (error?.name === 'AbortError') return true;
+  if (error?.message === 'Operation cancelled') return true;
+  return false;
 }
 
 async function clearDownloadsDirectory(directoryPath, skipIfEnabled = KEEP_DOWNLOADS_ON_FAILURE) {
@@ -197,6 +212,8 @@ function buildRobloxCookieHeader(cookieValue) {
 
 module.exports = {
   retryAsync,
+  markNonRetryableError,
+  isNonRetryableError,
   clearDownloadsDirectory,
   sanitizeFilename,
   normalizeRobloxCookie,

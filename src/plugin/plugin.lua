@@ -19,6 +19,62 @@ local PRODUCT_INFO_YIELD_EVERY = 25
 local PRODUCT_INFO_RETRIES = 3
 local ICON_ID = "rbxassetid://11778372908"
 
+local API_DUMP_URL = "https://raw.githubusercontent.com/MaximumADHD/Roblox-Client-Tracker/refs/heads/roblox/API-Dump.json"
+local cachedApiDump = nil
+local classIndexMap = {}
+local classPropertiesCache = {}
+local blacklistedTags = { Hidden = true, ReadOnly = true, NotScriptable = true }
+
+local function fetchApiDump()
+  if cachedApiDump then return true end
+  local ok, response = pcall(function()
+    return HttpService:GetAsync(API_DUMP_URL)
+  end)
+  if not ok or not response then return false end
+  local decodedOk, data = pcall(function()
+    return HttpService:JSONDecode(response)
+  end)
+  if not decodedOk or not data then return false end
+  cachedApiDump = data
+  for i, class in ipairs(data.Classes or {}) do
+    classIndexMap[class.Name] = i
+  end
+  return true
+end
+
+local function getWritableProperties(className)
+  if classPropertiesCache[className] then return classPropertiesCache[className] end
+  if not cachedApiDump then return {} end
+  
+  local properties = {}
+  local classIndex = classIndexMap[className]
+  if classIndex then
+    local class = cachedApiDump.Classes[classIndex]
+    if class then
+      for _, member in ipairs(class.Members or {}) do
+        if member.MemberType == "Property" and member.Security and member.Security.Write == "None" then
+          local okTag = true
+          if member.Tags then
+            for _, tag in ipairs(member.Tags) do
+              if blacklistedTags[tag] then okTag = false break end
+            end
+          end
+          if okTag and member.ValueType and (member.ValueType.Name == "Content" or member.ValueType.Name == "string" or member.ValueType.Category == "Primitive") then
+             table.insert(properties, member.Name)
+          end
+        end
+      end
+      if class.Superclass and class.Superclass ~= "<<<ROOT>>>" then
+        for _, p in ipairs(getWritableProperties(class.Superclass)) do
+          table.insert(properties, p)
+        end
+      end
+    end
+  end
+  classPropertiesCache[className] = properties
+  return properties
+end
+
 local toolbar = plugin:CreateToolbar("ISpooferMotion")
 local animationsButton = toolbar:CreateButton("Animations",
   "Scan the open game for animation IDs and send them to ISpooferMotion.", ICON_ID)
@@ -496,10 +552,15 @@ local function replacePropertyText(obj, propertyName, replacements, ordered, sta
     return
   end
 
-  local nextValue, changed = replaceIdsInText(value, replacements, ordered)
-  if changed <= 0 or nextValue == value then
+  local isNum = type(value) == "number"
+  local strVal = tostring(value)
+  local nextStr, changed = replaceIdsInText(strVal, replacements, ordered)
+  if changed <= 0 or nextStr == strVal then
     return
   end
+
+  local nextValue = isNum and tonumber(nextStr) or nextStr
+  if nextValue == nil then nextValue = nextStr end
 
   local okWrite = pcall(function()
     obj[propertyName] = nextValue
@@ -639,19 +700,34 @@ end
 
 local function replaceIdsInObject(obj, replacements, ordered, stats)
 
-  if obj:IsA("Animation") then
-    replacePropertyText(obj, "AnimationId", replacements, ordered, stats)
-  elseif obj:IsA("Sound") then
-    replacePropertyText(obj, "SoundId", replacements, ordered, stats)
-  elseif obj:IsA("AudioPlayer") then
-    replacePropertyText(obj, "Asset", replacements, ordered, stats)
-    replacePropertyText(obj, "AssetId", replacements, ordered, stats)
-  elseif obj:IsA("HumanoidDescription") then
+  if obj:IsA("HumanoidDescription") then
     replaceHumanoidDescriptionAnimations(obj, replacements, ordered, stats)
-  elseif obj:IsA("LuaSourceContainer") then
-    replacePropertyText(obj, "Source", replacements, ordered, stats)
-  elseif obj:IsA("StringValue") or obj:IsA("IntValue") or obj:IsA("NumberValue") then
+  end
+  if obj:IsA("StringValue") or obj:IsA("IntValue") or obj:IsA("NumberValue") then
     replaceValueObject(obj, replacements, ordered, stats)
+  end
+
+  local props = getWritableProperties(obj.ClassName)
+  if #props > 0 then
+    for _, propName in ipairs(props) do
+      if propName == "Source" and obj:IsA("LuaSourceContainer") then
+        replacePropertyText(obj, "Source", replacements, ordered, stats)
+      elseif propName ~= "Value" and propName ~= "Source" then
+        replacePropertyText(obj, propName, replacements, ordered, stats)
+      end
+    end
+  else
+    -- Fallback if ApiDump fails
+    if obj:IsA("Animation") then
+      replacePropertyText(obj, "AnimationId", replacements, ordered, stats)
+    elseif obj:IsA("Sound") then
+      replacePropertyText(obj, "SoundId", replacements, ordered, stats)
+    elseif obj:IsA("AudioPlayer") then
+      replacePropertyText(obj, "Asset", replacements, ordered, stats)
+      replacePropertyText(obj, "AssetId", replacements, ordered, stats)
+    elseif obj:IsA("LuaSourceContainer") then
+      replacePropertyText(obj, "Source", replacements, ordered, stats)
+    end
   end
 
   replaceAttributes(obj, replacements, ordered, stats)
@@ -788,16 +864,26 @@ local function collectIdsFromObject(obj, kind, ids)
     addId(ids, obj.Name)
   end
 
-  if kind == "animation" and obj:IsA("Animation") then
-    addId(ids, obj.AnimationId)
-  elseif kind == "sound" and obj:IsA("Sound") then
-    addId(ids, obj.SoundId)
-    addPropertyIdsFromObject(obj, "AudioContent", ids)
-  elseif kind == "sound" and obj:IsA("AudioPlayer") then
-    addPropertyIdsFromObject(obj, "Asset", ids)
-    addPropertyIdsFromObject(obj, "AssetId", ids)
-    addPropertyIdsFromObject(obj, "AudioContent", ids)
-  elseif kind == "animation" and obj:IsA("HumanoidDescription") then
+  local props = getWritableProperties(obj.ClassName)
+  if #props > 0 then
+    for _, propName in ipairs(props) do
+      addPropertyIdsFromObject(obj, propName, ids)
+    end
+  else
+    -- Fallback
+    if kind == "animation" and obj:IsA("Animation") then
+      addId(ids, obj.AnimationId)
+    elseif kind == "sound" and obj:IsA("Sound") then
+      addId(ids, obj.SoundId)
+      addPropertyIdsFromObject(obj, "AudioContent", ids)
+    elseif kind == "sound" and obj:IsA("AudioPlayer") then
+      addPropertyIdsFromObject(obj, "Asset", ids)
+      addPropertyIdsFromObject(obj, "AssetId", ids)
+      addPropertyIdsFromObject(obj, "AudioContent", ids)
+    end
+  end
+
+  if kind == "animation" and obj:IsA("HumanoidDescription") then
     collectHumanoidDescriptionAnimationIds(obj, ids)
   elseif obj:IsA("LuaSourceContainer") then
     local ok, source = pcall(function()
@@ -1098,6 +1184,11 @@ local function runReplacementWithText(text)
   replaceInProgress = true
   setButtonsEnabled(false)
   print("[ISpooferMotion] Auto-Replace started.")
+  
+  if not cachedApiDump then
+    print("[ISpooferMotion] Fetching Roblox API Dump...")
+    fetchApiDump()
+  end
 
   local gui = createDimmerProgressGui("ISpooferMotionReplacementProgress", "Auto-Replace starting...")
   local lastUiUpdate = 0
@@ -1259,6 +1350,11 @@ local function runScan(kind)
   local label = kind == "sound" and "Sounds" or "Animations"
   local statusText = "Starting " .. label .. " scan..."
   print("[ISpooferMotion] " .. label .. " scan started.")
+  
+  if not cachedApiDump then
+    print("[ISpooferMotion] Fetching Roblox API Dump...")
+    fetchApiDump()
+  end
 
   local gui = Instance.new("ScreenGui")
   gui.Name = "ISpooferMotionDimmer"

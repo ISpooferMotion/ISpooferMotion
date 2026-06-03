@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release tag (e.g. v1.3.11)'
+        description: 'Release tag (e.g. v1.2.3)'
         required: false
         type: string
 
@@ -69,7 +69,7 @@ jobs:
         run: npm run release:hardening-check
 
       - name: Build Windows app EXE
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != ''))
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -78,27 +78,28 @@ jobs:
         run: npm run build -- --win nsis --publish never
 
       - name: Build Roblox Studio plugin (Windows only)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != ''))
         run: npm run build:plugin
 
       - name: Build macOS app
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != ''))
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npm run build -- --mac --universal --publish never
 
       - name: Build Linux packages
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != ''))
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npm run build -- --linux --publish never
 
       - name: Cleanup unwanted artifacts (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != ''))
         shell: pwsh
         run: Remove-Item dist/*__uninstaller.exe, dist/*.blockmap -ErrorAction SilentlyContinue
 
       - name: Upload artifacts
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
@@ -350,7 +351,7 @@ jobs:
                   name = row.get("name", "Release asset")
                   url = row.get("fileUrl") or row.get("file_url") or row.get("analysisUrl") or row.get("analysis_url")
                   sha256 = row.get("sha256", "")
-                  
+
                   pretty_name = name
                   if "-win-" in name and name.endswith(".exe"): pretty_name = "Windows Setup (.exe)"
                   elif "Plugin" in name and name.endswith(".rbxmx"): pretty_name = "Roblox Plugin (.rbxmx)"
@@ -410,7 +411,7 @@ jobs:
                       saw_content = True
                       continue
                   saw_content = True
-                  if re.match(r"^\s{0,3}#{1,6}\s+VirusTotal results\b", line, flags=re.IGNORECASE):
+                  if re.match(r"^\s{0,3}#{1,6}\s+.*VirusTotal\b", line, flags=re.IGNORECASE):
                       skipping = True
                       continue
                   if skipping and re.match(r"^\s{0,3}#{1,6}\s+", line):
@@ -420,11 +421,32 @@ jobs:
               return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
 
           def read_release_changes():
+              # Prefer only this version's changelog entry. The generated GitHub
+              # release body can contain VirusTotal tables and other appended data.
+              try:
+                  changelog_section = sanitize_release_changes(read_version_changelog())
+                  if changelog_section:
+                      return changelog_section
+              except Exception:
+                  pass
+
               release = get_release_by_tag()
               release_body = sanitize_release_changes(release.get("body") or "")
               if release_body:
                   return release_body
-              return sanitize_release_changes(read_version_changelog())
+              return "No changelog entries were found for this version."
+
+          def fit_embed_description(text):
+              # Discord allows a 4,096-character description and 6,000 total
+              # characters per embed message. Leave room for the other fields.
+              max_chars = 3800
+              if len(text) <= max_chars:
+                  return text
+
+              suffix = f"\n\n[Read the full release notes]({release_url})"
+              available = max_chars - len(suffix) - 1
+              clipped = text[:available].rsplit("\n", 1)[0].rstrip() or text[:available].rstrip()
+              return f"{clipped}…{suffix}"
 
           def get_commit_author():
               fallback = {"name": "GitHub", "url": release_url, "avatar": None}
@@ -447,7 +469,7 @@ jobs:
           virustotal_links = read_virustotal_links()
           author = get_commit_author()
 
-          changelog_field = f"Too much changed to fit cleanly here.\n\n[Read the release notes]({release_url})" if len(changelog_text) > 1000 else changelog_text
+          changelog_field = fit_embed_description(changelog_text)
           color = 3447003 if is_release_edit else (16753920 if prerelease else 5763719)
           headline = "Release notes were updated" if is_release_edit else ("New test build is ready" if prerelease else "New update is live")
           description = (

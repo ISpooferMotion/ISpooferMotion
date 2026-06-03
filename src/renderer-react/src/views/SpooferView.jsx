@@ -9,8 +9,6 @@ export default function SpooferView({ isActive }) {
   const [autoDetectCookie, setAutoDetectCookie] = useState(true);
   const [downloadOnly, setDownloadOnly] = useState(false);
   const [spoofSounds, setSpoofSounds] = useState(false);
-  const [replaceExisting, setReplaceExisting] = useState(false);
-
   const [downloadFolder, setDownloadFolder] = useState('');
 
   const [maxPlaceIds, setMaxPlaceIds] = useState(10);
@@ -302,8 +300,7 @@ export default function SpooferView({ isActive }) {
       downloadRetryDelayMs: 2000,
       downloadTimeoutMs: 15000,
       concurrentUploads: profile.concurrent ?? true,
-      maxConcurrentUploads: profile.maxConcurrentUploads ?? 10,
-      replaceExisting,
+      maxConcurrentUploads: profile.maxConcurrentUploads ?? 12,
       renamePrefix: profile.renameToggle ? profile.renamePrefix ?? '' : '',
       renameSuffix: profile.renameToggle ? profile.renameSuffix ?? '' : '',
       renameFind: profile.renameToggle ? profile.renameFind ?? '' : '',
@@ -592,18 +589,6 @@ export default function SpooferView({ isActive }) {
                         setSpoofSounds(e.target.checked);
                         updateProfileValue('spoofSounds', e.target.checked);
                       }}
-                    />
-                    <i></i>
-                  </span>
-                </label>
-                <label className="option-row" htmlFor="replace-existing">
-                  <span>Replace existing</span>
-                  <span className="switch">
-                    <input
-                      type="checkbox"
-                      id="replace-existing"
-                      checked={replaceExisting}
-                      onChange={(e) => setReplaceExisting(e.target.checked)}
                     />
                     <i></i>
                   </span>
