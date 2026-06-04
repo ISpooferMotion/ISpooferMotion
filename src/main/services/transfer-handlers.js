@@ -426,11 +426,12 @@ async function downloadAnimationAssetWithProgress(
 
   for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
     try {
-      const fetchHeaders = {};
+      const fetchHeaders = {
+        'User-Agent': 'RobloxStudio/WinInet',
+        'Roblox-Browser-Asset-Request': 'false',
+      };
       if (placeId) {
         fetchHeaders['Roblox-Place-Id'] = String(placeId);
-        fetchHeaders['User-Agent'] = 'RobloxStudio/WinInet';
-        fetchHeaders['Roblox-Browser-Asset-Request'] = 'false';
       }
 
       const response = await fetchWithTimeout(

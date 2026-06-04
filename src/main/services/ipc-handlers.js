@@ -1604,6 +1604,13 @@ async function handleSpooferAction(
     const maxRetries = maxPlaceIdRetries;
 
     try {
+      // Pre-fill locationsMap so if placeIdArray is empty or an item is missing, we have a clear error
+      for (const item of items) {
+        locationsMap[item.requestId] = {
+          errors: [{ message: placeIdArray.length === 0 ? 'No places found for creator to authorize download' : 'Asset missing from batch response' }]
+        };
+      }
+
       while (placeIdIndex < placeIdArray.length) {
         checkCancelled();
         await checkPaused();
@@ -1814,6 +1821,11 @@ async function handleSpooferAction(
       }
       sendStatusMessage(`Batch request failed: ${error.message}`);
       for (const item of items) {
+        // Only overwrite if we don't already have a valid location or a specific Roblox error for it
+        if (!locationsMap[item.requestId] || locationsMap[item.requestId].errors?.[0]?.message === 'Asset missing from batch response') {
+          locationsMap[item.requestId] = { errors: [{ message: msg }] };
+        }
+        
         const transfer = initialTransferStates.find((t) => t.originalAssetId === item.requestId);
         if (transfer)
           sendTransferUpdate({
