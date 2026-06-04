@@ -977,7 +977,7 @@ function registerIpcHandlers(
     }
   });
 
-  handleIpc('spoofer-start', async (_event, data) => {
+  onIpc('run-spoofer-action', async (_event, data) => {
     if (spooferRunActive) {
       sendStatusMessage(
         'A spoofing operation is already running. Cancel it before starting another.',
@@ -1639,6 +1639,7 @@ async function handleSpooferAction(
                 'User-Agent': 'RobloxStudio/WinInet',
                 'Content-Type': 'application/json',
                 'Roblox-Place-Id': String(placeId),
+                'Roblox-Browser-Asset-Request': 'false',
               },
               body: JSON.stringify(itemsWithoutCreator),
               signal: controller.signal,
@@ -1886,7 +1887,7 @@ async function handleSpooferAction(
 
       return downloadAnimationAssetWithProgress(
         url,
-        robloxCookie,
+        robloxSession,
         filePath,
         downloadTransferId,
         entry.name,
