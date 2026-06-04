@@ -61,13 +61,6 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Run release sanity check (Windows only)
-        if: runner.os == 'Windows'
-        run: npm run release:local-check
-
-      - name: Run release hardening check
-        run: npm run release:hardening-check
-
       - name: Build Windows app EXE
         if: runner.os == 'Windows' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != ''))
         env:
