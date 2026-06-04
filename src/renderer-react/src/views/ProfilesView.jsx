@@ -1,4 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+const TrashIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12ZM8 9h8v10H8V9Zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5Z" />
+  </svg>
+);
 
 export default function ProfilesView({ isActive }) {
   const [profiles, setProfiles] = useState({});
@@ -14,8 +20,17 @@ export default function ProfilesView({ isActive }) {
   const [robloxData, setRobloxData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Confirm-before-delete state: null | 'confirm'
+  const [deleteState, setDeleteState] = useState(null);
+  const deleteTimeoutRef = useRef(null);
+
   useEffect(() => {
     loadProfiles();
+  }, []);
+
+  // Clean up confirm timeout on unmount
+  useEffect(() => {
+    return () => clearTimeout(deleteTimeoutRef.current);
   }, []);
 
   async function loadProfiles() {
@@ -37,6 +52,7 @@ export default function ProfilesView({ isActive }) {
   }
 
   function applyProfileToState(id, allProfiles) {
+    setDeleteState(null);
     const profile = allProfiles[id];
     if (profile) {
       setProfileName(profile.name || 'Unnamed Profile');
@@ -115,7 +131,6 @@ export default function ProfilesView({ isActive }) {
       secrets: normalizedUpdates,
     });
 
-    // trigger a global update so top bar updates name
     window.dispatchEvent(new Event('profile-changed'));
 
     if (
@@ -159,7 +174,7 @@ export default function ProfilesView({ isActive }) {
       return;
     }
 
-    setApiKeyStatus('Checking API key...');
+    setApiKeyStatus('Checking API key…');
     try {
       const result = await window.electronAPI?.validateOpenCloudApiKey?.(trimmed);
       if (!result?.ok) {
@@ -173,8 +188,19 @@ export default function ProfilesView({ isActive }) {
     }
   };
 
-  const deleteProfile = async () => {
+  const handleDeleteClick = async () => {
     if (Object.keys(profiles).length <= 1) return;
+
+    if (deleteState !== 'confirm') {
+      // First click: enter confirm mode, auto-cancel after 3s
+      setDeleteState('confirm');
+      deleteTimeoutRef.current = setTimeout(() => setDeleteState(null), 3000);
+      return;
+    }
+
+    // Second click: actually delete
+    clearTimeout(deleteTimeoutRef.current);
+    setDeleteState(null);
     await window.electronAPI?.saveProfileSecrets?.({
       action: 'deleteProfile',
       profileId: activeId,
@@ -189,6 +215,9 @@ export default function ProfilesView({ isActive }) {
     applyProfileToState(id, profiles);
     window.dispatchEvent(new Event('profile-changed'));
   };
+
+  const profileCount = Object.keys(profiles).length;
+  const canDelete = profileCount > 1;
 
   return (
     <section
@@ -234,16 +263,22 @@ export default function ProfilesView({ isActive }) {
               onChange={(e) => updateProfile({ name: e.target.value })}
             />
             <button
-              className="ui-button ui-button-danger icon-button"
+              className={`ui-button profile-delete-btn ${deleteState === 'confirm' ? 'confirming' : ''}`}
               id="btn-delete-profile"
               type="button"
-              aria-label="Delete Profile"
-              title="Delete Profile"
-              onClick={deleteProfile}
+              aria-label={deleteState === 'confirm' ? 'Confirm delete' : 'Delete Profile'}
+              title={
+                !canDelete
+                  ? 'Cannot delete the last profile'
+                  : deleteState === 'confirm'
+                    ? 'Click again to confirm deletion'
+                    : 'Delete Profile'
+              }
+              disabled={!canDelete}
+              onClick={handleDeleteClick}
             >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-              </svg>
+              <TrashIcon />
+              <span>{deleteState === 'confirm' ? 'Confirm?' : 'Delete'}</span>
             </button>
           </div>
 
@@ -338,11 +373,11 @@ export default function ProfilesView({ isActive }) {
                 />
               )}
               <div className="roblox-data-info">
-                <span className="roblox-data-name" id="profile-user-name">
-                  {isLoading ? 'Loading...' : robloxData?.user?.name || 'Invalid Cookie'}
+                <span className={`roblox-data-name ${isLoading ? 'loading-dots' : ''}`} id="profile-user-name">
+                  {isLoading ? 'Loading' : robloxData?.user?.name || 'Invalid Cookie'}
                 </span>
                 <span className="roblox-data-id" id="profile-user-id">
-                  {robloxData?.user ? `@${robloxData.user.name} • ${robloxData.user.id}` : ''}
+                  {robloxData?.user ? `@${robloxData.user.name} · ${robloxData.user.id}` : ''}
                 </span>
               </div>
             </div>
@@ -368,8 +403,8 @@ export default function ProfilesView({ isActive }) {
                     />
                   )}
                   <div className="roblox-data-info">
-                    <span className="roblox-data-name" id="profile-group-name">
-                      {isLoading ? 'Loading...' : robloxData?.group?.name || 'Invalid Group ID'}
+                    <span className={`roblox-data-name ${isLoading ? 'loading-dots' : ''}`} id="profile-group-name">
+                      {isLoading ? 'Loading' : robloxData?.group?.name || 'Invalid Group ID'}
                     </span>
                     <span className="roblox-data-id" id="profile-group-id">
                       {robloxData?.group ? `Group ID: ${robloxData.group.id}` : ''}

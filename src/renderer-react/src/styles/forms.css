@@ -20,9 +20,7 @@
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.045);
-  transition:
-    background 150ms ease,
-    border-color 150ms ease;
+  transition: all var(--transition-fast);
 }
 
 .switch i::after {
@@ -34,9 +32,7 @@
   height: 11px;
   border-radius: 50%;
   background: var(--muted-2);
-  transition:
-    transform 160ms ease,
-    background 160ms ease;
+  transition: all var(--transition-fast);
 }
 
 .switch input:checked + i {

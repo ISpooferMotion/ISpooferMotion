@@ -343,11 +343,7 @@ async function resolveAssetEntryNames(entries, robloxSession, options = {}) {
   return resolvedCount;
 }
 
-function getReleaseSourceLabel() {
-  const owner = 'IncrediDev';
-  const repo = 'ISpooferMotion';
-  return `${owner}/${repo}`;
-}
+
 
 async function readJsonFile(filePath, fallback) {
   try {
@@ -738,7 +734,6 @@ function registerIpcHandlers(
     }
   });
 
-  handleIpc('get-release-source', () => getReleaseSourceLabel());
   handleIpc('load-profile-secrets', () => loadProfileSecrets());
   handleIpc('save-profile-secrets', (_event, data) => saveProfileSecrets(data));
   handleIpc('get-roblox-profile', (_event, context) => getRobloxProfile(context));
@@ -915,9 +910,16 @@ function registerIpcHandlers(
     try {
       const session = require('electron').session;
       await session.defaultSession.clearStorageData();
+      await clearSession();
+      try {
+        const fs = require('fs/promises');
+        await fs.unlink(getProfileSecretsPath());
+      } catch (e) {
+        // Ignore if file doesn't exist
+      }
       return true;
     } catch (e) {
-      if (DEVELOPER_MODE) console.warn('Failed to clear app cache', e);
+      if (DEVELOPER_MODE) console.warn('Failed to clear app data', e);
       return false;
     }
   });
@@ -1482,8 +1484,8 @@ async function handleSpooferAction(
 
   let hasAuthError = false;
 
-  // Get the maxPlaceIds and maxPlaceIdRetries from data, defaults to 10 and 3
-  const maxPlaceIds = data.maxPlaceIds || 10000;
+  // Get the maxPlaceIds and maxPlaceIdRetries from data, defaults to 200 and 3
+  const maxPlaceIds = data.maxPlaceIds || 200;
   const maxPlaceIdRetries = data.maxPlaceIdRetries || 3;
   const overridePlaceId = data.overridePlaceId ? parseInt(data.overridePlaceId) : null;
 

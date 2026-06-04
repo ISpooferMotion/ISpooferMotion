@@ -1,11 +1,12 @@
 # Changelog
 
-## v1.3.14-hotfix.2
+## v1.3.15
 
 - **Cookie Expiration Fixes**: Updated internal systems to correctly accept and rotate Roblox's new `.ROBLOSECURITY` cookies during spoofing runs, preventing session drops caused by the mid-2026 platform changes.
 - **Audio Spoofing Upgraded**: Legacy audio upload methods have been fully removed. All audio uploads now securely use the Open Cloud Assets API. _(Note: An Open Cloud API key is now strictly required for spoofing audio.)_
 - **Better Stability**: Improved internal service structures, resulting in faster and more reliable downloads, uploads, and error handling.
 - **Upload / Download Fixes**: Addressed various bugs affecting the transfer handlers, making overall asset processing more consistent.
+- **UI/UX Improvements**: Minor UI Improvements/Changes
 
 ## v1.3.14-hotfix.1
 

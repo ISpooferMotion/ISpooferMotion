@@ -17,7 +17,6 @@ const SEND_CHANNELS = new Set([
 
 const INVOKE_CHANNELS = new Set([
   'get-app-version',
-  'get-release-source',
   'load-profile-secrets',
   'save-profile-secrets',
   'get-roblox-profile',
@@ -106,7 +105,6 @@ const electronAPI = Object.freeze({
   onLocalhostScanResults: (callback) => subscribe('localhost-scan-results', callback),
 
   getAppVersion: () => invoke('get-app-version'),
-  getReleaseSource: () => invoke('get-release-source'),
 
   openExternal: (url) => {
     const safeUrl = sanitizeExternalUrl(url);

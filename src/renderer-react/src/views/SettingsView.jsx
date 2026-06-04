@@ -92,7 +92,7 @@ export default function SettingsView({ isActive }) {
 
   // Color Picker states
   const [colorOpen, setColorOpen] = useState(false);
-  const [color, setColor] = useState({ r: 76, g: 175, b: 80 });
+  const [color, setColor] = useState({ r: 124, g: 134, b: 241 });
 
   const [clearText, setClearText] = useState('Clear');
   const [uninstallStatus, setUninstallStatus] = useState('');
@@ -404,18 +404,16 @@ export default function SettingsView({ isActive }) {
                   </button>
                 </div>
                 <div className="action-item" style={{ borderBottom: 'none' }}>
-                  <span>Clear App Cache</span>
+                  <span>Clear App Data</span>
                   <button
                     className="ui-button ui-button-danger"
                     type="button"
                     id="btn-clear-cache"
                     onClick={async () => {
-                      const cleared = await window.electronAPI?.clearAppCache?.();
-                      setClearText(cleared ? 'Cleared!' : 'Failed');
-                      setTimeout(() => setClearText('Clear'), 1500);
+                      await window.electronAPI?.clearAppCache?.();
                     }}
                   >
-                    {clearText}
+                    Clear All
                   </button>
                 </div>
                 <div className="action-item">
@@ -437,42 +435,8 @@ export default function SettingsView({ isActive }) {
           <div className="settings-col">
             <div className="bento-card settings-card">
               <div className="settings-header">
-                <h3>Upload Engine Defaults</h3>
-                <p>Global fallback settings for the upload process.</p>
-              </div>
-              <div className="bento-fields advanced-fields">
-                <label className="floating-label">
-                  <input
-                    className="ui-input"
-                    type="number"
-                    id="setting-def-retries"
-                    value={defRetries}
-                    min="1"
-                    max="10"
-                    placeholder=" "
-                    onChange={(e) => {
-                      setDefRetries(Number(e.target.value));
-                      updateSetting('defRetries', Number(e.target.value));
-                    }}
-                  />
-                  <span>Default Retries</span>
-                </label>
-                <label className="floating-label">
-                  <input
-                    className="ui-input"
-                    type="number"
-                    id="setting-def-delay"
-                    value={defDelay}
-                    min="1000"
-                    step="1000"
-                    placeholder=" "
-                    onChange={(e) => {
-                      setDefDelay(Number(e.target.value));
-                      updateSetting('defDelay', Number(e.target.value));
-                    }}
-                  />
-                  <span>Retry Delay (ms)</span>
-                </label>
+                <h3>Upload Engine Settings</h3>
+                <p>Advanced rules for the upload process.</p>
               </div>
               <label
                 className="option-row"

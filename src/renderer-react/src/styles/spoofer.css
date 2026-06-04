@@ -31,6 +31,14 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.bento-card:focus-within {
+  border-color: var(--line);
+  box-shadow: 0 0 0 1px var(--line-soft);
 }
 .advanced-setup-card {
   display: flex;
@@ -131,30 +139,31 @@
 .advanced-dropdown.is-open .profile-trigger-arrow {
   transform: rotate(180deg);
 }
-@keyframes dropdownSlide {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.advanced-dropdown-panel-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--transition-smooth);
+}
+
+.advanced-dropdown.is-open .advanced-dropdown-panel-wrap {
+  grid-template-rows: 1fr;
 }
 
 .advanced-dropdown-panel {
-  display: none;
+  overflow: hidden;
+  display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.advanced-dropdown-panel-inner {
   padding: 10px;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
   background: var(--surface-control);
-  transform-origin: top center;
-}
-.advanced-dropdown.is-open .advanced-dropdown-panel {
   display: flex;
-  animation: dropdownSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  flex-direction: column;
+  gap: 10px;
 }
 .place-options-grid {
   display: grid;
@@ -457,18 +466,18 @@
   color: var(--text);
   border: 1px solid transparent;
   cursor: pointer;
-  transition:
-    background 0.2s,
-    border-color 0.2s;
+  transition: all var(--transition-fast);
   font-size: 13px;
   font-weight: 500;
   text-align: left;
+  width: 100%;
 }
 .profile-list-item:hover {
-  background: var(--surface-hover);
+  background: var(--surface-control-hover);
+  border-color: var(--line);
 }
 .profile-list-item.active {
-  background: var(--surface-raised);
+  background: var(--accent-soft);
   border-color: var(--accent-line);
   color: var(--accent);
 }
@@ -495,6 +504,50 @@
   margin-bottom: 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--line-soft);
+}
+
+/* Destructive delete button */
+.profile-delete-btn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  min-width: 90px;
+  color: var(--danger);
+  border-color: var(--danger-line);
+  background: transparent;
+  transition: all var(--transition-fast);
+}
+
+.profile-delete-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--danger-line-strong);
+  background: var(--danger-soft);
+  transform: translateY(-1px);
+}
+
+.profile-delete-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.profile-delete-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  color: var(--muted-2);
+  border-color: var(--line);
+}
+
+.profile-delete-btn.confirming {
+  color: var(--text);
+  border-color: var(--danger-line-strong);
+  background: var(--danger-soft);
+  animation: pulse-danger 0.5s ease;
+}
+
+@keyframes pulse-danger {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 0 3px var(--danger-soft); }
 }
 .profile-name-input {
   flex: 1;

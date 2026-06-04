@@ -283,7 +283,7 @@ async function collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie,
   }
 
   const limit = 50;
-  const maxResults = asPositiveInteger(maxPlaceIds, 10000);
+  const maxResults = asPositiveInteger(maxPlaceIds, 200);
   const robloxSession = createRobloxSession(cookie);
   const state = { suggestions: [], seenPlaceIds: new Set(), maxResults };
   const errors = [];
@@ -361,7 +361,7 @@ async function collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie,
 /**
  * Returns all root place IDs for every game owned by the given creator.
  */
-async function getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 10000) {
+async function getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 200) {
   const result = await collectPlaceSuggestionsForCreator(
     creatorType,
     creatorId,
@@ -381,7 +381,7 @@ async function getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds
 /**
  * Returns root place suggestions with display metadata for a creator.
  */
-async function getPlaceSuggestionsFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 10000) {
+async function getPlaceSuggestionsFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 200) {
   return collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie, maxPlaceIds);
 }
 

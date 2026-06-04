@@ -31,7 +31,11 @@ export default function ActivityView({ isActive }) {
         else if (lower.includes('warning') || lower.includes('skip')) level = 'warn';
       }
 
-      setLogs((prev) => [...prev, { id: Date.now() + Math.random(), text, level }]);
+      setLogs((prev) => {
+        const newLogs = [...prev, { id: Date.now() + Math.random(), text, level }];
+        if (newLogs.length > 500) return newLogs.slice(newLogs.length - 500);
+        return newLogs;
+      });
     });
 
     const cleanupResult = window.electronAPI?.onSpooferResult?.(() => {

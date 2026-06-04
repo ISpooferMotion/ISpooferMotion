@@ -687,7 +687,9 @@ export default function SpooferView({ isActive }) {
                       <path d="M7.4 9.2 12 13.8l4.6-4.6L18 10.6l-6 6-6-6 1.4-1.4Z" />
                     </svg>
                   </button>
-                  <div className="advanced-dropdown-panel">
+                  <div className="advanced-dropdown-panel-wrap">
+                    <div className="advanced-dropdown-panel">
+                      <div className="advanced-dropdown-panel-inner">
                     <label className="floating-label">
                       <input
                         className="ui-input"
@@ -847,6 +849,8 @@ export default function SpooferView({ isActive }) {
                 </div>
               </div>
             </div>
+          </div>
+          </div>
           </div>
 
           <div className="bento-card output-card">

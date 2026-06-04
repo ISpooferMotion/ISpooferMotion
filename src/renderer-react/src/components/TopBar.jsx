@@ -1,8 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import appIcon from '../assets/app_icon.png';
 
-export default function TopBar({ toggleSidebar }) {
+function formatVersionTag(version) {
+  const value = String(version || '1.3.15').replace(/^-?v/i, '');
+  return `v${value.replace(/-hotfix\./i, '.hotfix.')}`;
+}
+
+export default function TopBar() {
   const [profilesInfo, setProfilesInfo] = useState({ activeId: null, profiles: {} });
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [version, setVersion] = useState('');
+  const pickerRef = useRef(null);
 
   useEffect(() => {
     const fetchProfiles = async () => {
@@ -20,26 +28,48 @@ export default function TopBar({ toggleSidebar }) {
     };
     fetchProfiles();
     window.addEventListener('profile-changed', fetchProfiles);
+    
+    const fetchMeta = async () => {
+      try {
+        const appVersion = await window.electronAPI?.getAppVersion?.();
+        if (appVersion) setVersion(formatVersionTag(appVersion));
+      } catch (err) {
+        console.error('Failed to get app version for top bar', err);
+      }
+    };
+    fetchMeta();
+
     return () => window.removeEventListener('profile-changed', fetchProfiles);
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!isProfileMenuOpen) return;
+    const handler = (e) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isProfileMenuOpen]);
 
   const activeProfileName = profilesInfo.profiles[profilesInfo.activeId]?.name || 'Profile 1';
 
   return (
     <header className="top-bar">
-      <button
-        className="icon-button ui-icon-button menu-toggle"
-        id="sidebar-toggle"
-        type="button"
-        aria-label="Toggle sidebar"
-        onClick={toggleSidebar}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M4 7h16v2H4V7Zm0 4h16v2H4v-2Zm0 4h16v2H4v-2Z" />
-        </svg>
-      </button>
+      <div className="brand-block">
+        <img className="brand-logo" src={appIcon} alt="" />
+        <div className="brand-copy">
+          <strong>ISpooferMotion</strong>
+          <span>{version}</span>
+        </div>
+      </div>
+
+      <div className="top-spacer" />
 
       <div
+        ref={pickerRef}
         className={`profile-picker ${isProfileMenuOpen ? 'open' : ''}`}
         aria-label="Profile selector"
       >
@@ -51,9 +81,18 @@ export default function TopBar({ toggleSidebar }) {
           aria-expanded={isProfileMenuOpen}
           onClick={(e) => {
             e.stopPropagation();
-            setIsProfileMenuOpen(!isProfileMenuOpen);
+            setIsProfileMenuOpen((o) => !o);
           }}
         >
+          <svg
+            className="profile-trigger-icon"
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            aria-hidden="true"
+          >
+            <path d="M12 3a4.25 4.25 0 1 1 0 8.5A4.25 4.25 0 0 1 12 3Zm0 2a2.25 2.25 0 1 0 0 4.5A2.25 2.25 0 0 0 12 5Zm-7 14.15C5 15.9 7.92 13.5 12 13.5s7 2.4 7 5.65V21H5v-1.85Zm2.08-.15h9.84c-.13-1.97-2.05-3.5-4.92-3.5S7.21 17.03 7.08 19Z" />
+          </svg>
           <span className="profile-trigger-label" id="profile-trigger-label">
             {activeProfileName}
           </span>
@@ -94,7 +133,7 @@ export default function TopBar({ toggleSidebar }) {
         )}
       </div>
 
-      <div className="top-spacer"></div>
+      <div className="top-spacer" />
 
       <button
         className="top-social ui-icon-button"
@@ -107,18 +146,6 @@ export default function TopBar({ toggleSidebar }) {
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 2.25A9.75 9.75 0 0 0 8.92 21.25c.48.09.66-.2.66-.46v-1.72c-2.7.59-3.27-1.16-3.27-1.16-.44-1.12-1.07-1.42-1.07-1.42-.88-.6.07-.59.07-.59.97.07 1.48 1 1.48 1 .86 1.47 2.25 1.05 2.8.8.09-.63.34-1.05.61-1.29-2.15-.24-4.42-1.08-4.42-4.79 0-1.06.38-1.92 1-2.6-.1-.25-.43-1.23.1-2.56 0 0 .81-.26 2.67.99A9.15 9.15 0 0 1 12 7.12c.83 0 1.65.11 2.43.33 1.85-1.25 2.66-.99 2.66-.99.54 1.33.2 2.31.1 2.56.62.68 1 1.54 1 2.6 0 3.72-2.27 4.54-4.43 4.78.35.31.66.9.66 1.82v2.57c0 .26.17.56.67.46A9.75 9.75 0 0 0 12 2.25Z" />
-        </svg>
-      </button>
-
-      <button
-        className="top-social ui-icon-button"
-        type="button"
-        aria-label="Open website"
-        title="Website"
-        onClick={() => window.electronAPI?.openExternal?.('https://www.incredidev.com/ism')}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M4.5 5.5A2.5 2.5 0 0 1 7 3h10a2.5 2.5 0 0 1 2.5 2.5v13A2.5 2.5 0 0 1 17 21H7a2.5 2.5 0 0 1-2.5-2.5v-13Zm2 .75V8h11V6.25a.75.75 0 0 0-.75-.75h-9.5a.75.75 0 0 0-.75.75ZM6.5 10v7.75c0 .41.34.75.75.75h9.5c.41 0 .75-.34.75-.75V10h-11Zm6.35 2.15 1.41 1.41-3.94 3.94H13v2H7v-6h2v2.67l3.85-4.02Z" />
         </svg>
       </button>
 

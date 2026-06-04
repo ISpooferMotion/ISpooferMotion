@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import appIcon from '../assets/app_icon.png';
 
 function formatVersionTag(version) {
   const value = String(version || '1.3.13-hotfix.2').replace(/^-?v/i, '');
@@ -8,17 +7,14 @@ function formatVersionTag(version) {
 
 export default function Sidebar({ currentView, setCurrentView }) {
   const [version, setVersion] = useState('v1.3.13.hotfix.2');
-  const [source, setSource] = useState('Release source...');
 
   useEffect(() => {
     const fetchMeta = async () => {
       try {
         const appVersion = await window.electronAPI?.getAppVersion?.();
         if (appVersion) setVersion(formatVersionTag(appVersion));
-        const releaseSource = await window.electronAPI?.getReleaseSource?.();
-        if (releaseSource) setSource(releaseSource);
       } catch (err) {
-        console.error('Failed to get release source', err);
+        console.error('Failed to get app version', err);
       }
     };
     fetchMeta();
@@ -30,14 +26,6 @@ export default function Sidebar({ currentView, setCurrentView }) {
 
   return (
     <aside className="side-panel" aria-label="Application navigation">
-      <div className="brand-block">
-        <img className="brand-logo" src={appIcon} alt="" />
-        <div className="brand-copy">
-          <strong>ISpooferMotion</strong>
-          <span>@IncredibroXP</span>
-        </div>
-      </div>
-
       <nav className="side-nav" aria-label="Primary">
         <button
           className={`side-link ${currentView === 'spoofer' ? 'active' : ''}`}
@@ -88,9 +76,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
           <span>Settings</span>
         </button>
       </nav>
-      <div className="build-meta" id="build-meta" aria-label="Version and release source">
-        <span id="build-version">{version}</span>
-        <strong id="build-source">{source}</strong>
+      <div className="build-meta" id="build-meta" aria-label="Release source">
         <button
           className="build-donate-button ui-button"
           id="build-donate"
