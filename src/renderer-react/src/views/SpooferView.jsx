@@ -22,7 +22,7 @@ export default function SpooferView({ isActive }) {
   const [placeSearchMessage, setPlaceSearchMessage] = useState('');
   const [placeSuggestions, setPlaceSuggestions] = useState([]);
   const [uploadRetries, setUploadRetries] = useState(3);
-  const [uploadRetryDelay, setUploadRetryDelay] = useState(5000);
+  const [uploadRetryDelay, setUploadRetryDelay] = useState(2000);
 
   const [outputData, setOutputData] = useState('');
   const [statusText, setStatusText] = useState('No run yet');

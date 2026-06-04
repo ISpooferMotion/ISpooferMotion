@@ -1864,6 +1864,47 @@ async function handleSpooferAction(
 
   let downloadCompleted = 0;
   const downloadStartTime = Date.now();
+
+  const getScrapedAssetCdnUrl = async (assetId) => {
+    if (!isSoundMode) return null;
+    const { fetch } = require('undici');
+    try {
+      const cookieHeader = robloxSession.getCookieHeader();
+      const htmlResponse = await fetch(`https://www.roblox.com/library/${assetId}/`, {
+        headers: {
+          'Cookie': cookieHeader || '',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36'
+        }
+      });
+      if (htmlResponse.ok) {
+        const htmlText = await htmlResponse.text();
+        const match = htmlText.match(/data-mediathumb-url="([^"]+)"/i);
+        if (match && match[1]) {
+          if (DEVELOPER_MODE) console.log(`(Dev) [CDN] Scraped mediathumb URL for ${assetId}`);
+          return match[1];
+        }
+      }
+    } catch (e) {
+      if (DEVELOPER_MODE) console.warn(`(Dev) [CDN] Scrape failed for ${assetId}`);
+    }
+  
+    try {
+      const cookieHeader = robloxSession.getCookieHeader();
+      const v1Response = await fetch(`https://assetdelivery.roblox.com/v1/asset/?id=${assetId}&expectedAssetType=Audio`, {
+        headers: {
+          'Cookie': cookieHeader || '',
+          'User-Agent': 'Roblox/WinInet'
+        }
+      });
+      if (v1Response.url && v1Response.url.includes('rbxcdn.com')) {
+        if (DEVELOPER_MODE) console.log(`(Dev) [CDN] V1 Redirect success for ${assetId}`);
+        return v1Response.url;
+      }
+    } catch (e) {
+    }
+    return null;
+  };
+
   const downloadOne = async (entry) => {
     checkCancelled();
     await checkPaused();
@@ -1926,18 +1967,36 @@ async function handleSpooferAction(
         );
       }
 
-      const directUrls = buildDirectAssetDownloadUrls(entry.id, normalizedEntryPlaceIds);
-      for (let index = 0; index < directUrls.length; index += 1) {
-        checkCancelled();
-        await checkPaused();
-        const urlPlaceId = new URL(directUrls[index]).searchParams.get('placeId') || entryPlaceId;
-        result = await tryDownloadUrl(
-          directUrls[index],
-          `Batch lookup failed; trying direct download fallback ${index + 1}/${directUrls.length}`,
-          urlPlaceId,
-          true,
-        );
-        if (result.success) break;
+      let scraperSuccess = false;
+      if (isSoundMode) {
+        const scrapedUrl = await getScrapedAssetCdnUrl(entry.id);
+        if (scrapedUrl) {
+          result = await tryDownloadUrl(
+            scrapedUrl,
+            'Batch lookup failed; trying CDN web scraper fallback',
+            entryPlaceId,
+            true
+          );
+          if (result && result.success) {
+            scraperSuccess = true;
+          }
+        }
+      }
+
+      if (!scraperSuccess) {
+        const directUrls = buildDirectAssetDownloadUrls(entry.id, normalizedEntryPlaceIds);
+        for (let index = 0; index < directUrls.length; index += 1) {
+          checkCancelled();
+          await checkPaused();
+          const urlPlaceId = new URL(directUrls[index]).searchParams.get('placeId') || entryPlaceId;
+          result = await tryDownloadUrl(
+            directUrls[index],
+            `Batch lookup failed; trying direct download fallback ${index + 1}/${directUrls.length}`,
+            urlPlaceId,
+            true,
+          );
+          if (result.success) break;
+        }
       }
 
       if (!result || !result.success) {
