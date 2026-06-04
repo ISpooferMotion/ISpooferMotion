@@ -16,24 +16,24 @@ const REDACTED_COOKIE = '{Cookie:Here}';
 const REDACTED_API_KEY = '{ApiKey:Here}';
 
 const SENSITIVE_PATTERNS = [
-  [/\"robloxCookie\"\s*:\s*\"[^\"]*\"/gi, '"robloxCookie":"{Cookie:Here}"'],
+  [/"robloxCookie"\s*:\s*"[^"]*"/gi, '"robloxCookie":"{Cookie:Here}"'],
   [/\.ROBLOSECURITY=[^;\s,"']*/gi, REDACTED_COOKIE],
   [/_\|WARNING:[^|]*\|_[^,}\s"]*/gi, REDACTED_COOKIE],
   [/ROBLOSECURITY[=:]\s*[^\s,;},"]*([\s,;"}\s]|$)/gi, `ROBLOSECURITY:${REDACTED_COOKIE}$1`],
   [/X-CSRF-TOKEN[=:]\s*[^\s,;},"]*([\s,;"}\s]|$)/gi, `X-CSRF-TOKEN:${REDACTED_COOKIE}$1`],
-  [/\"X-CSRF-TOKEN\"\s*:\s*\"[^\"]*\"/gi, '"X-CSRF-TOKEN":"{Cookie:Here}"'],
+  [/"X-CSRF-TOKEN"\s*:\s*"[^"]*"/gi, '"X-CSRF-TOKEN":"{Cookie:Here}"'],
   [/Bearer\s+[^\s,;},"]*([\s,;"}\s]|$)/gi, `Bearer ${REDACTED_COOKIE}$1`],
   [/Authorization[=:]\s*[^\s,;},"]*([\s,;"}\s]|$)/gi, `Authorization:${REDACTED_COOKIE}$1`],
-  [/\"Authorization\"\s*:\s*\"[^\"]*\"/gi, '"Authorization":"{Cookie:Here}"'],
-  [/\"x-api-key\"\s*:\s*\"[^\"]*\"/gi, '"x-api-key":"{ApiKey:Here}"'],
+  [/"Authorization"\s*:\s*"[^"]*"/gi, '"Authorization":"{Cookie:Here}"'],
+  [/"x-api-key"\s*:\s*"[^"]*"/gi, '"x-api-key":"{ApiKey:Here}"'],
   [/x-api-key[=:]\s*[^\s,;},"]*([\s,;"}\s]|$)/gi, `x-api-key:${REDACTED_API_KEY}$1`],
-  [/\"openCloudApiKey\"\s*:\s*\"[^\"]*\"/gi, '"openCloudApiKey":"{ApiKey:Here}"'],
-  [/\"apiKey\"\s*:\s*\"[^\"]*\"/gi, '"apiKey":"{ApiKey:Here}"'],
+  [/"openCloudApiKey"\s*:\s*"[^"]*"/gi, '"openCloudApiKey":"{ApiKey:Here}"'],
+  [/"apiKey"\s*:\s*"[^"]*"/gi, '"apiKey":"{ApiKey:Here}"'],
   [/Cookie[=:]\s*[^};"]*([};"]\s*|$)/gi, `Cookie:${REDACTED_COOKIE}$1`],
-  [/\"Cookie\"\s*:\s*\"[^\"]*\"/gi, '"Cookie":"{Cookie:Here}"'],
+  [/"Cookie"\s*:\s*"[^"]*"/gi, '"Cookie":"{Cookie:Here}"'],
   [
-    /\"(?:session|token|accessToken|refreshToken)\"\s*:\s*\"[^\"]*\"/gi,
-    (match) => match.replace(/:\s*\"[^\"]*\"/, `:"${REDACTED_COOKIE}"`),
+    /"(?:session|token|accessToken|refreshToken)"\s*:\s*"[^"]*"/gi,
+    (match) => match.replace(/:\s*"[^"]*"/, `:"${REDACTED_COOKIE}"`),
   ],
 ];
 
@@ -119,7 +119,7 @@ async function initializeFileLogging(logsDir) {
 function normalizeRobloxCookie(cookieValue) {
   if (typeof cookieValue !== 'string') return '';
 
-  let normalized = cookieValue.trim().replace(/^['\"]+|['\"]+$/g, '');
+  let normalized = cookieValue.trim().replace(/^['"]+|['"]+$/g, '');
   const prefixedMatch = normalized.match(/(?:^|;\s*)\.ROBLOSECURITY=([^;]+)/i);
 
   if (prefixedMatch?.[1]) normalized = prefixedMatch[1].trim();
@@ -185,7 +185,8 @@ async function retryAsync(fn, retries = 3, delayMs = 1000, onRetryAttempt) {
 
 async function clearDownloadsDirectory(directoryPath, skipIfEnabled = KEEP_DOWNLOADS_ON_FAILURE) {
   if (skipIfEnabled) {
-    if (DEVELOPER_MODE) console.log('(Dev) Skipping directory clear: KEEP_DOWNLOADS_ON_FAILURE is enabled');
+    if (DEVELOPER_MODE)
+      console.log('(Dev) Skipping directory clear: KEEP_DOWNLOADS_ON_FAILURE is enabled');
     return true;
   }
 
@@ -217,6 +218,7 @@ function sanitizeFilename(filename) {
   return (
     String(filename || 'untitled')
       .normalize('NFKC')
+      // eslint-disable-next-line no-control-regex
       .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
       .replace(/[.\s]+$/g, '')
       .slice(0, 180) || 'untitled'

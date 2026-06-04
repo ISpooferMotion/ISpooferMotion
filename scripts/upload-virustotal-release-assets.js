@@ -13,9 +13,10 @@ const markdownPath = path.join(outDir, 'virustotal-links.md');
 const apiKey = String(process.env.VIRUSTOTAL_API_KEY || '').trim();
 const releaseTag = String(process.env.RELEASE_TAG || 'release').trim();
 const allowedExtensions = ['.exe', '.rbxmx', '.dmg', '.zip', '.AppImage', '.deb'];
-const assetPaths = fs.readdirSync(outDir)
-  .filter(name => allowedExtensions.some(ext => name.endsWith(ext)))
-  .map(name => path.join(outDir, name));
+const assetPaths = fs
+  .readdirSync(outDir)
+  .filter((name) => allowedExtensions.some((ext) => name.endsWith(ext)))
+  .map((name) => path.join(outDir, name));
 
 function sha256File(filePath) {
   const digest = crypto.createHash('sha256');
@@ -140,7 +141,9 @@ async function main() {
           : '';
       }
     } catch (err) {
-      console.warn(`Failed to upload ${row.name} to VirusTotal: ${err.message}. Using default hash link.`);
+      console.warn(
+        `Failed to upload ${row.name} to VirusTotal: ${err.message}. Using default hash link.`,
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 16000));
   }

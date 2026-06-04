@@ -45,9 +45,7 @@ async function pruneTransferDiagnostics(directoryPath, maxEntries = MAX_TRANSFER
 }
 
 async function recordFailedTransferDiagnostic(details = {}, directoryPath = null) {
-  const diagnosticsDir = path.resolve(
-    directoryPath || getTransferDiagnosticsDirectory(),
-  );
+  const diagnosticsDir = path.resolve(directoryPath || getTransferDiagnosticsDirectory());
   const timestamp = new Date().toISOString();
   const recordName = [
     timestamp.replace(/[:.]/g, '-'),
@@ -96,16 +94,14 @@ async function recordFailedTransferDiagnostic(details = {}, directoryPath = null
     );
     await pruneTransferDiagnostics(diagnosticsDir);
     return recordDir;
-  } catch (error) {
+  } catch {
     await fs.rm(recordDir, { recursive: true, force: true }).catch(() => {});
     return null;
   }
 }
 
 async function clearTransferDiagnostics(directoryPath = null) {
-  const diagnosticsDir = path.resolve(
-    directoryPath || getTransferDiagnosticsDirectory(),
-  );
+  const diagnosticsDir = path.resolve(directoryPath || getTransferDiagnosticsDirectory());
   await fs.rm(diagnosticsDir, { recursive: true, force: true });
   await fs.mkdir(diagnosticsDir, { recursive: true });
   return true;

@@ -183,12 +183,16 @@ async function getCookieFromBrowserProfiles() {
 }
 
 async function getCookieFromAutoDetect(userId = null) {
-  const studioAttempt = getCookieFromRobloxStudio(userId).then((cookie) => ({ source: 'studio', cookie, id: 'studio' })).catch((err) => {
+  const studioAttempt = getCookieFromRobloxStudio(userId)
+    .then((cookie) => ({ source: 'studio', cookie, id: 'studio' }))
+    .catch((err) => {
       debugWarn('(Dev) Studio cookie auto-detect failed:', err.message);
       return { source: 'studio', cookie: undefined, id: 'studio' };
     });
   studioAttempt.id = 'studio';
-  const browserAttempt = getCookieFromBrowserProfiles().then((cookie) => ({ source: 'browser', cookie, id: 'browser' })).catch((err) => {
+  const browserAttempt = getCookieFromBrowserProfiles()
+    .then((cookie) => ({ source: 'browser', cookie, id: 'browser' }))
+    .catch((err) => {
       debugWarn('(Dev) Browser cookie auto-detect failed:', err.message);
       return { source: 'browser', cookie: undefined, id: 'browser' };
     });

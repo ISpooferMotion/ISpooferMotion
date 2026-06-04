@@ -43,7 +43,8 @@ module.exports = async function applyWindowsIcon(context) {
 
   if (!fs.existsSync(exePath)) throw new Error(`Windows executable not found: ${exePath}`);
   if (!fs.existsSync(iconPath)) throw new Error(`Windows icon not found: ${iconPath}`);
-  if (!rceditPath) throw new Error('rcedit.exe was not found in the Electron Builder cache or node_modules.');
+  if (!rceditPath)
+    throw new Error('rcedit.exe was not found in the Electron Builder cache or node_modules.');
 
   const result = spawnSync(
     rceditPath,
@@ -65,7 +66,9 @@ module.exports = async function applyWindowsIcon(context) {
   );
 
   if (result.status !== 0) {
-    throw new Error(result.stderr || result.stdout || `rcedit failed with exit code ${result.status}`);
+    throw new Error(
+      result.stderr || result.stdout || `rcedit failed with exit code ${result.status}`,
+    );
   }
 
   console.log(`[afterPack] Applied Windows icon to ${path.relative(root, exePath)}`);

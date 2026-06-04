@@ -54,12 +54,14 @@ function updateUploadRateLimitFromHeaders(response) {
 }
 
 function waitUploadStartSlot() {
-  const result = uploadStartQueue.catch(() => {}).then(async () => {
-    await waitRateLimit();
-    const waitMs = nextUploadStartAt - Date.now();
-    if (waitMs > 0) await delay(waitMs);
-    nextUploadStartAt = Date.now() + uploadStartIntervalMs;
-  });
+  const result = uploadStartQueue
+    .catch(() => {})
+    .then(async () => {
+      await waitRateLimit();
+      const waitMs = nextUploadStartAt - Date.now();
+      if (waitMs > 0) await delay(waitMs);
+      nextUploadStartAt = Date.now() + uploadStartIntervalMs;
+    });
   uploadStartQueue = result.catch(() => {});
   return result;
 }
@@ -127,7 +129,12 @@ function getAssetIdFromResponse(responseData) {
 
 // --- Fetch helpers ---
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = DOWNLOAD_DEFAULTS.timeoutMs, request = fetch) {
+async function fetchWithTimeout(
+  url,
+  options = {},
+  timeoutMs = DOWNLOAD_DEFAULTS.timeoutMs,
+  request = fetch,
+) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -162,8 +169,14 @@ async function waitForStreamEvent(stream, successEvent) {
       stream.off(successEvent, onSuccess);
       stream.off('error', onError);
     };
-    const onSuccess = () => { cleanup(); resolve(); };
-    const onError = (error) => { cleanup(); reject(error); };
+    const onSuccess = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
     stream.once(successEvent, onSuccess);
     stream.once('error', onError);
   });
@@ -179,7 +192,14 @@ async function removeFileIfExists(filePath) {
   }
 }
 
-async function writeResponseBodyToFile(response, filePath, transferId, totalSize, sendTransferUpdate, lastProgressRef) {
+async function writeResponseBodyToFile(
+  response,
+  filePath,
+  transferId,
+  totalSize,
+  sendTransferUpdate,
+  lastProgressRef,
+) {
   if (!response.body) throw new Error('No response body was returned.');
 
   const reader = response.body.getReader();
@@ -253,12 +273,19 @@ async function uploadAsset(
     if (response.status !== 429) break;
 
     if (attempt >= MAX_UPLOAD_RATE_LIMIT_RETRIES) {
-      throw new Error(`Rate limit hit after ${MAX_UPLOAD_RATE_LIMIT_RETRIES} retries. Try again later.`);
+      throw new Error(
+        `Rate limit hit after ${MAX_UPLOAD_RATE_LIMIT_RETRIES} retries. Try again later.`,
+      );
     }
 
     const waitMs = getRetryAfterMs(response, attempt + 1);
-    if (DEVELOPER_MODE) console.log(`[UPLOAD DEBUG] Rate limited, pausing all slots for ${waitMs}ms`);
-    sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'processing', progress: 0 });
+    if (DEVELOPER_MODE)
+      console.log(`[UPLOAD DEBUG] Rate limited, pausing all slots for ${waitMs}ms`);
+    sendTransferUpdateSafe(sendTransferUpdate, {
+      id: transferId,
+      status: 'processing',
+      progress: 0,
+    });
     setRateLimit(waitMs);
     await waitRateLimit();
   }
@@ -281,7 +308,13 @@ async function uploadAsset(
   return responseData;
 }
 
-async function pollUploadOperation(responseData, apiKey, assetType, transferId, sendTransferUpdate) {
+async function pollUploadOperation(
+  responseData,
+  apiKey,
+  assetType,
+  transferId,
+  sendTransferUpdate,
+) {
   const pollUrl = normalizeOperationUrl(responseData?.path);
   if (!pollUrl) return null;
 
@@ -296,7 +329,9 @@ async function pollUploadOperation(responseData, apiKey, assetType, transferId, 
     if (!response.ok) {
       if (response.status === 429) {
         if (DEVELOPER_MODE) {
-          console.log(`[UPLOAD DEBUG] Polling rate limited (429) on attempt ${attempt}, pausing...`);
+          console.log(
+            `[UPLOAD DEBUG] Polling rate limited (429) on attempt ${attempt}, pausing...`,
+          );
         }
         await delay(getRetryAfterMs(response, attempt));
         continue;
@@ -307,7 +342,9 @@ async function pollUploadOperation(responseData, apiKey, assetType, transferId, 
     }
 
     if (DEVELOPER_MODE) {
-      console.log(`[UPLOAD DEBUG] Poll attempt ${attempt}/${MAX_UPLOAD_POLL_ATTEMPTS}: done=${Boolean(pollData?.done)}`);
+      console.log(
+        `[UPLOAD DEBUG] Poll attempt ${attempt}/${MAX_UPLOAD_POLL_ATTEMPTS}: done=${Boolean(pollData?.done)}`,
+      );
     }
 
     if (!pollData?.done) continue;
@@ -380,7 +417,9 @@ async function downloadAnimationAssetWithProgress(
   });
 
   if (DEVELOPER_MODE) {
-    console.log(`[DOWNLOAD DEBUG] Starting download for "${entryName}" (Asset ID: ${originalAssetId})`);
+    console.log(
+      `[DOWNLOAD DEBUG] Starting download for "${entryName}" (Asset ID: ${originalAssetId})`,
+    );
     console.log(`[DOWNLOAD DEBUG] PlaceId: ${placeId || 'not provided'}`);
     console.log(`[DOWNLOAD DEBUG] Target file: ${filePath}`);
   }
@@ -398,7 +437,7 @@ async function downloadAnimationAssetWithProgress(
         url,
         { headers: fetchHeaders, redirect: 'follow', signal: options.abortSignal },
         timeoutMs,
-        robloxSession.fetch.bind(robloxSession)
+        robloxSession.fetch.bind(robloxSession),
       );
 
       if (!response.ok) {
@@ -515,7 +554,12 @@ async function publishAnimationRbxmWithProgress(
   if (!apiKey) {
     const assetLabel = isAudio ? 'Sound' : 'Animation';
     const error = `${assetLabel} uploads require an Open Cloud API key. Go to create.roblox.com -> Open Cloud -> API Keys and create a key with Assets Read & Write permissions.`;
-    sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error, progress: 0 });
+    sendTransferUpdateSafe(sendTransferUpdate, {
+      id: transferId,
+      status: 'error',
+      error,
+      progress: 0,
+    });
     return { success: false, error };
   }
 
@@ -564,15 +608,25 @@ async function publishAnimationRbxmWithProgress(
 
     // Slow path: Roblox is processing async - poll until done.
     if (responseData?.path && !responseData.done) {
-      const assetId = await pollUploadOperation(responseData, apiKey, assetType, transferId, sendTransferUpdate);
+      const assetId = await pollUploadOperation(
+        responseData,
+        apiKey,
+        assetType,
+        transferId,
+        sendTransferUpdate,
+      );
       return { success: true, assetId };
     }
 
-    throw new Error(`Unexpected response from Open Cloud API: ${JSON.stringify(responseData || {})}`);
+    throw new Error(
+      `Unexpected response from Open Cloud API: ${JSON.stringify(responseData || {})}`,
+    );
   } catch (error) {
     const errorMsg = getErrorMessage(error, `Upload failed for "${name}" due to an unknown error.`);
     const isRateLimit = errorMsg.includes('429') || /rate limit/i.test(errorMsg);
-    console.error(`[UPLOAD ERROR] ${assetType} upload failed${isRateLimit ? ' (RATE LIMIT)' : ''}: ${errorMsg}`);
+    console.error(
+      `[UPLOAD ERROR] ${assetType} upload failed${isRateLimit ? ' (RATE LIMIT)' : ''}: ${errorMsg}`,
+    );
     sendTransferUpdateSafe(sendTransferUpdate, {
       id: transferId,
       status: 'error',

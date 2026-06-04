@@ -21,7 +21,7 @@
   color-scheme: dark;
   color: var(--text);
   background: var(--bg);
-  background-image: 
+  background-image:
     radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 40%),
     radial-gradient(circle at 90% 80%, rgba(56, 189, 248, 0.06) 0%, transparent 40%);
   background-attachment: fixed;
@@ -46,7 +46,10 @@ body {
   box-sizing: border-box;
 }
 
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
   font-family: var(--heading);
   font-weight: 600;
   color: var(--text-h);
@@ -73,7 +76,8 @@ p {
   margin: 0 0 16px 0;
 }
 
-code, .counter {
+code,
+.counter {
   font-family: var(--mono);
   display: inline-flex;
   border-radius: 6px;
@@ -123,8 +127,14 @@ button {
 
 /* Animations */
 @keyframes slideUpFade {
-  0% { opacity: 0; transform: translateY(12px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .view-enter {

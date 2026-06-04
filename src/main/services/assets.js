@@ -42,7 +42,14 @@ function sleep(ms) {
 
 // --- URL builders ---
 
-function buildCreatorGamesUrl(creatorType, creatorId, cursor, limit, accessFilter, sortOrder = 'Desc') {
+function buildCreatorGamesUrl(
+  creatorType,
+  creatorId,
+  cursor,
+  limit,
+  accessFilter,
+  sortOrder = 'Desc',
+) {
   const normalizedCreatorType = normalizeCreatorType(creatorType);
   const normalizedCreatorId = normalizeCreatorId(creatorId);
 
@@ -82,7 +89,12 @@ async function fetchJsonWithRetries(url, cookieOrSession, label, maxAttempts = 3
       lastError = error;
       const status = Number(error?.status || 0);
       const retryable =
-        status === 0 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+        status === 0 ||
+        status === 429 ||
+        status === 500 ||
+        status === 502 ||
+        status === 503 ||
+        status === 504;
       if (!retryable || attempt === maxAttempts) break;
       await sleep(350 * attempt);
     }
@@ -95,12 +107,7 @@ async function fetchJsonWithRetries(url, cookieOrSession, label, maxAttempts = 3
 
 function getUniverseId(game) {
   if (!game || typeof game !== 'object') return '';
-  const candidates = [
-    game.universeId,
-    game.universe?.id,
-    game.id,
-    game.rootPlace?.universeId,
-  ];
+  const candidates = [game.universeId, game.universe?.id, game.id, game.rootPlace?.universeId];
   for (const candidate of candidates) {
     const id = normalizeNumericId(candidate);
     if (id) return id;
@@ -156,7 +163,12 @@ function makePlaceSuggestion(game, creatorType, creatorId, source = 'creator-gam
 
   return {
     placeId,
-    name: game.name || game.Name || game.rootPlace?.name || game.rootPlace?.Name || 'Untitled Experience',
+    name:
+      game.name ||
+      game.Name ||
+      game.rootPlace?.name ||
+      game.rootPlace?.Name ||
+      'Untitled Experience',
     universeId: getUniverseId(game) || null,
     creatorType: creator.creatorType,
     creatorId: String(creator.creatorId || creatorId || ''),
@@ -213,7 +225,14 @@ async function fetchUniverseIdForPlaceId(placeId, robloxSession) {
 
 // --- Suggestion builder helpers ---
 
-async function addSuggestionsFromGames(games, creatorType, creatorId, robloxSession, state, source = 'creator-games') {
+async function addSuggestionsFromGames(
+  games,
+  creatorType,
+  creatorId,
+  robloxSession,
+  state,
+  source = 'creator-games',
+) {
   const missingUniverseIds = [];
 
   for (const game of games) {
@@ -221,7 +240,9 @@ async function addSuggestionsFromGames(games, creatorType, creatorId, robloxSess
     if (directSuggestion && !state.seenPlaceIds.has(directSuggestion.placeId)) {
       state.seenPlaceIds.add(directSuggestion.placeId);
       state.suggestions.push(directSuggestion);
-      debugLog(`(Dev) Game "${directSuggestion.name}" -> rootPlace ID: ${directSuggestion.placeId}`);
+      debugLog(
+        `(Dev) Game "${directSuggestion.name}" -> rootPlace ID: ${directSuggestion.placeId}`,
+      );
       if (state.suggestions.length >= state.maxResults) return;
       continue;
     }
@@ -236,7 +257,12 @@ async function addSuggestionsFromGames(games, creatorType, creatorId, robloxSess
   for (const universeId of missingUniverseIds) {
     const detail = detailMap.get(universeId);
     if (!detail) continue;
-    const enrichedSuggestion = makePlaceSuggestion(detail, creatorType, creatorId, 'universe-details');
+    const enrichedSuggestion = makePlaceSuggestion(
+      detail,
+      creatorType,
+      creatorId,
+      'universe-details',
+    );
     if (!enrichedSuggestion || state.seenPlaceIds.has(enrichedSuggestion.placeId)) continue;
 
     state.seenPlaceIds.add(enrichedSuggestion.placeId);
@@ -298,11 +324,19 @@ async function collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie,
         pageCount += 1;
 
         if (pageData.data.length === 0) {
-          debugLog(`(Dev) No games found on this page. Total collected: ${state.suggestions.length}`);
+          debugLog(
+            `(Dev) No games found on this page. Total collected: ${state.suggestions.length}`,
+          );
           break;
         }
 
-        await addSuggestionsFromGames(pageData.data, normalizedCreatorType, normalizedCreatorId, robloxSession, state);
+        await addSuggestionsFromGames(
+          pageData.data,
+          normalizedCreatorType,
+          normalizedCreatorId,
+          robloxSession,
+          state,
+        );
         if (state.suggestions.length >= maxResults) break;
 
         if (!pageData.nextPageCursor) {
@@ -328,7 +362,12 @@ async function collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie,
  * Returns all root place IDs for every game owned by the given creator.
  */
 async function getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 10000) {
-  const result = await collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie, maxPlaceIds);
+  const result = await collectPlaceSuggestionsForCreator(
+    creatorType,
+    creatorId,
+    cookie,
+    maxPlaceIds,
+  );
   const rootPlaces = result.places.map((place) => place.placeId);
 
   if (rootPlaces.length === 0) throw new Error('No root places found in games');
@@ -359,7 +398,12 @@ async function getPlaceSuggestionByPlaceId(placeId, cookie) {
     const details = await fetchUniverseDetailsByIds([universeId], robloxSession);
     const detail = details.get(universeId);
     const suggestion = detail
-      ? makePlaceSuggestion({ ...detail, rootPlaceId: normalizedPlaceId }, null, null, 'place-lookup')
+      ? makePlaceSuggestion(
+          { ...detail, rootPlaceId: normalizedPlaceId },
+          null,
+          null,
+          'place-lookup',
+        )
       : null;
 
     if (suggestion) {

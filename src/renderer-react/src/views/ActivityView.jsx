@@ -41,12 +41,13 @@ export default function ActivityView({ isActive }) {
 
     const cleanupProgress = window.electronAPI?.onSpooferProgress?.((data) => {
       if (data.total) {
-        const phaseLabel = {
-          preparing: 'Preparing',
-          locations: 'Resolving download locations',
-          download: 'Downloading',
-          upload: 'Uploading',
-        }[data.phase] || 'Processing';
+        const phaseLabel =
+          {
+            preparing: 'Preparing',
+            locations: 'Resolving download locations',
+            download: 'Downloading',
+            upload: 'Uploading',
+          }[data.phase] || 'Processing';
         setCurrentJobProgress(`${phaseLabel}: ${data.current} / ${data.total}`);
       }
     });
@@ -137,7 +138,13 @@ export default function ActivityView({ isActive }) {
           )}
 
           {jobs.map((job) => (
-            <JobCard key={job.id} job={job} redoJob={redoJob} deleteJob={deleteJob} retryFailed={retryFailed} />
+            <JobCard
+              key={job.id}
+              job={job}
+              redoJob={redoJob}
+              deleteJob={deleteJob}
+              retryFailed={retryFailed}
+            />
           ))}
         </div>
 
@@ -210,7 +217,8 @@ function extractFailedEntries(output, payload) {
   if (!output || !payload?.animationId) return null;
   // Find IDs that appear in failure lines
   const failedIds = new Set();
-  const failurePattern = /(?:Download Failed|Upload Failed|UPLOAD FAILED|DOWNLOAD FAILED)[^(]*\(ID:\s*(\d+)\)/gi;
+  const failurePattern =
+    /(?:Download Failed|Upload Failed|UPLOAD FAILED|DOWNLOAD FAILED)[^(]*\(ID:\s*(\d+)\)/gi;
   let m;
   while ((m = failurePattern.exec(output))) {
     failedIds.add(m[1]);
@@ -260,8 +268,8 @@ function JobCard({ job, redoJob, deleteJob, retryFailed }) {
     >
       <div className="job-card-header">
         <strong>
-          Upload Job · {new Date(job.timestamp).toLocaleTimeString()}{' '}
-          ({new Date(job.timestamp).toLocaleDateString()})
+          Upload Job · {new Date(job.timestamp).toLocaleTimeString()} (
+          {new Date(job.timestamp).toLocaleDateString()})
         </strong>
         <span className={`job-status ${job.status}`}>
           {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
@@ -272,7 +280,10 @@ function JobCard({ job, redoJob, deleteJob, retryFailed }) {
       <div className="job-details">
         <span className="job-progress-text">{statusText}</span>
         {collapsedInfo && (
-          <span className="job-collapsed-meta" style={{ fontSize: '11px', opacity: 0.65, marginTop: '2px', display: 'block' }}>
+          <span
+            className="job-collapsed-meta"
+            style={{ fontSize: '11px', opacity: 0.65, marginTop: '2px', display: 'block' }}
+          >
             {collapsedInfo}
           </span>
         )}

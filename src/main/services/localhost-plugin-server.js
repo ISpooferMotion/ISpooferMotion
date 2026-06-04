@@ -60,11 +60,12 @@ function firstNumericId(...values) {
 }
 
 function cleanText(value, fallback = 'Unknown') {
-  const text = String(value || fallback)
+  const clean = String(value || fallback)
     .replace(/[\r\n\t]+/g, ' ')
-    .replace(/[\[\]]+/g, '')
+    .replace(/[\][]+/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+  const text = clean.replace(/\[\s*]/g, '[]');
   return text || fallback;
 }
 
@@ -207,9 +208,13 @@ function showScanNotification(kind, count) {
 async function handleScanPayload(payload, callbacks) {
   const kind = normalizeScanKind(payload?.kind || payload?.type || payload?.scanType);
   const assets = normalizeAssets(payload);
-  const text = Array.isArray(payload?.lines) && payload.lines.length
-    ? payload.lines.map((line) => String(line || '').trim()).filter(Boolean).join('\n')
-    : formatAssetsForInput(assets);
+  const text =
+    Array.isArray(payload?.lines) && payload.lines.length
+      ? payload.lines
+          .map((line) => String(line || '').trim())
+          .filter(Boolean)
+          .join('\n')
+      : formatAssetsForInput(assets);
   const lines = text ? text.split(/\r?\n/).filter(Boolean) : [];
   const count = lines.length;
 
@@ -262,10 +267,12 @@ function extractReplacementPairs(text) {
 }
 
 function isScanEndpoint(pathname) {
-  return pathname === '/scan-results'
-    || pathname === '/plugin-scan'
-    || pathname === '/assets-animations'
-    || pathname === '/assets-sounds';
+  return (
+    pathname === '/scan-results' ||
+    pathname === '/plugin-scan' ||
+    pathname === '/assets-animations' ||
+    pathname === '/assets-sounds'
+  );
 }
 
 function inferKindFromPath(pathname, payload) {
@@ -276,27 +283,39 @@ function inferKindFromPath(pathname, payload) {
 
 function startLocalhostPluginServer(callbacks, options = {}) {
   if (server) return server;
-  const basePort = Number.parseInt(options.port || process.env.ISPOOFERMOTION_PLUGIN_PORT || DEFAULT_PORT, 10) || DEFAULT_PORT;
+  const basePort =
+    Number.parseInt(options.port || process.env.ISPOOFERMOTION_PLUGIN_PORT || DEFAULT_PORT, 10) ||
+    DEFAULT_PORT;
   const maxPort = basePort + PORT_SCAN_LIMIT;
   activePort = basePort;
 
   const safeCallbacks = {
-    sendScanResults: typeof callbacks?.sendScanResults === 'function' ? callbacks.sendScanResults : () => false,
-    sendStatusMessage: typeof callbacks?.sendStatusMessage === 'function' ? callbacks.sendStatusMessage : () => false,
+    sendScanResults:
+      typeof callbacks?.sendScanResults === 'function' ? callbacks.sendScanResults : () => false,
+    sendStatusMessage:
+      typeof callbacks?.sendStatusMessage === 'function'
+        ? callbacks.sendStatusMessage
+        : () => false,
     getReplacementText:
       typeof callbacks?.getReplacementText === 'function' ? callbacks.getReplacementText : () => '',
   };
 
   server = http.createServer(async (req, res) => {
     try {
-      const url = new URL(req.url || '/', `http://${req.headers.host || `127.0.0.1:${activePort}`}`);
+      const url = new URL(
+        req.url || '/',
+        `http://${req.headers.host || `127.0.0.1:${activePort}`}`,
+      );
 
       if (req.method === 'OPTIONS') {
         sendJson(res, 204, {});
         return;
       }
 
-      if (req.method === 'GET' && (url.pathname === '/health' || url.pathname === '/plugin/health')) {
+      if (
+        req.method === 'GET' &&
+        (url.pathname === '/health' || url.pathname === '/plugin/health')
+      ) {
         sendJson(res, 200, {
           ok: true,
           app: 'ISpooferMotion',
@@ -381,10 +400,7 @@ function startLocalhostPluginServer(callbacks, options = {}) {
       return;
     }
 
-    console.error(
-      `[LocalhostPlugin] Failed to listen on localhost:${activePort}:`,
-      error.message,
-    );
+    console.error(`[LocalhostPlugin] Failed to listen on localhost:${activePort}:`, error.message);
   });
 
   server.listen(activePort, '127.0.0.1', () => {

@@ -75,7 +75,11 @@ export default function ProfilesView({ isActive }) {
     const existingNames = new Set(
       Object.entries(profiles)
         .filter(([id]) => id !== excludeId)
-        .map(([, profile]) => String(profile.name || '').trim().toLowerCase()),
+        .map(([, profile]) =>
+          String(profile.name || '')
+            .trim()
+            .toLowerCase(),
+        ),
     );
     if (!existingNames.has(baseName.toLowerCase())) return baseName;
 
@@ -100,7 +104,8 @@ export default function ProfilesView({ isActive }) {
 
     if (normalizedUpdates.name !== undefined) setProfileName(normalizedUpdates.name);
     if (normalizedUpdates.cookie !== undefined) setCookie(normalizedUpdates.cookie);
-    if (normalizedUpdates.autoDetectCookie !== undefined) setAutoDetect(normalizedUpdates.autoDetectCookie);
+    if (normalizedUpdates.autoDetectCookie !== undefined)
+      setAutoDetect(normalizedUpdates.autoDetectCookie);
     if (normalizedUpdates.groupId !== undefined) setGroupId(normalizedUpdates.groupId);
     if (normalizedUpdates.apiKey !== undefined) setApiKey(normalizedUpdates.apiKey);
 
@@ -125,7 +130,12 @@ export default function ProfilesView({ isActive }) {
 
   const createProfile = async () => {
     const newId = `profile_${Date.now()}`;
-    const newProfile = { name: makeUniqueProfileName('New Profile'), cookie: '', apiKey: '', groupId: '' };
+    const newProfile = {
+      name: makeUniqueProfileName('New Profile'),
+      cookie: '',
+      apiKey: '',
+      groupId: '',
+    };
     await window.electronAPI?.saveProfileSecrets?.({
       action: 'saveProfile',
       profileId: newId,
