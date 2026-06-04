@@ -1,7 +1,11 @@
+'use strict';
+
 const fsSync = require('node:fs');
 const fs = require('node:fs/promises');
 const { setTimeout: delay } = require('node:timers/promises');
-const { DEVELOPER_MODE, buildRobloxCookieHeader } = require('./common');
+const { DEVELOPER_MODE } = require('./common');
+
+// --- Upload configuration ---
 
 const DOWNLOAD_DEFAULTS = Object.freeze({
   timeoutMs: 15_000,
@@ -15,32 +19,14 @@ const UPLOAD_POLL_INTERVAL_MS = 2_000;
 const UPLOAD_START_FALLBACK_INTERVAL_MS = 100;
 const ASSET_UPLOAD_URL = 'https://apis.roblox.com/assets/v1/assets';
 
+// --- Global upload rate limiting ---
+// All upload slots share a single queue and rate-limit window so we respect
+// Roblox's per-key limits across concurrent workers.
+
 let rateLimitUntil = 0;
 let nextUploadStartAt = 0;
 let uploadStartIntervalMs = UPLOAD_START_FALLBACK_INTERVAL_MS;
 let uploadStartQueue = Promise.resolve();
-
-
-
-function getErrorMessage(error, fallback = 'Unknown error') {
-  return error instanceof Error ? error.message : String(error || fallback);
-}
-
-function getPositiveNumber(value, fallback) {
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function sendTransferUpdateSafe(sendTransferUpdate, payload) {
-  if (typeof sendTransferUpdate !== 'function') return;
-
-  try {
-    sendTransferUpdate(payload);
-  } catch (error) {
-    if (DEVELOPER_MODE) {
-      console.warn('[TRANSFER DEBUG] Failed to send transfer update:', getErrorMessage(error));
-    }
-  }
-}
 
 function setRateLimit(ms) {
   rateLimitUntil = Math.max(rateLimitUntil, Date.now() + ms);
@@ -68,31 +54,36 @@ function updateUploadRateLimitFromHeaders(response) {
 }
 
 function waitUploadStartSlot() {
-  const result = uploadStartQueue.catch(() => {}).then(async () => {
-    await waitRateLimit();
-    const waitMs = nextUploadStartAt - Date.now();
-    if (waitMs > 0) await delay(waitMs);
-    nextUploadStartAt = Date.now() + uploadStartIntervalMs;
-  });
+  const result = uploadStartQueue
+    .catch(() => {})
+    .then(async () => {
+      await waitRateLimit();
+      const waitMs = nextUploadStartAt - Date.now();
+      if (waitMs > 0) await delay(waitMs);
+      nextUploadStartAt = Date.now() + uploadStartIntervalMs;
+    });
   uploadStartQueue = result.catch(() => {});
   return result;
 }
 
-async function removeFileIfExists(filePath) {
-  try {
-    await fs.unlink(filePath);
-  } catch (error) {
-    if (error?.code !== 'ENOENT' && DEVELOPER_MODE) {
-      console.warn(`[TRANSFER DEBUG] Failed to remove partial file: ${getErrorMessage(error)}`);
-    }
-  }
+// --- Small utilities ---
+
+function getErrorMessage(error, fallback = 'Unknown error') {
+  return error instanceof Error ? error.message : String(error || fallback);
 }
 
-async function readJsonResponse(response) {
+function getPositiveNumber(value, fallback) {
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function sendTransferUpdateSafe(sendTransferUpdate, payload) {
+  if (typeof sendTransferUpdate !== 'function') return;
   try {
-    return await response.json();
-  } catch {
-    return null;
+    sendTransferUpdate(payload);
+  } catch (error) {
+    if (DEVELOPER_MODE) {
+      console.warn('[TRANSFER DEBUG] Failed to send transfer update:', getErrorMessage(error));
+    }
   }
 }
 
@@ -101,7 +92,6 @@ function sanitizeUploadName(name, fallback = 'asset') {
     .replace(/[<>:"/\\|?*\r\n]/g, '_')
     .trim()
     .slice(0, 100);
-
   return safeName || fallback;
 }
 
@@ -112,8 +102,7 @@ function getRetryAfterMs(response, attempt = 1) {
   }
   const baseMs = 30000;
   const expMs = baseMs * Math.pow(1.5, attempt - 1);
-  const safeMs = Math.min(expMs, 120000);
-  return Math.floor(safeMs + Math.random() * 2000);
+  return Math.floor(Math.min(expMs, 120000) + Math.random() * 2000);
 }
 
 function shouldRetryDownload(error) {
@@ -128,13 +117,17 @@ function shouldRetryDownload(error) {
 
 function normalizeOperationUrl(operationPath) {
   if (!operationPath || typeof operationPath !== 'string') return null;
-
   const normalizedPath = operationPath.startsWith('assets/')
     ? operationPath
     : `assets/v1/${operationPath}`;
-
   return `https://apis.roblox.com/${normalizedPath}`;
 }
+
+function getAssetIdFromResponse(responseData) {
+  return responseData?.response?.assetId || responseData?.response?.Id || null;
+}
+
+// --- Fetch helpers ---
 
 async function fetchWithTimeout(
   url,
@@ -153,15 +146,22 @@ async function fetchWithTimeout(
   }
 
   try {
-    return await request(url, {
-      ...options,
-      signal: controller.signal,
-    });
+    return await request(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
     if (providedSignal) providedSignal.removeEventListener('abort', abortListener);
   }
 }
+
+async function readJsonResponse(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+// --- File stream helpers ---
 
 async function waitForStreamEvent(stream, successEvent) {
   await new Promise((resolve, reject) => {
@@ -177,10 +177,19 @@ async function waitForStreamEvent(stream, successEvent) {
       cleanup();
       reject(error);
     };
-
     stream.once(successEvent, onSuccess);
     stream.once('error', onError);
   });
+}
+
+async function removeFileIfExists(filePath) {
+  try {
+    await fs.unlink(filePath);
+  } catch (error) {
+    if (error?.code !== 'ENOENT' && DEVELOPER_MODE) {
+      console.warn(`[TRANSFER DEBUG] Failed to remove partial file: ${getErrorMessage(error)}`);
+    }
+  }
 }
 
 async function writeResponseBodyToFile(
@@ -227,141 +236,7 @@ async function writeResponseBodyToFile(
   return receivedLength;
 }
 
-/**
- * Downloads an animation asset with progress reporting.
- */
-async function downloadAnimationAssetWithProgress(
-  url,
-  robloxCookie,
-  filePath,
-  transferId,
-  entryName,
-  originalAssetId,
-  sendTransferUpdate,
-  placeId = null,
-  options = {},
-) {
-  const cookieHeader = buildRobloxCookieHeader(robloxCookie);
-
-  if (!cookieHeader) {
-    const error = 'Missing or invalid ROBLOSECURITY cookie';
-    sendTransferUpdateSafe(sendTransferUpdate, {
-      id: transferId,
-      status: 'error',
-      error,
-      progress: 0,
-    });
-    return { success: false, error };
-  }
-
-  const timeoutMs = getPositiveNumber(options.timeoutMs, DOWNLOAD_DEFAULTS.timeoutMs);
-  const retries = getPositiveNumber(options.retries, DOWNLOAD_DEFAULTS.retries);
-  const retryDelayMs = getPositiveNumber(options.retryDelayMs, DOWNLOAD_DEFAULTS.retryDelayMs);
-  const suppressErrorUpdate = Boolean(options.suppressErrorUpdate);
-  const lastProgressRef = { value: 0 };
-
-  sendTransferUpdateSafe(sendTransferUpdate, {
-    id: transferId,
-    name: entryName,
-    originalAssetId,
-    status: 'processing',
-    direction: 'download',
-    progress: 0,
-    error: null,
-    size: 0,
-  });
-
-  if (DEVELOPER_MODE) {
-    console.log(
-      `[DOWNLOAD DEBUG] Starting download for "${entryName}" (Asset ID: ${originalAssetId})`,
-    );
-    console.log(`[DOWNLOAD DEBUG] PlaceId: ${placeId || 'not provided'}`);
-    console.log(`[DOWNLOAD DEBUG] Target file: ${filePath}`);
-  }
-
-  for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
-    try {
-      const fetchHeaders = { Cookie: cookieHeader };
-      if (placeId) {
-        fetchHeaders['Roblox-Place-Id'] = String(placeId);
-        fetchHeaders['User-Agent'] = 'RobloxStudio/WinInet';
-        fetchHeaders['Roblox-Browser-Asset-Request'] = 'true';
-      }
-
-      const response = await fetchWithTimeout(
-        url,
-        {
-          headers: fetchHeaders,
-          redirect: 'follow',
-          signal: options.abortSignal,
-        },
-        timeoutMs,
-      );
-
-      if (!response.ok) {
-        const detail = DEVELOPER_MODE
-          ? `Failed to download asset: ${response.status} ${response.statusText} | Asset ID: ${originalAssetId} | PlaceId: ${placeId || 'N/A'}`
-          : `Failed to download asset: ${response.status} ${response.statusText}`;
-        throw new Error(detail);
-      }
-
-      const totalSize = Number(response.headers.get('content-length')) || 0;
-      sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, size: totalSize });
-
-      const receivedLength = await writeResponseBodyToFile(
-        response,
-        filePath,
-        transferId,
-        totalSize,
-        sendTransferUpdate,
-        lastProgressRef,
-      );
-
-      if (lastProgressRef.value < 100 && totalSize > 0) {
-        sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, progress: 100 });
-      }
-
-      sendTransferUpdateSafe(sendTransferUpdate, {
-        id: transferId,
-        status: 'completed',
-        progress: 100,
-      });
-
-      if (DEVELOPER_MODE) {
-        console.log(`[DOWNLOAD DEBUG] Downloaded "${entryName}" (${receivedLength} bytes)`);
-      }
-
-      return { success: true, filePath };
-    } catch (error) {
-      const message = getErrorMessage(error);
-      const canRetry = shouldRetryDownload(error) && attempt <= retries;
-
-      await removeFileIfExists(filePath);
-
-      if (DEVELOPER_MODE) {
-        console.warn(
-          `[DOWNLOAD DEBUG] Attempt ${attempt}/${retries + 1} failed for "${entryName}": ${message}${canRetry ? ' -> retrying' : ''}`,
-        );
-      }
-
-      if (!canRetry) {
-        if (!suppressErrorUpdate) {
-          sendTransferUpdateSafe(sendTransferUpdate, {
-            id: transferId,
-            status: 'error',
-            error: message,
-            progress: lastProgressRef.value || 0,
-          });
-        }
-        return { success: false, error: message };
-      }
-
-      await delay(retryDelayMs + Math.floor(Math.random() * 300));
-    }
-  }
-
-  return { success: false, error: 'Download failed.' };
-}
+// --- Upload internals ---
 
 async function uploadAsset(
   fileBuffer,
@@ -433,10 +308,6 @@ async function uploadAsset(
   return responseData;
 }
 
-function getAssetIdFromResponse(responseData) {
-  return responseData?.response?.assetId || responseData?.response?.Id || null;
-}
-
 async function pollUploadOperation(
   responseData,
   apiKey,
@@ -447,26 +318,22 @@ async function pollUploadOperation(
   const pollUrl = normalizeOperationUrl(responseData?.path);
   if (!pollUrl) return null;
 
-  if (DEVELOPER_MODE) {
-    console.log(`[UPLOAD DEBUG] Operation pending, polling: ${pollUrl}`);
-  }
+  if (DEVELOPER_MODE) console.log(`[UPLOAD DEBUG] Operation pending, polling: ${pollUrl}`);
 
   for (let attempt = 1; attempt <= MAX_UPLOAD_POLL_ATTEMPTS; attempt += 1) {
     await delay(UPLOAD_POLL_INTERVAL_MS);
 
-    const response = await fetch(pollUrl, {
-      headers: { 'x-api-key': apiKey },
-    });
+    const response = await fetch(pollUrl, { headers: { 'x-api-key': apiKey } });
     const pollData = await readJsonResponse(response);
 
     if (!response.ok) {
       if (response.status === 429) {
-        if (DEVELOPER_MODE)
+        if (DEVELOPER_MODE) {
           console.log(
             `[UPLOAD DEBUG] Polling rate limited (429) on attempt ${attempt}, pausing...`,
           );
-        const waitMs = getRetryAfterMs(response, attempt);
-        await delay(waitMs);
+        }
+        await delay(getRetryAfterMs(response, attempt));
         continue;
       }
       throw new Error(
@@ -503,8 +370,145 @@ async function pollUploadOperation(
   throw new Error(`Upload timed out waiting for Roblox to process the ${assetType.toLowerCase()}.`);
 }
 
+// --- Public: Download ---
+
 /**
- * Publishes an animation or sound RBXM file to Roblox.
+ * Downloads an animation or sound asset from Roblox with progress reporting.
+ */
+async function downloadAnimationAssetWithProgress(
+  url,
+  robloxSession,
+  filePath,
+  transferId,
+  entryName,
+  originalAssetId,
+  sendTransferUpdate,
+  placeId = null,
+  options = {},
+) {
+  const cookieHeader = robloxSession.getCookieHeader();
+
+  if (!cookieHeader) {
+    const error = 'Missing or invalid ROBLOSECURITY cookie';
+    sendTransferUpdateSafe(sendTransferUpdate, {
+      id: transferId,
+      status: 'error',
+      error,
+      progress: 0,
+    });
+    return { success: false, error };
+  }
+
+  const timeoutMs = getPositiveNumber(options.timeoutMs, DOWNLOAD_DEFAULTS.timeoutMs);
+  const retries = getPositiveNumber(options.retries, DOWNLOAD_DEFAULTS.retries);
+  const retryDelayMs = getPositiveNumber(options.retryDelayMs, DOWNLOAD_DEFAULTS.retryDelayMs);
+  const suppressErrorUpdate = Boolean(options.suppressErrorUpdate);
+  const lastProgressRef = { value: 0 };
+
+  sendTransferUpdateSafe(sendTransferUpdate, {
+    id: transferId,
+    name: entryName,
+    originalAssetId,
+    status: 'processing',
+    direction: 'download',
+    progress: 0,
+    error: null,
+    size: 0,
+  });
+
+  if (DEVELOPER_MODE) {
+    console.log(
+      `[DOWNLOAD DEBUG] Starting download for "${entryName}" (Asset ID: ${originalAssetId})`,
+    );
+    console.log(`[DOWNLOAD DEBUG] PlaceId: ${placeId || 'not provided'}`);
+    console.log(`[DOWNLOAD DEBUG] Target file: ${filePath}`);
+  }
+
+  for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
+    try {
+      const fetchHeaders = {};
+      if (placeId) {
+        fetchHeaders['Roblox-Place-Id'] = String(placeId);
+        fetchHeaders['User-Agent'] = 'RobloxStudio/WinInet';
+        fetchHeaders['Roblox-Browser-Asset-Request'] = 'false';
+      }
+
+      const response = await fetchWithTimeout(
+        url,
+        { headers: fetchHeaders, redirect: 'follow', signal: options.abortSignal },
+        timeoutMs,
+        robloxSession.fetch.bind(robloxSession),
+      );
+
+      if (!response.ok) {
+        const detail = DEVELOPER_MODE
+          ? `Failed to download asset: ${response.status} ${response.statusText} | Asset ID: ${originalAssetId} | PlaceId: ${placeId || 'N/A'}`
+          : `Failed to download asset: ${response.status} ${response.statusText}`;
+        throw new Error(detail);
+      }
+
+      const totalSize = Number(response.headers.get('content-length')) || 0;
+      sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, size: totalSize });
+
+      const receivedLength = await writeResponseBodyToFile(
+        response,
+        filePath,
+        transferId,
+        totalSize,
+        sendTransferUpdate,
+        lastProgressRef,
+      );
+
+      if (lastProgressRef.value < 100 && totalSize > 0) {
+        sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, progress: 100 });
+      }
+
+      sendTransferUpdateSafe(sendTransferUpdate, {
+        id: transferId,
+        status: 'completed',
+        progress: 100,
+      });
+
+      if (DEVELOPER_MODE) {
+        console.log(`[DOWNLOAD DEBUG] Downloaded "${entryName}" (${receivedLength} bytes)`);
+      }
+
+      return { success: true, filePath };
+    } catch (error) {
+      const message = getErrorMessage(error);
+      const canRetry = shouldRetryDownload(error) && attempt <= retries;
+
+      await removeFileIfExists(filePath);
+
+      if (DEVELOPER_MODE) {
+        console.warn(
+          `[DOWNLOAD DEBUG] Attempt ${attempt}/${retries + 1} failed for "${entryName}": ${message}${canRetry ? ' -> retrying' : ''}`,
+        );
+      }
+
+      if (!canRetry) {
+        if (!suppressErrorUpdate) {
+          sendTransferUpdateSafe(sendTransferUpdate, {
+            id: transferId,
+            status: 'error',
+            error: message,
+            progress: lastProgressRef.value || 0,
+          });
+        }
+        return { success: false, error: message };
+      }
+
+      await delay(retryDelayMs + Math.floor(Math.random() * 300));
+    }
+  }
+
+  return { success: false, error: 'Download failed.' };
+}
+
+// --- Public: Upload (animation / sound via Open Cloud) ---
+
+/**
+ * Publishes an animation or sound RBXM file to Roblox via the Open Cloud Assets API.
  */
 async function publishAnimationRbxmWithProgress(
   filePath,
@@ -520,7 +524,6 @@ async function publishAnimationRbxmWithProgress(
   options = {},
 ) {
   let fileBuffer;
-
   try {
     fileBuffer = await fs.readFile(filePath);
   } catch (error) {
@@ -576,10 +579,6 @@ async function publishAnimationRbxmWithProgress(
   }
 
   try {
-    let method = 'POST';
-    let url = ASSET_UPLOAD_URL;
-    let existingId = null;
-
     const responseData = await uploadAsset(
       fileBuffer,
       fileName,
@@ -588,11 +587,12 @@ async function publishAnimationRbxmWithProgress(
       apiKey,
       transferId,
       sendTransferUpdate,
-      method,
-      url,
+      'POST',
+      ASSET_UPLOAD_URL,
       options.abortSignal,
     );
 
+    // Fast path: Roblox processed the upload synchronously.
     if (responseData?.done && responseData.response) {
       const assetId = getAssetIdFromResponse(responseData);
       if (assetId) {
@@ -606,6 +606,7 @@ async function publishAnimationRbxmWithProgress(
       }
     }
 
+    // Slow path: Roblox is processing async - poll until done.
     if (responseData?.path && !responseData.done) {
       const assetId = await pollUploadOperation(
         responseData,
@@ -636,137 +637,7 @@ async function publishAnimationRbxmWithProgress(
   }
 }
 
-async function publishAudioViaIdeEndpoint(
-  filePath,
-  name,
-  cookie,
-  csrfToken,
-  groupId = null,
-  transferId,
-  sendTransferUpdate,
-  options = {},
-) {
-  let fileBuffer;
-  try {
-    fileBuffer = await fs.readFile(filePath);
-  } catch (error) {
-    const message = `File system error: ${getErrorMessage(error)}`;
-    sendTransferUpdateSafe(sendTransferUpdate, {
-      id: transferId, name, status: 'error', direction: 'upload', error: message,
-    });
-    return { success: false, error: message };
-  }
-
-  sendTransferUpdateSafe(sendTransferUpdate, {
-    id: transferId, name, size: fileBuffer.length, status: 'processing', direction: 'upload', progress: 0, error: null,
-  });
-
-  if (!cookie || !csrfToken) {
-    const error = 'Missing Roblox credentials for audio upload.';
-    sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error, progress: 0 });
-    return { success: false, error };
-  }
-
-  const base64File = fileBuffer.toString('base64');
-  let currentName = sanitizeUploadName(name);
-
-  for (let attempt = 0; attempt <= MAX_UPLOAD_RATE_LIMIT_RETRIES; attempt += 1) {
-    const bodyPayload = {
-      name: currentName,
-      file: base64File,
-      estimatedFileSize: fileBuffer.length,
-    };
-    if (groupId) {
-      bodyPayload.groupId = Number(groupId);
-    }
-
-    await waitUploadStartSlot();
-
-    let response;
-    try {
-      response = await fetchWithTimeout('https://publish.roblox.com/v1/audio', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'RobloxStudio/WinInet',
-          'Cookie': cookie.includes('.ROBLOSECURITY') ? cookie : `.ROBLOSECURITY=${cookie}`,
-          'x-csrf-token': csrfToken,
-        },
-        body: JSON.stringify(bodyPayload),
-        signal: options.abortSignal,
-      }, 60000);
-    } catch (err) {
-      if (attempt >= MAX_UPLOAD_RATE_LIMIT_RETRIES) {
-        const errMsg = `Upload failed after ${MAX_UPLOAD_RATE_LIMIT_RETRIES} retries: ${getErrorMessage(err)}`;
-        sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: errMsg, progress: 0 });
-        return { success: false, error: errMsg };
-      }
-      await delay(getRetryAfterMs(null, attempt + 1));
-      continue;
-    }
-
-    const responseData = await readJsonResponse(response);
-
-    if (response.status === 429) {
-      const waitMs = getRetryAfterMs(response, attempt + 1);
-      if (DEVELOPER_MODE) console.log(`[UPLOAD DEBUG] Audio rate limited, pausing for ${waitMs}ms`);
-      sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'processing', progress: 0 });
-      setRateLimit(waitMs);
-      await waitRateLimit();
-      continue;
-    }
-
-    if (!response.ok) {
-      const errors = responseData?.errors || [];
-      if (response.status === 400 && errors.length > 0) {
-        if (errors[0].message === 'Audio name or description is moderated.') {
-          currentName = 'Audio';
-          continue; 
-        }
-        const msg = `Audio upload rejected: ${errors[0].message}`;
-        sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
-        return { success: false, error: msg };
-      }
-      if (response.status === 403 && errors.length > 0) {
-        if (errors[0].message.includes('Token Validation Failed')) {
-           const msg = 'CSRF Token Invalid';
-           sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
-           return { success: false, error: msg };
-        }
-      }
-      const msg = `Audio upload failed (${response.status}): ${JSON.stringify(responseData || {})}`;
-      sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
-      return { success: false, error: msg };
-    }
-
-    const assetId = responseData?.id || responseData?.Id;
-    if (assetId) {
-      sendTransferUpdateSafe(sendTransferUpdate, {
-        id: transferId, progress: 100, status: 'completed', newAssetId: String(assetId),
-      });
-      return { success: true, assetId: String(assetId) };
-    }
-
-    const msg = `Unexpected audio response: ${JSON.stringify(responseData || {})}`;
-    sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
-    return { success: false, error: msg };
-  }
-
-  const errStr = `Rate limit hit after ${MAX_UPLOAD_RATE_LIMIT_RETRIES} retries.`;
-  sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: errStr, progress: 0 });
-  return { success: false, error: errStr };
-}
-
-function buildUploadFileDescriptor(name, payloadMetadata) {
-  return {
-    fileName: `${name}${payloadMetadata.extension}`,
-    fileType: payloadMetadata.mimeType || 'model/x-rbxm',
-  };
-}
-
 module.exports = {
   downloadAnimationAssetWithProgress,
   publishAnimationRbxmWithProgress,
-  publishAudioViaIdeEndpoint,
-  buildUploadFileDescriptor,
 };

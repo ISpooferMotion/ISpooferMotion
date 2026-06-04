@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.15
+
+- **Cookie Expiration Fixes**: Updated internal systems to correctly accept and rotate Roblox's new `.ROBLOSECURITY` cookies during spoofing runs, preventing session drops caused by the mid-2026 platform changes.
+- **Audio Spoofing Upgraded**: Legacy audio upload methods have been fully removed. All audio uploads now securely use the Open Cloud Assets API. _(Note: An Open Cloud API key is now strictly required for spoofing audio.)_
+- **Better Stability**: Improved internal service structures, resulting in faster and more reliable downloads, uploads, and error handling.
+- **Upload / Download Fixes**: Addressed various bugs affecting the transfer handlers, making overall asset processing more consistent.
+- **UI/UX Improvements**: Minor UI Improvements/Changes
+
 ## v1.3.14-hotfix.1
 
 - Fixed the weird Light theme thing
@@ -7,17 +15,23 @@
 
 ## v1.3.14
 
-+ Added support for Roblox's 2026 `.ROBLOSECURITY` cookie rotation rollout. Cookie-authenticated requests now accept `Set-Cookie` updates, auto-detection supports newer cookie formats, and manual profile cookies are refreshed securely when Roblox rotates them. See [Roblox's announcement](https://devforum.roblox.com/t/upcoming-roblosecurity-cookie-format-changes/4328913).
-+ Added Open Cloud Asset Delivery and recommended Asset Delivery v2 fallbacks before the legacy v1 download routes.
+- Added support for Roblox's 2026 `.ROBLOSECURITY` cookie rotation rollout. Cookie-authenticated requests now accept `Set-Cookie` updates, auto-detection supports newer cookie formats, and manual profile cookies are refreshed securely when Roblox rotates them. See [Roblox's announcement](https://devforum.roblox.com/t/upcoming-roblosecurity-cookie-format-changes/4328913).
+- Added Open Cloud Asset Delivery and recommended Asset Delivery v2 fallbacks before the legacy v1 download routes.
+
 * Fixed sound uploads being mislabeled as OGG. Downloaded sounds now preserve detected MP3, OGG, WAV, or FLAC formats, and downloaded animations are validated as RBXM or RBXMX before upload.
-+ Added bounded failed-transfer diagnostics for both sounds and animations. Invalid payloads and Roblox parse failures now stop immediately instead of repeating upload attempts.
+
+- Added bounded failed-transfer diagnostics for both sounds and animations. Invalid payloads and Roblox parse failures now stop immediately instead of repeating upload attempts.
+
 * Fixed stale owned-asset lookups by scoping the in-memory index per account or group and clearing it at the start of skip-owned runs and through Clear App Cache.
-+ Increased default download concurrency, enlarged normal batch lookups, shortened download retry waits, and reduced conservative upload startup spacing while preserving adaptive Roblox rate-limit backoff.
-+ Windows builds are now code-signed using Azure Trusted Signing. Installers display a verified publisher (`ispoofermotion.com`) instead of an "Unknown publisher" warning, and Microsoft Defender SmartScreen reputation will build up over time across all signed downloads.
-+ Added a custom electron-builder signer (`scripts/azure-sign.js`) that authenticates to Azure with a service principal and signs the installer with SHA-256 + RFC 3161 timestamping.
-+ CI/CD now installs the Microsoft Trusted Signing client on the Windows runner and passes the required signing secrets through to the build step.
-- Removed Replace Existing.
-+ Some other QOL stuff.
+
+- Increased default download concurrency, enlarged normal batch lookups, shortened download retry waits, and reduced conservative upload startup spacing while preserving adaptive Roblox rate-limit backoff.
+- Windows builds are now code-signed using Azure Trusted Signing. Installers display a verified publisher (`ispoofermotion.com`) instead of an "Unknown publisher" warning, and Microsoft Defender SmartScreen reputation will build up over time across all signed downloads.
+- Added a custom electron-builder signer (`scripts/azure-sign.js`) that authenticates to Azure with a service principal and signs the installer with SHA-256 + RFC 3161 timestamping.
+- CI/CD now installs the Microsoft Trusted Signing client on the Windows runner and passes the required signing secrets through to the build step.
+
+* Removed Replace Existing.
+
+- Some other QOL stuff.
 
 ## v1.3.13-hotfix.2
 
@@ -44,6 +58,7 @@
 ## v1.3.13
 
 ### Race Condition Fix — "A newer version was created from a different request"
+
 - **Replace Existing uploads are now serialized (concurrency = 1).** Roblox was rejecting overlapping PATCH requests for the same asset when multiple workers raced to update it at the same time. Uploads with Replace Existing enabled now run one at a time to prevent this.
 - **Fixed the concurrent uploads toggle.** When "Concurrent uploads" was disabled, the concurrency limit was still defaulting to 10 instead of 1.
 - **Added a per-replacement async lock in the transfer layer.** Even if concurrency is accidentally raised in future code, only one PATCH operation per asset name/creator can be in-flight at a time.
@@ -51,6 +66,7 @@
 - **Extracted rename logic into a shared `buildFinalUploadName()` helper** to eliminate duplicate code between `uploadOne` and `uploadFn`.
 
 ### Auto-Replace in Studio
+
 - **New "Push to Studio" button** in the Output panel replaces the old Copy output / Copy retry input / Copy replacements buttons. After a spoof completes, clicking it queues the `oldId = newId` mappings directly to the Roblox Studio plugin.
 - **Plugin auto-applies replacements** — the Studio plugin now polls `/pending-replacement` every 3 seconds. When a batch is waiting it automatically runs the replacement across the entire open place, then acknowledges via `/mark-replacement-applied`.
 - **No widget interaction required** — polling starts immediately on plugin load, so the Replace widget does not need to be opened first.
@@ -59,6 +75,7 @@
 - Three new localhost server endpoints: `POST /push-replacements`, `GET /pending-replacement`, `POST /mark-replacement-applied`.
 
 ### Activity / Jobs Panel
+
 - **Fixed job output not displaying** — job cards were reading `job.result.output` which does not exist on the stored record; now correctly reads `job.output`.
 - **Collapsed job cards now show a summary line** (Mode · Total · Downloaded · Uploaded) so you can see what a job did without expanding it.
 - **Added "↺ Retry Failed (N)" button** on job cards that had failures. Clicking it re-runs only the failed asset entries from that job with the same settings, without needing to copy-paste anything.

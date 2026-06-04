@@ -1,9 +1,14 @@
 'use strict';
 
+// --- Run state ---
 let isPaused = false;
 let isCancelled = false;
-const pauseResolvers = new Set();
 let abortController = new AbortController();
+
+// Resolvers for promises that are waiting for the spoofer to resume.
+const pauseResolvers = new Set();
+
+// --- Control functions ---
 
 function pauseSpoofer() {
   isPaused = true;
@@ -21,16 +26,20 @@ function cancelSpoofer() {
   resumeSpoofer();
 }
 
+/**
+ * Resets all run controls at the start of a new run so a previously-paused
+ * or cancelled run cannot block the next one.
+ */
 function resetRunControls() {
   isCancelled = false;
   abortController = new AbortController();
   resumeSpoofer();
 }
 
+// --- Check helpers (called inside workers) ---
+
 function checkCancelled() {
-  if (isCancelled) {
-    throw new Error('Operation cancelled');
-  }
+  if (isCancelled) throw new Error('Operation cancelled');
 }
 
 async function checkPaused() {

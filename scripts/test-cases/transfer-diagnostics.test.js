@@ -44,7 +44,10 @@ test('failed transfer diagnostics retain only the newest ten records and clear c
     await fs.readFile(
       path.join(
         directory,
-        entries.filter((entry) => entry.isDirectory()).sort().at(-1).name,
+        entries
+          .filter((entry) => entry.isDirectory())
+          .sort()
+          .at(-1).name,
         'metadata.json',
       ),
       'utf8',

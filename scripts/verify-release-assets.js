@@ -42,7 +42,6 @@ function readJson(file) {
   }
 }
 
-
 assertOne(
   'managed app exe',
   globFiles(

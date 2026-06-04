@@ -6,9 +6,9 @@
   --bg: #0b0f19;
   --border: rgba(255, 255, 255, 0.08);
   --code-bg: rgba(0, 0, 0, 0.3);
-  --accent: #8b5cf6;
-  --accent-bg: rgba(139, 92, 246, 0.15);
-  --accent-border: rgba(139, 92, 246, 0.4);
+  --accent: #7c86f1;
+  --accent-bg: rgba(124, 134, 241, 0.12);
+  --accent-border: rgba(124, 134, 241, 0.35);
   --social-bg: rgba(255, 255, 255, 0.04);
   --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6), 0 4px 10px rgba(0, 0, 0, 0.3);
 
@@ -21,9 +21,9 @@
   color-scheme: dark;
   color: var(--text);
   background: var(--bg);
-  background-image: 
-    radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(56, 189, 248, 0.06) 0%, transparent 40%);
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(0, 0, 0, 0) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(0, 0, 0, 0) 0%, transparent 40%);
   background-attachment: fixed;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -46,7 +46,10 @@ body {
   box-sizing: border-box;
 }
 
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
   font-family: var(--heading);
   font-weight: 600;
   color: var(--text-h);
@@ -56,7 +59,7 @@ h1, h2, h3, h4 {
 h1 {
   font-size: 42px;
   letter-spacing: -0.03em;
-  background: linear-gradient(135deg, #ffffff 0%, #c4b5fd 100%);
+  background: linear-gradient(135deg, #f0f0fa 0%, #7c86f1 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   margin: 24px 0;
@@ -73,11 +76,12 @@ p {
   margin: 0 0 16px 0;
 }
 
-code, .counter {
+code,
+.counter {
   font-family: var(--mono);
   display: inline-flex;
   border-radius: 6px;
-  color: #38bdf8;
+  color: #7c86f1;
 }
 
 code {
@@ -121,12 +125,32 @@ button {
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* Animations */
 @keyframes slideUpFade {
-  0% { opacity: 0; transform: translateY(12px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .view-enter {
   animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Hide scrollbar */
+::-webkit-scrollbar { display: none; }
+* { -ms-overflow-style: none; scrollbar-width: none; }

@@ -192,7 +192,6 @@ export default function SpooferView({ isActive }) {
       if (status === 'error' && previous.status !== 'error') phase.failed += 1;
 
       phase.seen.set(id, { status });
-
     });
 
     const cleanupLocalhostScan = window.electronAPI?.onLocalhostScanResults?.((scan) => {
@@ -253,7 +252,8 @@ export default function SpooferView({ isActive }) {
     const normalizedApiKey = openCloudApiKey.trim();
     if (!downloadOnly) {
       setStatusText('Checking API key...');
-      const apiKeyValidation = await window.electronAPI?.validateOpenCloudApiKey?.(normalizedApiKey);
+      const apiKeyValidation =
+        await window.electronAPI?.validateOpenCloudApiKey?.(normalizedApiKey);
       if (!apiKeyValidation?.ok) {
         setApiKeyStatus(apiKeyValidation?.message || 'API key is invalid.');
         setStatusText('API key validation failed.');
@@ -301,10 +301,10 @@ export default function SpooferView({ isActive }) {
       downloadTimeoutMs: 15000,
       concurrentUploads: profile.concurrent ?? true,
       maxConcurrentUploads: profile.maxConcurrentUploads ?? 12,
-      renamePrefix: profile.renameToggle ? profile.renamePrefix ?? '' : '',
-      renameSuffix: profile.renameToggle ? profile.renameSuffix ?? '' : '',
-      renameFind: profile.renameToggle ? profile.renameFind ?? '' : '',
-      renameReplace: profile.renameToggle ? profile.renameReplace ?? '' : '',
+      renamePrefix: profile.renameToggle ? (profile.renamePrefix ?? '') : '',
+      renameSuffix: profile.renameToggle ? (profile.renameSuffix ?? '') : '',
+      renameFind: profile.renameToggle ? (profile.renameFind ?? '') : '',
+      renameReplace: profile.renameToggle ? (profile.renameReplace ?? '') : '',
       maxConcurrentDownloads: profile.maxConcurrentDownloads ?? 20,
       desktopNotifications: profile.notifications ?? true,
     };
@@ -379,7 +379,11 @@ export default function SpooferView({ isActive }) {
     const lookupInput = placeCreatorType === 'place' ? rawInput : rawInput.replace(/\D/g, '');
     setPlaceSuggestions([]);
     if (!lookupInput) {
-      setPlaceSearchMessage(placeCreatorType === 'place' ? 'Enter a Place ID or Roblox game URL.' : 'Enter a numeric User ID or Group ID.');
+      setPlaceSearchMessage(
+        placeCreatorType === 'place'
+          ? 'Enter a Place ID or Roblox game URL.'
+          : 'Enter a numeric User ID or Group ID.',
+      );
       return;
     }
 
@@ -397,7 +401,12 @@ export default function SpooferView({ isActive }) {
       const places = result?.places || [];
       setPlaceSuggestions(places);
       await updateProfileValue('placeSearchInput', lookupInput);
-      const resolvedCreatorType = result?.creatorType === 'group' ? 'group' : result?.creatorType === 'place' ? 'place' : 'user';
+      const resolvedCreatorType =
+        result?.creatorType === 'group'
+          ? 'group'
+          : result?.creatorType === 'place'
+            ? 'place'
+            : 'user';
       if (resolvedCreatorType !== placeCreatorType) {
         setPlaceCreatorType(resolvedCreatorType);
       }
@@ -410,7 +419,9 @@ export default function SpooferView({ isActive }) {
           `${result?.message || 'Found 1 place.'} Selected ${places[0].placeId}.`,
         );
       } else if (places.length > 1) {
-        setPlaceSearchMessage(result?.message || `Found ${places.length} places. Choose one below.`);
+        setPlaceSearchMessage(
+          result?.message || `Found ${places.length} places. Choose one below.`,
+        );
       } else {
         setPlaceSearchMessage(
           result?.message ||
@@ -442,7 +453,9 @@ export default function SpooferView({ isActive }) {
             <div className="asset-input-wrapper">
               <div className="asset-header">
                 <h3>Asset IDs</h3>
-                <span className="asset-hint">Supports [assetId], [name], and [User:123] / [Group:123]</span>
+                <span className="asset-hint">
+                  Supports [assetId], [name], and [User:123] / [Group:123]
+                </span>
               </div>
               <textarea
                 className="ui-textarea code-input asset-textarea"
@@ -503,13 +516,13 @@ export default function SpooferView({ isActive }) {
                     name="openCloudApiKey"
                     placeholder=" "
                     autoComplete="off"
-                  value={openCloudApiKey}
-                  onChange={(e) => {
-                    setOpenCloudApiKey(e.target.value);
-                    setApiKeyStatus('Unsaved changes. Leave the field to validate and save.');
-                  }}
-                  onBlur={handleApiKeyBlur}
-                />
+                    value={openCloudApiKey}
+                    onChange={(e) => {
+                      setOpenCloudApiKey(e.target.value);
+                      setApiKeyStatus('Unsaved changes. Leave the field to validate and save.');
+                    }}
+                    onBlur={handleApiKeyBlur}
+                  />
                   <span>Open Cloud API Key</span>
                   <button
                     className="ui-button get-api-key-btn"
@@ -667,12 +680,16 @@ export default function SpooferView({ isActive }) {
                     onClick={() => setPlaceLookupOpen((open) => !open)}
                   >
                     <span>Place ID lookup</span>
-                    <strong>{overridePlaceId ? `Selected: ${overridePlaceId}` : 'Auto discover'}</strong>
+                    <strong>
+                      {overridePlaceId ? `Selected: ${overridePlaceId}` : 'Auto discover'}
+                    </strong>
                     <svg className="profile-trigger-arrow" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M7.4 9.2 12 13.8l4.6-4.6L18 10.6l-6 6-6-6 1.4-1.4Z" />
                     </svg>
                   </button>
-                  <div className="advanced-dropdown-panel">
+                  <div className="advanced-dropdown-panel-wrap">
+                    <div className="advanced-dropdown-panel">
+                      <div className="advanced-dropdown-panel-inner">
                     <label className="floating-label">
                       <input
                         className="ui-input"
@@ -721,71 +738,97 @@ export default function SpooferView({ isActive }) {
                     </div>
                     <div className="place-search-block">
                       <div className="place-search-row">
-                    <div className={`profile-picker place-type-picker ${placeTypeOpen ? 'open' : ''}`}>
-                      <button
-                        className="profile-trigger ui-button"
-                        type="button"
-                        aria-label="Place owner type"
-                        aria-expanded={placeTypeOpen}
-                        onClick={() => setPlaceTypeOpen((open) => !open)}
-                      >
-                        <span className="profile-trigger-label">
-                          {placeCreatorType === 'group' ? 'Group ID' : placeCreatorType === 'place' ? 'Place ID / URL' : 'User ID'}
-                        </span>
-                        <svg className="profile-trigger-arrow" viewBox="0 0 24 24" aria-hidden="true">
-                          <path d="M7.4 9.2 12 13.8l4.6-4.6L18 10.6l-6 6-6-6 1.4-1.4Z" />
-                        </svg>
-                      </button>
-                      {placeTypeOpen && (
-                        <div className="profile-menu ui-dropdown" role="listbox">
-                          {[
-                            ['user', 'User ID'],
-                            ['group', 'Group ID'],
-                            ['place', 'Place ID / URL'],
-                          ].map(([value, label]) => (
-                            <button
-                              key={value}
-                              className={`profile-option ui-button ${placeCreatorType === value ? 'selected' : ''}`}
-                              type="button"
-                              role="option"
-                              aria-selected={placeCreatorType === value}
-                              onClick={() => {
-                                setPlaceCreatorType(value);
-                                setPlaceTypeOpen(false);
-                                updateProfileValue('placeCreatorType', value);
-                              }}
+                        <div
+                          className={`profile-picker place-type-picker ${placeTypeOpen ? 'open' : ''}`}
+                        >
+                          <button
+                            className="profile-trigger ui-button"
+                            type="button"
+                            aria-label="Place owner type"
+                            aria-expanded={placeTypeOpen}
+                            onClick={() => setPlaceTypeOpen((open) => !open)}
+                          >
+                            <span className="profile-trigger-label">
+                              {placeCreatorType === 'group'
+                                ? 'Group ID'
+                                : placeCreatorType === 'place'
+                                  ? 'Place ID / URL'
+                                  : 'User ID'}
+                            </span>
+                            <svg
+                              className="profile-trigger-arrow"
+                              viewBox="0 0 24 24"
+                              aria-hidden="true"
                             >
-                              <span>{label}</span>
-                            </button>
-                          ))}
+                              <path d="M7.4 9.2 12 13.8l4.6-4.6L18 10.6l-6 6-6-6 1.4-1.4Z" />
+                            </svg>
+                          </button>
+                          {placeTypeOpen && (
+                            <div className="profile-menu ui-dropdown" role="listbox">
+                              {[
+                                ['user', 'User ID'],
+                                ['group', 'Group ID'],
+                                ['place', 'Place ID / URL'],
+                              ].map(([value, label]) => (
+                                <button
+                                  key={value}
+                                  className={`profile-option ui-button ${placeCreatorType === value ? 'selected' : ''}`}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={placeCreatorType === value}
+                                  onClick={() => {
+                                    setPlaceCreatorType(value);
+                                    setPlaceTypeOpen(false);
+                                    updateProfileValue('placeCreatorType', value);
+                                  }}
+                                >
+                                  <span>{label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <label className="floating-label place-search-input">
-                      <input
-                        className="ui-input"
-                        type="text"
-                        inputMode={placeCreatorType === 'place' ? 'text' : 'numeric'}
-                        id="placeSearchInput"
-                        name="placeSearchInput"
-                        placeholder=" "
-                        value={placeSearchInput}
-                        onChange={(e) =>
-                          setPlaceSearchInput(placeCreatorType === 'place' ? e.target.value : e.target.value.replace(/\D/g, ''))
-                        }
-                      />
-                      <span>{placeCreatorType === 'group' ? 'Group ID for place search' : placeCreatorType === 'place' ? 'Place ID or Roblox game URL' : 'User ID for place search'}</span>
-                    </label>
-                    <button
-                      className="ui-button place-search-button"
-                      type="button"
-                      disabled={placeSearchLoading}
-                      onClick={handlePlaceSearch}
-                    >
-                      {placeSearchLoading ? 'Searching...' : placeCreatorType === 'place' ? 'Use Place' : 'Find Places'}
-                    </button>
+                        <label className="floating-label place-search-input">
+                          <input
+                            className="ui-input"
+                            type="text"
+                            inputMode={placeCreatorType === 'place' ? 'text' : 'numeric'}
+                            id="placeSearchInput"
+                            name="placeSearchInput"
+                            placeholder=" "
+                            value={placeSearchInput}
+                            onChange={(e) =>
+                              setPlaceSearchInput(
+                                placeCreatorType === 'place'
+                                  ? e.target.value
+                                  : e.target.value.replace(/\D/g, ''),
+                              )
+                            }
+                          />
+                          <span>
+                            {placeCreatorType === 'group'
+                              ? 'Group ID for place search'
+                              : placeCreatorType === 'place'
+                                ? 'Place ID or Roblox game URL'
+                                : 'User ID for place search'}
+                          </span>
+                        </label>
+                        <button
+                          className="ui-button place-search-button"
+                          type="button"
+                          disabled={placeSearchLoading}
+                          onClick={handlePlaceSearch}
+                        >
+                          {placeSearchLoading
+                            ? 'Searching...'
+                            : placeCreatorType === 'place'
+                              ? 'Use Place'
+                              : 'Find Places'}
+                        </button>
                       </div>
-                      {placeSearchMessage && <div className="field-status">{placeSearchMessage}</div>}
+                      {placeSearchMessage && (
+                        <div className="field-status">{placeSearchMessage}</div>
+                      )}
                       {placeSuggestions.length > 1 && (
                         <div className="place-suggestion-list">
                           {placeSuggestions.map((place) => (
@@ -806,6 +849,8 @@ export default function SpooferView({ isActive }) {
                 </div>
               </div>
             </div>
+          </div>
+          </div>
           </div>
 
           <div className="bento-card output-card">
@@ -839,7 +884,7 @@ export default function SpooferView({ isActive }) {
                 disabled={!outputData || running}
                 onClick={async () => {
                   if (!outputData) {
-                    setStatusText('No output to push — run a spoof first.');
+                    setStatusText('No output to push - run a spoof first.');
                     return;
                   }
                   setStatusText('Pushing to Studio...');
@@ -847,7 +892,7 @@ export default function SpooferView({ isActive }) {
                     const result = await window.electronAPI?.pushToStudio?.(outputData);
                     if (result?.ok) {
                       setStatusText(
-                        `Pushed ${result.count} replacement${result.count === 1 ? '' : 's'} to Studio — plugin will auto-replace shortly.`,
+                        `Pushed ${result.count} replacement${result.count === 1 ? '' : 's'} to Studio - plugin will auto-replace shortly.`,
                       );
                     } else {
                       setStatusText(`Push failed: ${result?.error || 'Unknown error'}`);

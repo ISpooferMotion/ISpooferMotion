@@ -19,9 +19,9 @@
   transform: translateY(-6px) scale(0.98);
   transform-origin: top center;
   transition:
-    opacity 170ms ease,
-    transform 190ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    visibility 170ms ease;
+    opacity var(--transition-fast),
+    transform var(--transition-smooth),
+    visibility var(--transition-fast);
 }
 
 .profile-picker.open .profile-menu {
@@ -69,8 +69,8 @@
   pointer-events: none;
   transform: translateY(-6px);
   transition:
-    opacity 130ms ease,
-    transform 130ms ease;
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
   z-index: 2000;
 }
 
@@ -90,7 +90,7 @@
   background: rgba(0, 0, 0, 0.54);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 140ms ease;
+  transition: opacity var(--transition-fast);
   z-index: var(--z-modal);
 }
 
@@ -261,11 +261,11 @@
   pointer-events: none;
   opacity: 0;
   transition:
-    opacity 0.3s ease,
-    top 0.4s ease,
-    left 0.4s ease,
-    width 0.4s ease,
-    height 0.4s ease;
+    opacity var(--transition-bounce),
+    top var(--transition-bounce),
+    left var(--transition-bounce),
+    width var(--transition-bounce),
+    height var(--transition-bounce);
 }
 .tour-overlay-hole.active {
   opacity: 1;
@@ -290,10 +290,10 @@
   opacity: 0;
   pointer-events: none;
   transition:
-    opacity 0.3s ease,
-    top 0.4s ease,
-    left 0.4s ease,
-    transform 0.4s ease;
+    opacity var(--transition-bounce),
+    top var(--transition-bounce),
+    left var(--transition-bounce),
+    transform var(--transition-bounce);
   display: flex;
   flex-direction: column;
   gap: 12px;

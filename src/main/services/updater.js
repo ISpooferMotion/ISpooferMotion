@@ -170,7 +170,9 @@ async function applyUpdate(downloadPath) {
     if (downloadPath.endsWith('.AppImage')) {
       try {
         fs.chmodSync(downloadPath, '755');
-      } catch (e) {}
+      } catch {
+        // Ignore
+      }
     }
     shell.showItemInFolder(downloadPath);
     app.quit();

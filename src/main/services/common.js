@@ -4,24 +4,29 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { inspect } = require('node:util');
 
+// --- Constants ---
+
 const DEVELOPER_MODE = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
 const KEEP_DOWNLOADS_ON_FAILURE = false;
 const LOG_TO_FILE = true;
 
+// --- Sensitive-data redaction (used by the file logger) ---
+
 const REDACTED_COOKIE = '{Cookie:Here}';
 const REDACTED_API_KEY = '{ApiKey:Here}';
+
 const SENSITIVE_PATTERNS = [
   [/"robloxCookie"\s*:\s*"[^"]*"/gi, '"robloxCookie":"{Cookie:Here}"'],
-  [/\.ROBLOSECURITY=[^;\s,}"]*/gi, REDACTED_COOKIE],
+  [/\.ROBLOSECURITY=[^;\s,"']*/gi, REDACTED_COOKIE],
   [/_\|WARNING:[^|]*\|_[^,}\s"]*/gi, REDACTED_COOKIE],
-  [/ROBLOSECURITY[=:]\s*[^\s,;},"]*([,}"\s]|$)/gi, `ROBLOSECURITY:${REDACTED_COOKIE}$1`],
-  [/X-CSRF-TOKEN[=:]\s*[^\s,;},"]*([,}"\s]|$)/gi, `X-CSRF-TOKEN:${REDACTED_COOKIE}$1`],
+  [/ROBLOSECURITY[=:]\s*[^\s,;},"]*([\s,;"}\s]|$)/gi, `ROBLOSECURITY:${REDACTED_COOKIE}$1`],
+  [/X-CSRF-TOKEN[=:]\s*[^\s,;},"]*([\s,;"}\s]|$)/gi, `X-CSRF-TOKEN:${REDACTED_COOKIE}$1`],
   [/"X-CSRF-TOKEN"\s*:\s*"[^"]*"/gi, '"X-CSRF-TOKEN":"{Cookie:Here}"'],
-  [/Bearer\s+[^\s,;},"]*([,}"\s]|$)/gi, `Bearer ${REDACTED_COOKIE}$1`],
-  [/Authorization[=:]\s*[^\s,;},"]*([,}"\s]|$)/gi, `Authorization:${REDACTED_COOKIE}$1`],
+  [/Bearer\s+[^\s,;},"]*([\s,;"}\s]|$)/gi, `Bearer ${REDACTED_COOKIE}$1`],
+  [/Authorization[=:]\s*[^\s,;},"]*([\s,;"}\s]|$)/gi, `Authorization:${REDACTED_COOKIE}$1`],
   [/"Authorization"\s*:\s*"[^"]*"/gi, '"Authorization":"{Cookie:Here}"'],
   [/"x-api-key"\s*:\s*"[^"]*"/gi, '"x-api-key":"{ApiKey:Here}"'],
-  [/x-api-key[=:]\s*[^\s,;},"]*([,}"\s]|$)/gi, `x-api-key:${REDACTED_API_KEY}$1`],
+  [/x-api-key[=:]\s*[^\s,;},"]*([\s,;"}\s]|$)/gi, `x-api-key:${REDACTED_API_KEY}$1`],
   [/"openCloudApiKey"\s*:\s*"[^"]*"/gi, '"openCloudApiKey":"{ApiKey:Here}"'],
   [/"apiKey"\s*:\s*"[^"]*"/gi, '"apiKey":"{ApiKey:Here}"'],
   [/Cookie[=:]\s*[^};"]*([};"]\s*|$)/gi, `Cookie:${REDACTED_COOKIE}$1`],
@@ -32,15 +37,13 @@ const SENSITIVE_PATTERNS = [
   ],
 ];
 
-let fileLoggingInitialized = false;
+// --- Logging ---
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+let fileLoggingInitialized = false;
 
 function toLogString(value) {
   if (typeof value === 'string') return value;
-  if (value instanceof Error) {
-    return value.stack || `${value.name}: ${value.message}`;
-  }
+  if (value instanceof Error) return value.stack || `${value.name}: ${value.message}`;
   return inspect(value, {
     depth: 6,
     colors: false,
@@ -53,7 +56,6 @@ function toLogString(value) {
 
 function sanitizeLogMessage(message) {
   if (message == null) return message;
-
   let sanitized = typeof message === 'string' ? message : toLogString(message);
   for (const [pattern, replacement] of SENSITIVE_PATTERNS) {
     sanitized = sanitized.replace(pattern, replacement);
@@ -69,11 +71,10 @@ function formatLogMessage(level, args) {
 
 async function writeToLogFile(message, logFilePath) {
   if (!LOG_TO_FILE || !logFilePath) return;
-
   try {
     await fs.appendFile(logFilePath, `${message}\n`, 'utf8');
   } catch {
-    // Never let logging failure break app flow or recursively log itself.
+    // Never let logging failure break app flow.
   }
 }
 
@@ -113,6 +114,51 @@ async function initializeFileLogging(logsDir) {
   }
 }
 
+// --- Cookie helpers ---
+
+function normalizeRobloxCookie(cookieValue) {
+  if (typeof cookieValue !== 'string') return '';
+
+  let normalized = cookieValue.trim().replace(/^['"]+|['"]+$/g, '');
+  const prefixedMatch = normalized.match(/(?:^|;\s*)\.ROBLOSECURITY=([^;]+)/i);
+
+  if (prefixedMatch?.[1]) normalized = prefixedMatch[1].trim();
+  normalized = normalized
+    .replace(/^\.ROBLOSECURITY=/i, '')
+    .replace(/[;\r\n]+$/g, '')
+    .trim();
+
+  return normalized;
+}
+
+/**
+ * Builds a properly formatted Roblox cookie header value from any cookie input
+ * (raw token, prefixed string, or already-formatted header). Always outputs
+ * exactly `.ROBLOSECURITY=<token>` or an empty string if the value is invalid.
+ */
+function buildRobloxCookieHeader(cookieValue) {
+  const normalized = normalizeRobloxCookie(cookieValue);
+  return normalized ? `.ROBLOSECURITY=${normalized}` : '';
+}
+
+// --- Async helpers ---
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+
+function markNonRetryableError(error, code = 'NON_RETRYABLE') {
+  const normalized = error instanceof Error ? error : new Error(String(error || code));
+  normalized.nonRetryable = true;
+  normalized.code = normalized.code || code;
+  return normalized;
+}
+
+function isNonRetryableError(error) {
+  if (error?.nonRetryable === true) return true;
+  if (error?.name === 'AbortError') return true;
+  if (error?.message === 'Operation cancelled') return true;
+  return false;
+}
+
 async function retryAsync(fn, retries = 3, delayMs = 1000, onRetryAttempt) {
   const attempts = Math.max(1, Number.parseInt(retries, 10) || 1);
   let lastError;
@@ -135,19 +181,7 @@ async function retryAsync(fn, retries = 3, delayMs = 1000, onRetryAttempt) {
   });
 }
 
-function markNonRetryableError(error, code = 'NON_RETRYABLE') {
-  const normalizedError = error instanceof Error ? error : new Error(String(error || code));
-  normalizedError.nonRetryable = true;
-  normalizedError.code = normalizedError.code || code;
-  return normalizedError;
-}
-
-function isNonRetryableError(error) {
-  if (error?.nonRetryable === true) return true;
-  if (error?.name === 'AbortError') return true;
-  if (error?.message === 'Operation cancelled') return true;
-  return false;
-}
+// --- File system helpers ---
 
 async function clearDownloadsDirectory(directoryPath, skipIfEnabled = KEEP_DOWNLOADS_ON_FAILURE) {
   if (skipIfEnabled) {
@@ -184,43 +218,25 @@ function sanitizeFilename(filename) {
   return (
     String(filename || 'untitled')
       .normalize('NFKC')
+      // eslint-disable-next-line no-control-regex
       .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
       .replace(/[.\s]+$/g, '')
       .slice(0, 180) || 'untitled'
   );
 }
 
-function normalizeRobloxCookie(cookieValue) {
-  if (typeof cookieValue !== 'string') return '';
-
-  let normalized = cookieValue.trim().replace(/^['"]+|['"]+$/g, '');
-  const prefixedMatch = normalized.match(/(?:^|;\s*)\.ROBLOSECURITY=([^;]+)/i);
-
-  if (prefixedMatch?.[1]) normalized = prefixedMatch[1].trim();
-  normalized = normalized
-    .replace(/^\.ROBLOSECURITY=/i, '')
-    .replace(/[;\r\n]+$/g, '')
-    .trim();
-
-  return normalized;
-}
-
-function buildRobloxCookieHeader(cookieValue) {
-  const normalized = normalizeRobloxCookie(cookieValue);
-  return normalized ? `.ROBLOSECURITY=${normalized}` : '';
-}
-
 module.exports = {
-  retryAsync,
+  DEVELOPER_MODE,
+  KEEP_DOWNLOADS_ON_FAILURE,
+  LOG_TO_FILE,
+  sleep,
   markNonRetryableError,
   isNonRetryableError,
+  retryAsync,
   clearDownloadsDirectory,
   sanitizeFilename,
   normalizeRobloxCookie,
   buildRobloxCookieHeader,
   initializeFileLogging,
   sanitizeLogMessage,
-  DEVELOPER_MODE,
-  KEEP_DOWNLOADS_ON_FAILURE,
-  LOG_TO_FILE,
 };

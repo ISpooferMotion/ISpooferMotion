@@ -15,7 +15,7 @@
 
 .ui-button {
   min-height: var(--control-height-sm);
-  padding: 0 10px;
+  padding: 0 var(--spacing-md);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   color: var(--text);
@@ -23,27 +23,45 @@
   font-size: 12px;
   font-weight: 800;
   -webkit-app-region: no-drag;
+  transition: all var(--transition-fast);
 }
 
-.ui-button:hover {
+.ui-button:hover:not(:disabled) {
   border-color: var(--line-strong);
   background: var(--surface-control-hover);
+  transform: translateY(-1px);
+}
+
+.ui-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.ui-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ui-button-primary,
 .primary-action {
-  padding: 8px 16px;
+  padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
   color: var(--text);
   background: var(--accent);
   border-color: transparent !important;
   font-size: 13px;
   font-weight: 850;
+  transition: all var(--transition-fast);
 }
 
-.primary-action:hover,
-.ui-button-primary:hover {
+.primary-action:hover:not(:disabled),
+.ui-button-primary:hover:not(:disabled) {
   background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.primary-action:active:not(:disabled),
+.ui-button-primary:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .ui-button-danger {
@@ -72,15 +90,23 @@
   color: var(--muted);
   background: var(--surface-control);
   -webkit-app-region: no-drag;
+  transition: all var(--transition-fast);
 }
 
-.ui-icon-button:hover,
-.icon-button:hover,
-.top-social:hover,
-.window-controls button:hover {
+.ui-icon-button:hover:not(:disabled),
+.icon-button:hover:not(:disabled),
+.top-social:hover:not(:disabled),
+.window-controls button:hover:not(:disabled) {
   color: var(--text);
   border-color: var(--line-strong);
   background: var(--surface-control-hover);
+}
+
+.ui-icon-button:active:not(:disabled),
+.icon-button:active:not(:disabled),
+.top-social:active:not(:disabled),
+.window-controls button:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .ui-icon-button svg,
@@ -89,6 +115,7 @@
 .window-controls svg {
   width: 16px;
   height: 16px;
+  transition: transform var(--transition-fast);
 }
 .discord-button svg {
   width: 17px;
@@ -109,29 +136,33 @@
   color: var(--text);
   background: var(--surface-input);
   outline: none;
+  transition: all var(--transition-fast);
 }
 
 .ui-input {
   height: var(--control-height-md);
-  padding: 0 10px;
+  padding: 0 var(--spacing-md);
 }
 
 .ui-textarea {
   min-height: 96px;
   resize: none;
-  padding: 10px 11px;
+  padding: var(--spacing-sm) var(--spacing-md);
   line-height: 1.45;
 }
 
 .ui-input:focus,
 .ui-textarea:focus {
   border-color: var(--accent-line);
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .ui-input:disabled,
 .ui-input[readonly] {
   color: var(--muted-2);
   background: var(--surface-control);
+  opacity: 0.7;
 }
 
 .ui-action-row {

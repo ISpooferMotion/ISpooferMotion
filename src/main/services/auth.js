@@ -9,6 +9,8 @@ const fs = require('node:fs/promises');
 const { DEVELOPER_MODE } = require('./common');
 const { createRobloxSession } = require('./roblox-session');
 
+// --- Constants & Config ---
+
 const execFileAsync = promisify(execFile);
 // New Roblox cookies are not guaranteed to keep the old hex-only suffix. Keep
 // auto-detection format-agnostic so rotated cookies from the 2026 rollout work.
@@ -18,6 +20,8 @@ const ROBLOX_STUDIO_COOKIE_TARGET = 'https://www.roblox.com:RobloxStudioAuth.ROB
 const ROBLOX_USER_AGENT = 'RobloxStudio/WinInet';
 const DEFAULT_TIMEOUT_MS = 15_000;
 const BROWSER_COOKIE_SCAN_BYTES = 25 * 1024 * 1024;
+
+// --- Network & Debug Utilities ---
 
 function debugLog(...args) {
   if (DEVELOPER_MODE) console.log(...args);
@@ -54,6 +58,8 @@ async function readJsonResponse(response, context) {
   }
   return data;
 }
+
+// --- Cookie Extraction & File Scanning ---
 
 function extractRobloxCookie(rawValue) {
   if (!rawValue) return undefined;
@@ -177,12 +183,16 @@ async function getCookieFromBrowserProfiles() {
 }
 
 async function getCookieFromAutoDetect(userId = null) {
-  const studioAttempt = getCookieFromRobloxStudio(userId).then((cookie) => ({ source: 'studio', cookie, id: 'studio' })).catch((err) => {
+  const studioAttempt = getCookieFromRobloxStudio(userId)
+    .then((cookie) => ({ source: 'studio', cookie, id: 'studio' }))
+    .catch((err) => {
       debugWarn('(Dev) Studio cookie auto-detect failed:', err.message);
       return { source: 'studio', cookie: undefined, id: 'studio' };
     });
   studioAttempt.id = 'studio';
-  const browserAttempt = getCookieFromBrowserProfiles().then((cookie) => ({ source: 'browser', cookie, id: 'browser' })).catch((err) => {
+  const browserAttempt = getCookieFromBrowserProfiles()
+    .then((cookie) => ({ source: 'browser', cookie, id: 'browser' }))
+    .catch((err) => {
       debugWarn('(Dev) Browser cookie auto-detect failed:', err.message);
       return { source: 'browser', cookie: undefined, id: 'browser' };
     });
@@ -199,6 +209,8 @@ async function getCookieFromAutoDetect(userId = null) {
   }
   return undefined;
 }
+
+// --- Platform-Specific Extractors ---
 
 /**
  * Retrieves Roblox cookie from Roblox Studio or Windows Credential Manager.
@@ -282,6 +294,8 @@ async function getCookieFromRobloxStudio(userId = null) {
 
   return undefined;
 }
+
+// --- Roblox API Methods ---
 
 /**
  * Fetches CSRF token from Roblox auth endpoint.

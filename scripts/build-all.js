@@ -9,7 +9,9 @@ const root = path.resolve(__dirname, '..');
 
 function resolveCommand(command, args) {
   if (process.platform !== 'win32' || command !== 'npm') return { command, args };
-  const npmCliPath = process.env.npm_execpath || path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  const npmCliPath =
+    process.env.npm_execpath ||
+    path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
   if (!fs.existsSync(npmCliPath)) throw new Error(`npm CLI not found: ${npmCliPath}`);
   return { command: process.execPath, args: [npmCliPath, ...args] };
 }

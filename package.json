@@ -1,6 +1,6 @@
 {
   "name": "ispoofermotion",
-  "version": "1.3.14-hotfix.1",
+  "version": "1.3.15",
   "main": "src/main/app.js",
   "description": "Animation spoofing utility for Roblox",
   "author": {
@@ -11,25 +11,26 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "test": "node scripts/run-syntax-check.js && node --test",
+    "test": "node --test",
     "build:renderer": "node scripts/build-renderer.js",
     "build": "npm run build:renderer && electron-builder",
     "build:plugin": "node scripts/build-plugin-rbxmx.js",
-    "clean": "node scripts/clean.js",
     "build:all": "node scripts/build-all.js",
-    "release:local-check": "node scripts/release-local-check.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "release:virustotal": "node scripts/upload-virustotal-release-assets.js",
-    "release:hardening-check": "node scripts/release-hardening-check.js",
     "release:verify-assets": "node scripts/verify-release-assets.js",
-    "release:check": "npm run release:local-check && node scripts/release-hardening-check.js --allow-generated-output",
     "postinstall": "electron-builder install-app-deps",
     "ci:install": "node scripts/ci-install.js",
     "rebuild:native": "electron-builder install-app-deps",
     "format": "prettier --write ."
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "electron": "^42.2.0",
     "electron-builder": "^26.8.1",
+    "eslint": "^10.4.1",
+    "globals": "^17.6.0",
     "png-to-ico": "^3.0.1",
     "prettier": "^3.8.3"
   },
@@ -114,7 +115,6 @@
         }
       ]
     },
-    "afterPack": "scripts/apply-windows-icon.js",
     "artifactName": "ISpooferMotion-App-${version}-${os}-${arch}.${ext}",
     "forceCodeSigning": false,
     "asarUnpack": [
