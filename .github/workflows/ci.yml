@@ -75,7 +75,13 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-        run: npm run build -- --win nsis --publish never
+        shell: pwsh
+        run: |
+          if (-not $env:AZURE_TENANT_ID) {
+            Write-Host "No Azure credentials found. Skipping code signing."
+            node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); delete pkg.build.win.azureSignOptions; pkg.build.win.signAndEditExecutable = false; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+          }
+          npm run build -- --win nsis --publish never
 
       - name: Build Roblox Studio plugin (Windows only)
         if: runner.os == 'Windows' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != ''))
