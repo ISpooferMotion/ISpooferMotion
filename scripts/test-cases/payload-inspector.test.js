@@ -6,7 +6,6 @@ const {
   detectAnimationPayload,
   detectAudioPayload,
 } = require('../../src/main/services/payload-inspector');
-const { buildUploadFileDescriptor } = require('../../src/main/services/transfer-handlers');
 
 test('detects supported audio signatures and upload descriptors', () => {
   const cases = [
@@ -22,29 +21,17 @@ test('detects supported audio signatures and upload descriptors', () => {
     assert.equal(metadata.format, format);
     assert.equal(metadata.extension, extension);
     assert.equal(metadata.mimeType, mimeType);
-    assert.deepEqual(buildUploadFileDescriptor('Morning Theme', metadata), {
-      fileName: `Morning Theme${extension}`,
-      fileType: mimeType,
-    });
   }
 });
 
 test('detects binary and XML Roblox animation payloads', () => {
   const binary = detectAnimationPayload(Buffer.from('<roblox!\x89\xff\r\n'));
   assert.equal(binary.format, 'rbxm-binary');
-  assert.deepEqual(buildUploadFileDescriptor('Run Cycle', binary), {
-    fileName: 'Run Cycle.rbxm',
-    fileType: 'model/x-rbxm',
-  });
 
   const xml = detectAnimationPayload(
     Buffer.from('<?xml version="1.0" encoding="utf-8"?><roblox version="4"></roblox>'),
   );
   assert.equal(xml.format, 'rbxmx');
-  assert.deepEqual(buildUploadFileDescriptor('Run Cycle', xml), {
-    fileName: 'Run Cycle.rbxmx',
-    fileType: 'model/x-rbxm',
-  });
 });
 
 test('rejects empty, HTML, JSON, unknown XML, and unknown binary payloads locally', () => {

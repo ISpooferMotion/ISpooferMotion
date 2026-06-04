@@ -3,7 +3,7 @@
 const fsSync = require('node:fs');
 const fs = require('node:fs/promises');
 const { setTimeout: delay } = require('node:timers/promises');
-const { DEVELOPER_MODE, buildRobloxCookieHeader } = require('./common');
+const { DEVELOPER_MODE } = require('./common');
 
 // --- Upload configuration ---
 
@@ -340,7 +340,7 @@ async function pollUploadOperation(responseData, apiKey, assetType, transferId, 
  */
 async function downloadAnimationAssetWithProgress(
   url,
-  robloxCookie,
+  robloxSession,
   filePath,
   transferId,
   entryName,
@@ -349,7 +349,7 @@ async function downloadAnimationAssetWithProgress(
   placeId = null,
   options = {},
 ) {
-  const cookieHeader = buildRobloxCookieHeader(robloxCookie);
+  const cookieHeader = robloxSession.getCookieHeader();
 
   if (!cookieHeader) {
     const error = 'Missing or invalid ROBLOSECURITY cookie';
@@ -387,7 +387,7 @@ async function downloadAnimationAssetWithProgress(
 
   for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
     try {
-      const fetchHeaders = { Cookie: cookieHeader };
+      const fetchHeaders = {};
       if (placeId) {
         fetchHeaders['Roblox-Place-Id'] = String(placeId);
         fetchHeaders['User-Agent'] = 'RobloxStudio/WinInet';
@@ -398,6 +398,7 @@ async function downloadAnimationAssetWithProgress(
         url,
         { headers: fetchHeaders, redirect: 'follow', signal: options.abortSignal },
         timeoutMs,
+        robloxSession.fetch.bind(robloxSession)
       );
 
       if (!response.ok) {
@@ -582,151 +583,7 @@ async function publishAnimationRbxmWithProgress(
   }
 }
 
-// --- Public: Upload (audio via Roblox publish endpoint) ---
-
-/**
- * Publishes an audio file via the legacy Roblox IDE publish endpoint.
- * Used as the primary audio upload path since it does not require Open Cloud.
- */
-async function publishAudioViaIdeEndpoint(
-  filePath,
-  name,
-  cookie,
-  csrfToken,
-  groupId = null,
-  transferId,
-  sendTransferUpdate,
-  options = {},
-) {
-  let fileBuffer;
-  try {
-    fileBuffer = await fs.readFile(filePath);
-  } catch (error) {
-    const message = `File system error: ${getErrorMessage(error)}`;
-    sendTransferUpdateSafe(sendTransferUpdate, {
-      id: transferId,
-      name,
-      status: 'error',
-      direction: 'upload',
-      error: message,
-    });
-    return { success: false, error: message };
-  }
-
-  sendTransferUpdateSafe(sendTransferUpdate, {
-    id: transferId,
-    name,
-    size: fileBuffer.length,
-    status: 'processing',
-    direction: 'upload',
-    progress: 0,
-    error: null,
-  });
-
-  if (!cookie || !csrfToken) {
-    const error = 'Missing Roblox credentials for audio upload.';
-    sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error, progress: 0 });
-    return { success: false, error };
-  }
-
-  const base64File = fileBuffer.toString('base64');
-  let currentName = sanitizeUploadName(name);
-
-  for (let attempt = 0; attempt <= MAX_UPLOAD_RATE_LIMIT_RETRIES; attempt += 1) {
-    const bodyPayload = {
-      name: currentName,
-      file: base64File,
-      estimatedFileSize: fileBuffer.length,
-    };
-    if (groupId) bodyPayload.groupId = Number(groupId);
-
-    await waitUploadStartSlot();
-
-    let response;
-    try {
-      response = await fetchWithTimeout(
-        'https://publish.roblox.com/v1/audio',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'RobloxStudio/WinInet',
-            'Cookie': buildRobloxCookieHeader(cookie),
-            'x-csrf-token': csrfToken,
-          },
-          body: JSON.stringify(bodyPayload),
-          signal: options.abortSignal,
-        },
-        60000,
-      );
-    } catch (err) {
-      if (attempt >= MAX_UPLOAD_RATE_LIMIT_RETRIES) {
-        const errMsg = `Upload failed after ${MAX_UPLOAD_RATE_LIMIT_RETRIES} retries: ${getErrorMessage(err)}`;
-        sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: errMsg, progress: 0 });
-        return { success: false, error: errMsg };
-      }
-      await delay(getRetryAfterMs(null, attempt + 1));
-      continue;
-    }
-
-    const responseData = await readJsonResponse(response);
-
-    if (response.status === 429) {
-      const waitMs = getRetryAfterMs(response, attempt + 1);
-      if (DEVELOPER_MODE) console.log(`[UPLOAD DEBUG] Audio rate limited, pausing for ${waitMs}ms`);
-      sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'processing', progress: 0 });
-      setRateLimit(waitMs);
-      await waitRateLimit();
-      continue;
-    }
-
-    if (!response.ok) {
-      const errors = responseData?.errors || [];
-      if (response.status === 400 && errors.length > 0) {
-        // Roblox moderated the name - retry with a generic fallback name.
-        if (errors[0].message === 'Audio name or description is moderated.') {
-          currentName = 'Audio';
-          continue;
-        }
-        const msg = `Audio upload rejected: ${errors[0].message}`;
-        sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
-        return { success: false, error: msg };
-      }
-      if (response.status === 403 && errors.length > 0) {
-        if (errors[0].message.includes('Token Validation Failed')) {
-          const msg = 'CSRF Token Invalid';
-          sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
-          return { success: false, error: msg };
-        }
-      }
-      const msg = `Audio upload failed (${response.status}): ${JSON.stringify(responseData || {})}`;
-      sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
-      return { success: false, error: msg };
-    }
-
-    const assetId = responseData?.id || responseData?.Id;
-    if (assetId) {
-      sendTransferUpdateSafe(sendTransferUpdate, {
-        id: transferId,
-        progress: 100,
-        status: 'completed',
-        newAssetId: String(assetId),
-      });
-      return { success: true, assetId: String(assetId) };
-    }
-
-    const msg = `Unexpected audio response: ${JSON.stringify(responseData || {})}`;
-    sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: msg, progress: 0 });
-    return { success: false, error: msg };
-  }
-
-  const errStr = `Rate limit hit after ${MAX_UPLOAD_RATE_LIMIT_RETRIES} retries.`;
-  sendTransferUpdateSafe(sendTransferUpdate, { id: transferId, status: 'error', error: errStr, progress: 0 });
-  return { success: false, error: errStr };
-}
-
 module.exports = {
   downloadAnimationAssetWithProgress,
   publishAnimationRbxmWithProgress,
-  publishAudioViaIdeEndpoint,
 };

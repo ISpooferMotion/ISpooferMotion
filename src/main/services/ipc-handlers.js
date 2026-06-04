@@ -8,9 +8,10 @@ const { app, dialog, ipcMain, shell, Notification, nativeImage } = require('elec
 const { DEVELOPER_MODE, buildRobloxCookieHeader, clearDownloadsDirectory, retryAsync, sanitizeFilename } = require('./common');
 const { getPlaceIdFromCreator, getPlaceSuggestionsFromCreator, getPlaceSuggestionByPlaceId } = require('./assets');
 const { getCookieFromAutoDetect, getAuthenticatedUserId, getCsrfToken, readResponseText } = require('./auth');
-const { downloadAnimationAssetWithProgress, publishAnimationRbxmWithProgress, publishAudioViaIdeEndpoint } = require('./transfer-handlers');
+const { downloadAnimationAssetWithProgress, publishAnimationRbxmWithProgress } = require('./transfer-handlers');
 const { loadJobs, saveJobRecord, deleteJobRecord } = require('./jobs');
 const { saveSession, loadSession, clearSession } = require('./session');
+const { createRobloxSession } = require('./roblox-session');
 const { pauseSpoofer, resumeSpoofer, cancelSpoofer, resetRunControls, checkCancelled, checkPaused, getAbortSignal } = require('./ProcessManager');
 const { pushReplacement } = require('./localhost-plugin-server');
 const { buildFinalUploadName } = require('./replacement-utils');
@@ -241,19 +242,17 @@ function getAssetNameFromDetails(data) {
   return '';
 }
 
-async function fetchAssetName(assetId, robloxCookie) {
+async function fetchAssetName(assetId, robloxSession) {
   const encodedAssetId = encodeURIComponent(String(assetId));
-  const cookieHeader = buildRobloxCookieHeader(robloxCookie);
   const headers = {
     'User-Agent': 'RobloxStudio/WinInet',
   };
-  if (cookieHeader) headers.Cookie = cookieHeader;
 
   const urls = [`https://economy.roblox.com/v2/assets/${encodedAssetId}/details`, `https://api.roblox.com/marketplace/productinfo?assetId=${encodedAssetId}`];
 
   for (const url of urls) {
     try {
-      const response = await fetch(url, { headers });
+      const response = await robloxSession.fetch(url, { headers });
       if (!response.ok) continue;
       const data = await response.json();
       const name = getAssetNameFromDetails(data);
@@ -268,14 +267,14 @@ async function fetchAssetName(assetId, robloxCookie) {
   return '';
 }
 
-async function resolveAssetEntryNames(entries, robloxCookie, options = {}) {
+async function resolveAssetEntryNames(entries, robloxSession, options = {}) {
   const { force = false, isSoundMode = false } = options;
   const entriesToResolve = entries.filter((entry) => shouldRefreshAssetName(entry, force));
   if (entriesToResolve.length === 0) return 0;
 
   let resolvedCount = 0;
   await runWithConcurrency(entriesToResolve, Math.min(entriesToResolve.length, 8), async (entry) => {
-    const resolvedName = await fetchAssetName(entry.id, robloxCookie);
+    const resolvedName = await fetchAssetName(entry.id, robloxSession);
     if (!resolvedName) return;
 
     const oldName = entry.name;
@@ -991,15 +990,14 @@ function registerIpcHandlers(getMainWindowFn, sendTransferUpdate, sendSpooferRes
         return { error: 'No cookie provided' };
       }
 
-      const cookieHeader = buildRobloxCookieHeader(cookie);
-      if (!cookieHeader) {
+      const robloxSession = createRobloxSession(cookie);
+      if (!robloxSession.getCookieHeader()) {
         return { error: 'Invalid ROBLOSECURITY cookie format' };
       }
 
       if (DEVELOPER_MODE) console.log('(Dev) Fetching from Roblox API...');
-      const response = await fetch('https://publish.roblox.com/v1/asset-quotas?resourceType=RateLimitUpload&assetType=Audio', {
+      const response = await robloxSession.fetch('https://publish.roblox.com/v1/asset-quotas?resourceType=RateLimitUpload&assetType=Audio', {
         headers: {
-          Cookie: cookieHeader,
           'User-Agent': 'RobloxStudio/WinInet',
         },
       });
@@ -1234,6 +1232,8 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
     return;
   }
 
+  const robloxSession = createRobloxSession(robloxCookie);
+
   // Get CSRF token
   let csrfToken;
   try {
@@ -1261,7 +1261,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
   }
 
   try {
-    const resolvedNameCount = await resolveAssetEntryNames(animationEntries, robloxCookie, {
+    const resolvedNameCount = await resolveAssetEntryNames(animationEntries, robloxSession, {
       force: data.downloadOnly,
       isSoundMode,
     });
@@ -1473,12 +1473,11 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
           let resp;
           let caughtErr = null;
           try {
-            resp = await fetch('https://assetdelivery.roblox.com/v2/assets/batch', {
+            resp = await robloxSession.fetch('https://assetdelivery.roblox.com/v2/assets/batch', {
               method: 'POST',
               headers: {
                 'User-Agent': 'RobloxStudio/WinInet',
                 'Content-Type': 'application/json',
-                Cookie: buildRobloxCookieHeader(robloxCookie),
                 'Roblox-Place-Id': String(placeId),
               },
               body: JSON.stringify(itemsWithoutCreator),
@@ -1806,12 +1805,7 @@ async function handleSpooferAction(data, getMainWindowFn, sendTransferUpdate, se
         await checkPaused();
         const finalName = buildFinalUploadName(entry, data);
 
-        let result;
-        if (assetTypeName === 'Audio') {
-          result = await publishAudioViaIdeEndpoint(filePath, finalName, robloxCookie, csrfToken, data.groupId && String(data.groupId).trim() ? data.groupId : null, uploadTransferId, sendTransferUpdate, { abortSignal: getAbortSignal() });
-        } else {
-          result = await publishAnimationRbxmWithProgress(filePath, finalName, robloxCookie, csrfToken, data.groupId && String(data.groupId).trim() ? data.groupId : null, uploadTransferId, sendTransferUpdate, assetTypeName, data.apiKey || null, authenticatedUserId || null, { abortSignal: getAbortSignal() });
-        }
+        let result = await publishAnimationRbxmWithProgress(filePath, finalName, robloxCookie, csrfToken, data.groupId && String(data.groupId).trim() ? data.groupId : null, uploadTransferId, sendTransferUpdate, assetTypeName, data.apiKey || null, authenticatedUserId || null, { abortSignal: getAbortSignal() });
         if (!result.success) throw new Error(result.error || 'Upload failed');
         return result;
       };
