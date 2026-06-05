@@ -21,6 +21,7 @@ const INVOKE_CHANNELS = new Set([
   'save-profile-secrets',
   'get-roblox-profile',
   'validate-opencloud-api-key',
+  'detect-opencloud-api-key-owner',
   'search-place-ids',
   'fetch-audio-quota',
   'select-folder',
@@ -117,6 +118,8 @@ const electronAPI = Object.freeze({
   saveProfileSecrets: (data) => invoke('save-profile-secrets', asRecord(data)),
   getRobloxProfile: (context) => invoke('get-roblox-profile', asRecord(context)),
   validateOpenCloudApiKey: (apiKey) => invoke('validate-opencloud-api-key', String(apiKey || '')),
+  detectOpenCloudApiKeyOwner: (apiKey) =>
+    invoke('detect-opencloud-api-key-owner', String(apiKey || '')),
   searchPlaceIds: (context) => invoke('search-place-ids', asRecord(context)),
 
   runSpooferAction: (data) => send('run-spoofer-action', asRecord(data)),

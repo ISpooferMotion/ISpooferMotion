@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.15-hotfix.1
+
+- Fixed asset downloads failing with 403 "User is not authorized to access Asset" errors. The Studio identity headers (User-Agent, Roblox-Browser-Asset-Request) are now only sent when a Place ID is provided, matching the original working behavior. Without a Place ID, Roblox was rejecting requests that claimed Studio identity but lacked Studio context.
+- Fixed uploads failing with 403 "User X is unauthorized to create an asset as User Y" when the cookie and Open Cloud API key belonged to different accounts. The app now auto-detects the API key's owner by probing the Assets API and uses that user ID as the upload creator instead of the cookie's user.
+- Added an "API key owner" hint in the Profiles view. When you save a valid API key, the status message now shows the detected owner user ID so you can verify uploads will land on the correct account.
+- Sped up uploads. The upload status poll interval dropped from 2 seconds to 500 ms so completed uploads are confirmed roughly four times faster. Tightened the rate-limit safety buffer and minimum start spacing so the app uses more of the Open Cloud quota without hitting 429s.
+
 ## v1.3.15
 
 - **Cookie Expiration Fixes**: Updated internal systems to correctly accept and rotate Roblox's new `.ROBLOSECURITY` cookies during spoofing runs, preventing session drops caused by the mid-2026 platform changes.
