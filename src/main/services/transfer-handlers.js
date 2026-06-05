@@ -14,9 +14,10 @@ const DOWNLOAD_DEFAULTS = Object.freeze({
 });
 
 const MAX_UPLOAD_RATE_LIMIT_RETRIES = 10000;
-const MAX_UPLOAD_POLL_ATTEMPTS = 120;
-const UPLOAD_POLL_INTERVAL_MS = 2_000;
-const UPLOAD_START_FALLBACK_INTERVAL_MS = 100;
+// Poll up to ~90s total (180 attempts × 500ms) for slow Roblox processing.
+const MAX_UPLOAD_POLL_ATTEMPTS = 180;
+const UPLOAD_POLL_INTERVAL_MS = 500;
+const UPLOAD_START_FALLBACK_INTERVAL_MS = 50;
 const ASSET_UPLOAD_URL = 'https://apis.roblox.com/assets/v1/assets';
 
 // --- Global upload rate limiting ---
@@ -42,14 +43,14 @@ function updateUploadRateLimitFromHeaders(response) {
   const resetSeconds = Number.parseFloat(response?.headers?.get('x-ratelimit-reset') || '');
   if (!Number.isFinite(remaining) || !Number.isFinite(resetSeconds) || resetSeconds <= 0) return;
 
-  if (remaining <= 2) {
+  if (remaining <= 1) {
     setRateLimit(Math.ceil(resetSeconds * 1000) + 250);
     return;
   }
 
   uploadStartIntervalMs = Math.max(
-    250,
-    Math.min(5_000, Math.ceil((resetSeconds * 1000) / Math.max(1, remaining - 2))),
+    100,
+    Math.min(5_000, Math.ceil((resetSeconds * 1000) / Math.max(1, remaining - 1))),
   );
 }
 
@@ -426,12 +427,11 @@ async function downloadAnimationAssetWithProgress(
 
   for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
     try {
-      const fetchHeaders = {
-        'User-Agent': 'RobloxStudio/WinInet',
-        'Roblox-Browser-Asset-Request': 'false',
-      };
+      const fetchHeaders = {};
       if (placeId) {
         fetchHeaders['Roblox-Place-Id'] = String(placeId);
+        fetchHeaders['User-Agent'] = 'RobloxStudio/WinInet';
+        fetchHeaders['Roblox-Browser-Asset-Request'] = 'false';
       }
 
       const response = await fetchWithTimeout(

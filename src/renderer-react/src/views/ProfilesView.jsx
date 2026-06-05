@@ -182,7 +182,10 @@ export default function ProfilesView({ isActive }) {
         return;
       }
       await updateProfile({ apiKey: trimmed });
-      setApiKeyStatus(result.message || 'API key saved.');
+      const ownerHint = result.ownerUserId
+        ? ` Detected API key owner: user ${result.ownerUserId}. Uploads will target this user unless a group is set.`
+        : '';
+      setApiKeyStatus((result.message || 'API key saved.') + ownerHint);
     } catch (err) {
       setApiKeyStatus(`Could not validate API key: ${err.message}`);
     }

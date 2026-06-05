@@ -620,6 +620,92 @@ function parsePlaceLookupInput(input, explicitType) {
   return { lookupType: 'creator', creatorType, creatorId: id };
 }
 
+/**
+ * Detects the user ID that owns an Open Cloud API key by triggering a
+ * deliberate unauthorized error and parsing the owner from the response.
+ *
+ * Roblox's Open Cloud returns errors like:
+ *   "User 1200373902 is unauthorized to create an Animation asset as User 0"
+ * The first number is the API key's owner. We extract it via regex.
+ *
+ * Returns { ok, ownerUserId, message }.
+ */
+async function detectOpenCloudApiKeyOwner(apiKey) {
+  const key = String(apiKey || '').trim();
+  if (!key) {
+    return { ok: false, ownerUserId: null, message: 'API key is required to detect owner.' };
+  }
+
+  try {
+    // Build a minimal valid-shaped FormData request that will be rejected for
+    // a creator mismatch (the key's owner can never be user 0).
+    const dummyBuffer = Buffer.from([0]);
+    const formData = new FormData();
+    formData.append(
+      'request',
+      JSON.stringify({
+        assetType: 'Audio',
+        displayName: 'ownership-probe',
+        description: 'probe',
+        // User ID 1 is the official Roblox account — always valid as a creator
+        // type, and the API key will never own it, so the auth check returns
+        // a "User <owner> is unauthorized..." error revealing the owner.
+        creationContext: { creator: { userId: '1' } },
+      }),
+    );
+    formData.append(
+      'fileContent',
+      new Blob([dummyBuffer], { type: 'audio/ogg' }),
+      'probe.ogg',
+    );
+
+    const response = await fetch('https://apis.roblox.com/assets/v1/assets', {
+      method: 'POST',
+      headers: { 'x-api-key': key },
+      body: formData,
+    });
+    const text = await readResponseText(response, 1000);
+
+    if (DEVELOPER_MODE) {
+      console.log(
+        `[OWNER DETECT] Probe response status=${response.status} body=${text}`,
+      );
+    }
+
+    // Parse the owner from the error message. Pattern matches:
+    //   "User 1200373902 is unauthorized"
+    const match = text.match(/User\s+(\d+)\s+is\s+unauthorized/i);
+    if (match && match[1]) {
+      return {
+        ok: true,
+        ownerUserId: match[1],
+        message: `Detected API key owner: user ${match[1]}.`,
+      };
+    }
+
+    // 401 = invalid key entirely; no owner to detect.
+    if (response.status === 401) {
+      return {
+        ok: false,
+        ownerUserId: null,
+        message: 'API key was rejected by Roblox; cannot detect owner.',
+      };
+    }
+
+    return {
+      ok: false,
+      ownerUserId: null,
+      message: `Could not detect API key owner (Roblox returned ${response.status}). Enter the user ID manually.`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      ownerUserId: null,
+      message: `Could not reach Roblox to detect API key owner: ${err.message}.`,
+    };
+  }
+}
+
 async function validateOpenCloudApiKey(apiKey) {
   const key = String(apiKey || '').trim();
   if (!key) {
@@ -737,8 +823,24 @@ function registerIpcHandlers(
   handleIpc('load-profile-secrets', () => loadProfileSecrets());
   handleIpc('save-profile-secrets', (_event, data) => saveProfileSecrets(data));
   handleIpc('get-roblox-profile', (_event, context) => getRobloxProfile(context));
-  handleIpc('validate-opencloud-api-key', async (_event, apiKey) =>
-    validateOpenCloudApiKey(apiKey),
+  handleIpc('validate-opencloud-api-key', async (_event, apiKey) => {
+    const validation = await validateOpenCloudApiKey(apiKey);
+    // Best-effort owner detection — does not change validation result.
+    if (validation.ok) {
+      try {
+        const owner = await detectOpenCloudApiKeyOwner(apiKey);
+        if (owner.ok && owner.ownerUserId) {
+          validation.ownerUserId = owner.ownerUserId;
+        }
+      } catch {
+        /* ignore detection errors; validation stands on its own */
+      }
+    }
+    return validation;
+  });
+
+  handleIpc('detect-opencloud-api-key-owner', async (_event, apiKey) =>
+    detectOpenCloudApiKeyOwner(apiKey),
   );
   handleIpc('search-place-ids', async (_event, payload) => {
     const context = normalizePayload(payload);
@@ -1983,18 +2085,31 @@ async function handleSpooferAction(
     downloadOne,
   );
 
-  // Resolve the authenticated user ID once before the upload loop (needed for user-owned uploads)
+  // Resolve the upload creator user ID once before the upload loop.
+  // Open Cloud requires the creator to match the API key's owner, so we
+  // detect the API key owner first and only fall back to the cookie user
+  // ID if detection fails (e.g. older keys, network issues).
   let authenticatedUserId = null;
   if (!data.downloadOnly && data.apiKey && !data.groupId) {
     try {
-      authenticatedUserId = await getAuthenticatedUserId(robloxCookie);
-      if (DEVELOPER_MODE)
-        console.log(`(Dev) Resolved authenticated user ID for upload: ${authenticatedUserId}`);
+      const ownerDetection = await detectOpenCloudApiKeyOwner(data.apiKey);
+      if (ownerDetection.ok && ownerDetection.ownerUserId) {
+        authenticatedUserId = ownerDetection.ownerUserId;
+        if (DEVELOPER_MODE)
+          console.log(`(Dev) Resolved upload user ID from API key: ${authenticatedUserId}`);
+      } else {
+        // Fall back to cookie-derived user ID.
+        authenticatedUserId = await getAuthenticatedUserId(robloxCookie);
+        if (DEVELOPER_MODE)
+          console.log(
+            `(Dev) Resolved upload user ID from cookie (API key detection failed): ${authenticatedUserId}`,
+          );
+      }
     } catch (err) {
       if (DEVELOPER_MODE)
-        console.warn(`(Dev) Could not resolve authenticated user ID: ${err.message}`);
+        console.warn(`(Dev) Could not resolve upload user ID: ${err.message}`);
       sendSpooferResultToRenderer({
-        output: `Failed to resolve your Roblox user ID: ${err.message}\n\nMake sure your cookie is valid.`,
+        output: `Failed to resolve your Roblox user ID: ${err.message}\n\nMake sure your cookie and API key are valid.`,
         success: false,
       });
       return;
