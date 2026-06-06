@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.15-hotfix.2
+
+- Improved asset metadata handling, place context tracking, and payload validation across the main process and plugin.
+- Refactored resolve/fetch logic to return richer metadata and added helpers for place ID normalization, batch locations, asset parsing, and validation.
+- Improved download handling with audio payload validation/renaming, direct-URL fallback retries, and better mixed-success batch behavior.
+- Updated upload validation to catch invalid payloads before network requests and report non-retryable errors.
+- Updated localhost and Studio plugin output formatting to include optional [Place:<id>] context.
+
 ## v1.3.15-hotfix.1
 
 - Fixed asset downloads failing with 403 "User is not authorized to access Asset" errors. The Studio identity headers (User-Agent, Roblox-Browser-Asset-Request) are now only sent when a Place ID is provided, matching the original working behavior. Without a Place ID, Roblox was rejecting requests that claimed Studio identity but lacked Studio context.
