@@ -74,7 +74,12 @@ function normalizeCreatorType(value) {
   return text.includes('group') ? 'Group' : 'User';
 }
 
-function normalizeAssetEntry(entry) {
+function normalizePlaceId(value) {
+  const id = firstNumericId(value);
+  return id && id !== '0' ? id : '';
+}
+
+function normalizeAssetEntry(entry, defaultPlaceId = '') {
   if (typeof entry === 'string' || typeof entry === 'number') {
     const id = firstNumericId(entry);
     if (!id) return null;
@@ -83,6 +88,7 @@ function normalizeAssetEntry(entry) {
       name: 'Unknown',
       creatorType: 'User',
       creatorId: '',
+      placeId: normalizePlaceId(defaultPlaceId),
     };
   }
 
@@ -116,10 +122,12 @@ function normalizeAssetEntry(entry) {
     name: cleanText(entry.name || entry.assetName || entry.Name, assetId),
     creatorType,
     creatorId,
+    placeId: normalizePlaceId(entry.placeId || entry.PlaceId || entry.place?.id || defaultPlaceId),
   };
 }
 
 function normalizeAssets(payload) {
+  const payloadPlaceId = normalizePlaceId(payload?.placeId || payload?.PlaceId || payload?.game?.placeId);
   const sourceAssets = Array.isArray(payload?.assets)
     ? payload.assets
     : Array.isArray(payload?.ids)
@@ -131,7 +139,7 @@ function normalizeAssets(payload) {
   const seen = new Set();
   const assets = [];
   for (const rawEntry of sourceAssets) {
-    const entry = normalizeAssetEntry(rawEntry);
+    const entry = normalizeAssetEntry(rawEntry, payloadPlaceId);
     if (!entry || seen.has(entry.assetId)) continue;
     seen.add(entry.assetId);
     assets.push(entry);
@@ -139,12 +147,21 @@ function normalizeAssets(payload) {
   return assets;
 }
 
+function appendPlaceContextToLine(line, placeId) {
+  const normalizedPlaceId = normalizePlaceId(placeId);
+  const trimmed = String(line || '').trim();
+  if (!trimmed || !normalizedPlaceId || /\[\s*place\s*:/i.test(trimmed)) return trimmed;
+  return `${trimmed.replace(/,?\s*$/, '')} [Place:${normalizedPlaceId}],`;
+}
+
 function formatAssetsForInput(assets) {
   return assets
     .filter((asset) => asset.assetId && asset.creatorId)
     .map(
-      (asset) =>
-        `[${asset.assetId}] [${cleanText(asset.name, asset.assetId)}] [${asset.creatorType}:${asset.creatorId}],`,
+      (asset) => {
+        const base = `[${asset.assetId}] [${cleanText(asset.name, asset.assetId)}] [${asset.creatorType}:${asset.creatorId}]`;
+        return appendPlaceContextToLine(base, asset.placeId);
+      },
     )
     .join('\n');
 }
@@ -208,11 +225,13 @@ function showScanNotification(kind, count) {
 async function handleScanPayload(payload, callbacks) {
   const kind = normalizeScanKind(payload?.kind || payload?.type || payload?.scanType);
   const assets = normalizeAssets(payload);
+  const payloadPlaceId = normalizePlaceId(payload?.placeId || payload?.PlaceId || payload?.game?.placeId);
   const text =
     Array.isArray(payload?.lines) && payload.lines.length
       ? payload.lines
           .map((line) => String(line || '').trim())
           .filter(Boolean)
+          .map((line) => appendPlaceContextToLine(line, payloadPlaceId))
           .join('\n')
       : formatAssetsForInput(assets);
   const lines = text ? text.split(/\r?\n/).filter(Boolean) : [];
@@ -224,7 +243,7 @@ async function handleScanPayload(payload, callbacks) {
     count,
     text,
     lines,
-    placeId: payload?.placeId || null,
+    placeId: payloadPlaceId || null,
     source: 'localhost-plugin',
     receivedAt: new Date().toISOString(),
   };
@@ -423,4 +442,10 @@ module.exports = {
   startLocalhostPluginServer,
   stopLocalhostPluginServer,
   pushReplacement,
+  __private: {
+    appendPlaceContextToLine,
+    formatAssetsForInput,
+    normalizeAssets,
+    normalizePlaceId,
+  },
 };

@@ -1061,9 +1061,14 @@ local function cleanText(value, fallback)
   return text
 end
 
-local function formatLine(asset)
-  return string.format("[%s] [%s] [%s:%s],", asset.assetId, cleanText(asset.name, asset.assetId), asset.creatorType,
+local function formatLine(asset, placeId)
+  local base = string.format("[%s] [%s] [%s:%s]", asset.assetId, cleanText(asset.name, asset.assetId), asset.creatorType,
     asset.creatorId)
+  local place = tostring(placeId or ""):match("%d+")
+  if place and place ~= "0" then
+    return string.format("%s [Place:%s],", base, place)
+  end
+  return base .. ","
 end
 
 local function resolveIds(kind, ids, progressCallback, options)
@@ -1493,7 +1498,7 @@ local function runScan(kind)
       etaLabel.Text = ""
       local lines = {}
       for _, asset in ipairs(assets) do
-        table.insert(lines, formatLine(asset))
+        table.insert(lines, formatLine(asset, game.PlaceId))
       end
 
       local payload = {

@@ -20,7 +20,6 @@ const {
 const {
   getCookieFromAutoDetect,
   getAuthenticatedUserId,
-  getCsrfToken,
   readResponseText,
 } = require('./auth');
 const {
@@ -30,6 +29,7 @@ const {
 const { loadJobs, saveJobRecord, deleteJobRecord } = require('./jobs');
 const { saveSession, loadSession, clearSession } = require('./session');
 const { createRobloxSession } = require('./roblox-session');
+const { inspectTransferPayload } = require('./payload-inspector');
 const {
   pauseSpoofer,
   resumeSpoofer,
@@ -225,12 +225,40 @@ const runWithConcurrency = async (items, limit, worker) => {
   return results.filter((r) => r !== undefined);
 };
 
+function getBatchLocationErrors(loc) {
+  return Array.isArray(loc?.errors) ? loc.errors : [];
+}
+
+function getBatchLocationErrorMessage(error) {
+  if (!error || typeof error !== 'object') return String(error || '');
+  return error.Message || error.message || JSON.stringify(error) || '';
+}
+
+function hasBatchLocationSuccess(loc) {
+  return Array.isArray(loc?.locations) && loc.locations.some((location) => location?.location);
+}
+
+function hasBatchAccessDeniedErrors(loc) {
+  return getBatchLocationErrors(loc).some((error) => {
+    const status = Number(error?.code || error?.Code || error?.status || error?.statusCode || 0);
+    const message = getBatchLocationErrorMessage(error);
+    return status === 403 || /\b403\b|not authorized|unauthorized|forbidden|permission/i.test(message);
+  });
+}
+
+function setBatchLocation(locationsMap, loc) {
+  if (!loc?.requestId) return;
+  const existing = locationsMap[loc.requestId];
+  if (hasBatchLocationSuccess(existing) && !hasBatchLocationSuccess(loc)) return;
+  locationsMap[loc.requestId] = loc;
+}
+
 function extractBatchLocationError(loc) {
   if (!loc) return 'No location in batch response';
-  if (!loc.errors || loc.errors.length === 0) return 'No locations in batch response';
+  const errors = getBatchLocationErrors(loc);
+  if (errors.length === 0) return 'No locations in batch response';
 
-  const error = loc.errors[0] || {};
-  return error.Message || error.message || JSON.stringify(error) || 'Unknown batch error';
+  return getBatchLocationErrorMessage(errors[0]) || 'Unknown batch error';
 }
 
 function buildDirectAssetDownloadUrls(assetId, placeIds = []) {
@@ -252,6 +280,21 @@ function buildDirectAssetDownloadUrls(assetId, placeIds = []) {
   urls.add(`https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}`);
 
   return [...urls];
+}
+
+function getPlaceIdFromDownloadUrl(url) {
+  try {
+    return new URL(url).searchParams.get('placeId') || null;
+  } catch {
+    return null;
+  }
+}
+
+function buildDirectAssetDownloadAttempts(assetId, placeIds = []) {
+  return buildDirectAssetDownloadUrls(assetId, placeIds).map((url) => ({
+    url,
+    placeId: getPlaceIdFromDownloadUrl(url),
+  }));
 }
 
 function getCleanAssetName(value, assetId) {
@@ -287,7 +330,71 @@ function getAssetNameFromDetails(data) {
   return '';
 }
 
-async function fetchAssetName(assetId, robloxSession) {
+function getAssetCreatorFromDetails(data) {
+  if (!data || typeof data !== 'object') return null;
+
+  const creator = data.Creator || data.creator || data.asset?.Creator || data.asset?.creator || {};
+  const creatorId = extractNumericId(
+    creator.Id ||
+      creator.id ||
+      creator.CreatorTargetId ||
+      creator.creatorTargetId ||
+      creator.creatorId ||
+      data.creatorId ||
+      data.CreatorId,
+  );
+  if (!creatorId || creatorId === '1') return null;
+
+  const rawType = String(
+    creator.CreatorType ||
+      creator.creatorType ||
+      creator.Type ||
+      creator.type ||
+      data.creatorType ||
+      data.CreatorType ||
+      '',
+  ).toLowerCase();
+
+  return {
+    creatorType: rawType.includes('group') ? 'group' : 'user',
+    creatorId,
+  };
+}
+
+function getAssetMetadataFromDetails(data) {
+  const creator = getAssetCreatorFromDetails(data);
+  return {
+    name: getAssetNameFromDetails(data),
+    assetTypeId: data?.AssetTypeId || data?.assetTypeId || data?.asset?.AssetTypeId || null,
+    ...(creator || {}),
+  };
+}
+
+function applyResolvedAssetMetadata(entry, metadata, options = {}) {
+  if (!entry || !metadata) return false;
+
+  const forceName = Boolean(options.forceName);
+  let changed = false;
+  const resolvedName = getCleanAssetName(metadata.name, entry.id);
+  if (resolvedName && (forceName || shouldRefreshAssetName(entry))) {
+    if (entry.name !== resolvedName) changed = true;
+    entry.name = resolvedName;
+  }
+
+  if (metadata.creatorId && metadata.creatorType) {
+    const creatorType = metadata.creatorType === 'group' ? 'group' : 'user';
+    const creatorId = String(metadata.creatorId);
+    if (entry.creatorType !== creatorType || entry.creatorId !== creatorId) {
+      entry.creatorType = creatorType;
+      entry.creatorId = creatorId;
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+async function fetchAssetMetadata(assetId, robloxSession) {
   const encodedAssetId = encodeURIComponent(String(assetId));
   const headers = {
     'User-Agent': 'RobloxStudio/WinInet',
@@ -303,21 +410,21 @@ async function fetchAssetName(assetId, robloxSession) {
       const response = await robloxSession.fetch(url, { headers });
       if (!response.ok) continue;
       const data = await response.json();
-      const name = getAssetNameFromDetails(data);
-      if (name) return name;
+      const metadata = getAssetMetadataFromDetails(data);
+      if (metadata.name || metadata.creatorId) return metadata;
     } catch (err) {
       if (DEVELOPER_MODE) {
-        console.warn(`(Dev) Failed to resolve name for asset ${assetId}: ${err.message}`);
+        console.warn(`(Dev) Failed to resolve metadata for asset ${assetId}: ${err.message}`);
       }
     }
   }
 
-  return '';
+  return null;
 }
 
-async function resolveAssetEntryNames(entries, robloxSession, options = {}) {
+async function resolveAssetEntryMetadata(entries, robloxSession, options = {}) {
   const { force = false, isSoundMode = false } = options;
-  const entriesToResolve = entries.filter((entry) => shouldRefreshAssetName(entry, force));
+  const entriesToResolve = entries.filter((entry) => entry?.id);
   if (entriesToResolve.length === 0) return 0;
 
   let resolvedCount = 0;
@@ -325,17 +432,30 @@ async function resolveAssetEntryNames(entries, robloxSession, options = {}) {
     entriesToResolve,
     Math.min(entriesToResolve.length, 8),
     async (entry) => {
-      const resolvedName = await fetchAssetName(entry.id, robloxSession);
-      if (!resolvedName) return;
+      const metadata = await fetchAssetMetadata(entry.id, robloxSession);
+      if (!metadata) return;
 
       const oldName = entry.name;
-      entry.name = resolvedName;
+      const oldCreator = `${entry.creatorType}:${entry.creatorId}`;
+      const changed = applyResolvedAssetMetadata(entry, metadata, {
+        forceName: force || shouldRefreshAssetName(entry, force),
+      });
+      if (!changed) return;
+
       resolvedCount += 1;
 
-      if (DEVELOPER_MODE && oldName !== resolvedName) {
-        console.log(
-          `(Dev) Resolved ${isSoundMode ? 'sound' : 'animation'} name for ${entry.id}: "${resolvedName}"`,
-        );
+      if (DEVELOPER_MODE) {
+        const newCreator = `${entry.creatorType}:${entry.creatorId}`;
+        if (oldName !== entry.name) {
+          console.log(
+            `(Dev) Resolved ${isSoundMode ? 'sound' : 'animation'} name for ${entry.id}: "${entry.name}"`,
+          );
+        }
+        if (oldCreator !== newCreator) {
+          console.log(
+            `(Dev) Resolved ${isSoundMode ? 'sound' : 'animation'} creator for ${entry.id}: ${oldCreator} -> ${newCreator}`,
+          );
+        }
       }
     },
   );
@@ -797,6 +917,98 @@ function isSpooferOutputMetadataLine(line) {
   return withoutKnownMarkers === '';
 }
 
+function normalizePlaceContextId(value) {
+  const id = extractNumericId(value);
+  return id && id !== '0' ? id : '';
+}
+
+function uniquePlaceIds(...groups) {
+  const seen = new Set();
+  const ids = [];
+
+  for (const group of groups) {
+    const values = Array.isArray(group) ? group : [group];
+    for (const value of values) {
+      const id = normalizePlaceContextId(value);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+
+  return ids;
+}
+
+function parseSpooferAssetLine(trimmedLine) {
+  const match = trimmedLine.match(/^\[([^\]]+)\]\s*\[([^\]]+)\]\s*\[([^\]]+)\](?:\s*\[([^\]]+)\])?,?$/);
+  if (!match) {
+    return {
+      error: 'Expected [assetId] [name] [User:123] or [Group:123], optionally followed by [Place:123].',
+    };
+  }
+
+  const id = match[1].trim();
+  const name = match[2].trim();
+  const third = match[3].trim();
+  const placeToken = match[4]?.trim() || '';
+  let creatorType;
+  let creatorId;
+
+  if (!/^\d+$/.test(id)) {
+    return { error: 'Asset ID must be numeric.' };
+  }
+  if (/^user/i.test(third)) {
+    creatorType = 'user';
+    creatorId = third.substring(4).replace(/[^0-9]/g, '');
+  } else if (/^group/i.test(third)) {
+    creatorType = 'group';
+    creatorId = third.substring(5).replace(/[^0-9]/g, '');
+  } else {
+    return { error: 'Creator must start with User or Group.' };
+  }
+  if (!creatorId) {
+    return { error: 'Creator ID must be numeric.' };
+  }
+  if (creatorType === 'user' && creatorId === '1') {
+    return { error: 'User ID 1 is ignored.' };
+  }
+
+  let placeId = '';
+  if (placeToken) {
+    if (!/^place/i.test(placeToken)) {
+      return { error: 'Fourth field must be Place:123.' };
+    }
+    placeId = normalizePlaceContextId(placeToken);
+    if (!placeId) {
+      return { error: 'Place ID must be numeric.' };
+    }
+  }
+
+  return {
+    entry: {
+      id,
+      name,
+      creatorType,
+      creatorId,
+      ...(placeId ? { placeId } : {}),
+    },
+  };
+}
+
+async function validateDownloadedAssetFile(filePath, assetTypeName) {
+  const fileBuffer = await fs.readFile(filePath);
+  const payloadMetadata = inspectTransferPayload(fileBuffer, assetTypeName);
+  const currentExtension = path.extname(filePath).toLowerCase();
+  if (payloadMetadata.extension && payloadMetadata.extension !== currentExtension) {
+    const basePath = currentExtension ? filePath.slice(0, -currentExtension.length) : filePath;
+    const renamedPath = `${basePath}${payloadMetadata.extension}`;
+    await fs.rm(renamedPath, { force: true });
+    await fs.rename(filePath, renamedPath);
+    return { filePath: renamedPath, payloadMetadata };
+  }
+  return { filePath, payloadMetadata };
+}
+
 /**
  * Registers all IPC handlers for main process
  */
@@ -1016,7 +1228,7 @@ function registerIpcHandlers(
       try {
         const fs = require('fs/promises');
         await fs.unlink(getProfileSecretsPath());
-      } catch (e) {
+      } catch {
         // Ignore if file doesn't exist
       }
       return true;
@@ -1359,58 +1571,20 @@ async function handleSpooferAction(
     .map((line, index) => {
       const trimmedLine = normalizeSpooferInputLine(line);
       if (isSpooferOutputMetadataLine(trimmedLine)) return null;
-      const match = trimmedLine.match(/^\[([^\]]+)\]\s*\[([^\]]+)\]\s*\[([^\]]+)\],?$/);
-      if (!match) {
+      const parsed = parseSpooferAssetLine(trimmedLine);
+      if (parsed.error) {
         invalidAssetLines.push({
           line: index + 1,
-          reason: 'Expected [assetId] [name] [User:123] or [Group:123].',
+          reason: parsed.error,
         });
         return null;
       }
-      const id = match[1].trim();
-      const name = match[2].trim();
-      const third = match[3].trim();
-      let creatorType, creatorId;
-      if (!/^\d+$/.test(id)) {
-        invalidAssetLines.push({
-          line: index + 1,
-          reason: 'Asset ID must be numeric.',
-        });
+      if (seenAssetIds.has(parsed.entry.id)) {
+        duplicateAssetLines.push({ line: index + 1, id: parsed.entry.id });
         return null;
       }
-      if (seenAssetIds.has(id)) {
-        duplicateAssetLines.push({ line: index + 1, id });
-        return null;
-      }
-      if (/^user/i.test(third)) {
-        creatorType = 'user';
-        creatorId = third.substring(4).replace(/[^0-9]/g, ''); // Extract only numbers
-      } else if (/^group/i.test(third)) {
-        creatorType = 'group';
-        creatorId = third.substring(5).replace(/[^0-9]/g, ''); // Extract only numbers
-      } else {
-        invalidAssetLines.push({
-          line: index + 1,
-          reason: 'Creator must start with User or Group.',
-        });
-        return null;
-      }
-      if (!creatorId) {
-        invalidAssetLines.push({
-          line: index + 1,
-          reason: 'Creator ID must be numeric.',
-        });
-        return null;
-      }
-      if (creatorType === 'user' && creatorId === '1') {
-        invalidAssetLines.push({
-          line: index + 1,
-          reason: 'User ID 1 is ignored.',
-        });
-        return null;
-      }
-      seenAssetIds.add(id);
-      return { id, name, creatorType, creatorId };
+      seenAssetIds.add(parsed.entry.id);
+      return parsed.entry;
     })
     .filter((entry) => entry && entry.id && entry.creatorId);
 
@@ -1464,18 +1638,6 @@ async function handleSpooferAction(
 
   const robloxSession = createRobloxSession(robloxCookie);
 
-  // Get CSRF token
-  let csrfToken;
-  try {
-    csrfToken = await getCsrfToken(robloxCookie);
-  } catch (err) {
-    sendSpooferResultToRenderer({
-      output: `Failed to get CSRF token: ${err.message}`,
-      success: false,
-    });
-    return;
-  }
-
   // Ensure downloads directory exists
   try {
     if (!(await fs.stat(downloadsDir).catch(() => null))) {
@@ -1491,13 +1653,13 @@ async function handleSpooferAction(
   }
 
   try {
-    const resolvedNameCount = await resolveAssetEntryNames(animationEntries, robloxSession, {
+    const resolvedMetadataCount = await resolveAssetEntryMetadata(animationEntries, robloxSession, {
       force: data.downloadOnly,
       isSoundMode,
     });
-    if (resolvedNameCount > 0) {
+    if (resolvedMetadataCount > 0) {
       console.log(
-        `[METADATA] Resolved ${resolvedNameCount}/${animationEntries.length} ${isSoundMode ? 'sound' : 'animation'} name(s) from Roblox.`,
+        `[METADATA] Resolved ${resolvedMetadataCount}/${animationEntries.length} ${isSoundMode ? 'sound' : 'animation'} metadata entr${resolvedMetadataCount === 1 ? 'y' : 'ies'} from Roblox.`,
       );
     }
   } catch (err) {
@@ -1590,6 +1752,17 @@ async function handleSpooferAction(
   const maxPlaceIds = data.maxPlaceIds || 200;
   const maxPlaceIdRetries = data.maxPlaceIdRetries || 3;
   const overridePlaceId = data.overridePlaceId ? parseInt(data.overridePlaceId) : null;
+  const uniqueCreators = [
+    ...new Set(animationEntries.map((e) => `${e.creatorType}:${e.creatorId}`)),
+  ];
+  const entryPlaceIdsByCreator = {};
+  for (const creatorKey of uniqueCreators) {
+    entryPlaceIdsByCreator[creatorKey] = uniquePlaceIds(
+      animationEntries
+        .filter((entry) => `${entry.creatorType}:${entry.creatorId}` === creatorKey)
+        .map((entry) => entry.placeId),
+    );
+  }
 
   // Get placeIds for each creator (map creatorId -> array of placeIds)
   const placeIdMap = {};
@@ -1599,11 +1772,11 @@ async function handleSpooferAction(
       console.log(
         `(Dev) Override Place ID provided: ${overridePlaceId}. Using this for all creators instead of fetching.`,
       );
-    const uniqueCreators = [
-      ...new Set(animationEntries.map((e) => `${e.creatorType}:${e.creatorId}`)),
-    ];
     for (const creatorKey of uniqueCreators) {
-      placeIdMap[creatorKey] = [overridePlaceId];
+      placeIdMap[creatorKey] = uniquePlaceIds(
+        overridePlaceId,
+        entryPlaceIdsByCreator[creatorKey],
+      );
     }
     if (DEVELOPER_MODE) console.log(`(Dev) Resolved placeIdMap with override:`, placeIdMap);
   } else if (animationEntries.length > 0) {
@@ -1613,9 +1786,6 @@ async function handleSpooferAction(
         `(Dev) Found ${animationEntries.length > 0 ? [...new Set(animationEntries.map((e) => `${e.creatorType}:${e.creatorId}`))].length : 0} unique creators. Fetching placeIds (max ${maxPlaceIds} per creator, ${maxPlaceIdRetries} retries)...`,
       );
 
-    const uniqueCreators = [
-      ...new Set(animationEntries.map((e) => `${e.creatorType}:${e.creatorId}`)),
-    ];
     if (DEVELOPER_MODE)
       console.log(`(Dev) Fetching placeIds for ${uniqueCreators.length} creator(s) in parallel...`);
 
@@ -1631,13 +1801,16 @@ async function handleSpooferAction(
               console.warn(`(Dev) Attempt ${attempt}/${max} for ${creatorKey}: ${err.message}`);
           },
         );
-        placeIdMap[creatorKey] = Array.isArray(placeIds) ? placeIds : [placeIds];
+        placeIdMap[creatorKey] = uniquePlaceIds(
+          entryPlaceIdsByCreator[creatorKey],
+          placeIds,
+        );
         if (DEVELOPER_MODE)
           console.log(`(Dev) Got ${placeIdMap[creatorKey].length} placeIds for ${creatorKey}`);
       } catch (error) {
         if (DEVELOPER_MODE)
           console.warn(`(Dev) Could not get placeIds for ${creatorKey}: ${error.message}`);
-        placeIdMap[creatorKey] = [];
+        placeIdMap[creatorKey] = entryPlaceIdsByCreator[creatorKey] || [];
       }
     });
 
@@ -1708,9 +1881,17 @@ async function handleSpooferAction(
     try {
       // Pre-fill locationsMap so if placeIdArray is empty or an item is missing, we have a clear error
       for (const item of items) {
-        locationsMap[item.requestId] = {
-          errors: [{ message: placeIdArray.length === 0 ? 'No places found for creator to authorize download' : 'Asset missing from batch response' }]
-        };
+        setBatchLocation(locationsMap, {
+          requestId: item.requestId,
+          errors: [
+            {
+              message:
+                placeIdArray.length === 0
+                  ? 'No places found for creator to authorize download'
+                  : 'Asset missing from batch response',
+            },
+          ],
+        });
       }
 
       while (placeIdIndex < placeIdArray.length) {
@@ -1827,9 +2008,7 @@ async function handleSpooferAction(
         if (!locations) throw new Error(`Batch request failed for ${creatorKey}: no response`);
         if (DEVELOPER_MODE) console.log(`(Dev) Batch response for ${creatorKey}:`, locations);
 
-        const hasBatchErrors = locations.some(
-          (loc) => loc.errors && loc.errors.length > 0 && loc.errors[0].code === 403,
-        );
+        const hasBatchErrors = locations.some(hasBatchAccessDeniedErrors);
 
         const errorItems = locations.filter((loc) => loc.errors && loc.errors.length > 0);
         if (errorItems.length > 0 && DEVELOPER_MODE) {
@@ -1847,6 +2026,10 @@ async function handleSpooferAction(
         }
 
         if (hasBatchErrors) {
+          for (const loc of locations) {
+            if (hasBatchLocationSuccess(loc)) setBatchLocation(locationsMap, loc);
+          }
+
           if (placeIdIndex < placeIdArray.length - 1) {
             if (DEVELOPER_MODE)
               console.log(
@@ -1861,7 +2044,7 @@ async function handleSpooferAction(
                   `(Dev) Override Place ID in use for ${creatorKey}. Skipping fresh placeId fetch and accepting batch errors.`,
                 );
               for (const loc of locations) {
-                locationsMap[loc.requestId] = loc;
+                setBatchLocation(locationsMap, loc);
               }
               break;
             }
@@ -1877,9 +2060,10 @@ async function handleSpooferAction(
                   1,
                   1000,
                 );
-                placeIdMap[creatorKey] = Array.isArray(freshPlaceIds)
-                  ? freshPlaceIds
-                  : [freshPlaceIds];
+                placeIdMap[creatorKey] = uniquePlaceIds(
+                  entryPlaceIdsByCreator[creatorKey],
+                  freshPlaceIds,
+                );
                 placeIdArray = placeIdMap[creatorKey];
                 placeIdIndex = 0;
                 if (DEVELOPER_MODE)
@@ -1893,7 +2077,7 @@ async function handleSpooferAction(
                     `(Dev) Failed to refresh placeIds for ${creatorKey}: ${refreshErr.message}`,
                   );
                 for (const loc of locations) {
-                  locationsMap[loc.requestId] = loc;
+                  setBatchLocation(locationsMap, loc);
                 }
                 break;
               }
@@ -1901,7 +2085,7 @@ async function handleSpooferAction(
               if (DEVELOPER_MODE)
                 console.log(`(Dev) Max retries reached for ${creatorKey}, accepting batch errors`);
               for (const loc of locations) {
-                locationsMap[loc.requestId] = loc;
+                setBatchLocation(locationsMap, loc);
               }
               break;
             }
@@ -1910,7 +2094,7 @@ async function handleSpooferAction(
           if (DEVELOPER_MODE)
             console.log(`(Dev) Batch request successful for ${creatorKey} with placeId ${placeId}`);
           for (const loc of locations) {
-            locationsMap[loc.requestId] = loc;
+            setBatchLocation(locationsMap, loc);
           }
           break;
         }
@@ -1924,10 +2108,13 @@ async function handleSpooferAction(
       sendStatusMessage(`Batch request failed: ${error.message}`);
       for (const item of items) {
         // Only overwrite if we don't already have a valid location or a specific Roblox error for it
-        if (!locationsMap[item.requestId] || locationsMap[item.requestId].errors?.[0]?.message === 'Asset missing from batch response') {
-          locationsMap[item.requestId] = { errors: [{ message: msg }] };
+        if (
+          !locationsMap[item.requestId] ||
+          locationsMap[item.requestId].errors?.[0]?.message === 'Asset missing from batch response'
+        ) {
+          setBatchLocation(locationsMap, { requestId: item.requestId, errors: [{ message: msg }] });
         }
-        
+
         const transfer = initialTransferStates.find((t) => t.originalAssetId === item.requestId);
         if (transfer)
           sendTransferUpdate({
@@ -1969,14 +2156,12 @@ async function handleSpooferAction(
 
   const getScrapedAssetCdnUrl = async (assetId) => {
     if (!isSoundMode) return null;
-    const { fetch } = require('undici');
     try {
-      const cookieHeader = robloxSession.getCookieHeader();
-      const htmlResponse = await fetch(`https://www.roblox.com/library/${assetId}/`, {
+      const htmlResponse = await robloxSession.fetch(`https://www.roblox.com/library/${assetId}/`, {
         headers: {
-          'Cookie': cookieHeader || '',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36'
-        }
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
+        },
       });
       if (htmlResponse.ok) {
         const htmlText = await htmlResponse.text();
@@ -1986,24 +2171,26 @@ async function handleSpooferAction(
           return match[1];
         }
       }
-    } catch (e) {
+    } catch {
       if (DEVELOPER_MODE) console.warn(`(Dev) [CDN] Scrape failed for ${assetId}`);
     }
-  
+
     try {
-      const cookieHeader = robloxSession.getCookieHeader();
-      const v1Response = await fetch(`https://assetdelivery.roblox.com/v1/asset/?id=${assetId}&expectedAssetType=Audio`, {
-        headers: {
-          'Cookie': cookieHeader || '',
-          'User-Agent': 'Roblox/WinInet'
-        }
-      });
-      if (v1Response.url && v1Response.url.includes('rbxcdn.com')) {
+      const v1Response = await robloxSession.fetch(
+        `https://assetdelivery.roblox.com/v1/asset/?id=${assetId}&expectedAssetType=Audio`,
+        {
+          headers: {
+            'User-Agent': 'Roblox/WinInet',
+          },
+          redirect: 'manual',
+        },
+      );
+      const cdnUrl = v1Response.headers.get('location') || v1Response.url || '';
+      if (cdnUrl.includes('rbxcdn.com')) {
         if (DEVELOPER_MODE) console.log(`(Dev) [CDN] V1 Redirect success for ${assetId}`);
-        return v1Response.url;
+        return cdnUrl;
       }
-    } catch (e) {
-    }
+    } catch {}
     return null;
   };
 
@@ -2014,7 +2201,7 @@ async function handleSpooferAction(
     const sanitizedName = sanitizeFilename(entry.name);
     const fileExtension = isSoundMode ? '.ogg' : '.rbxm';
     const fileName = `${sanitizedName}_${entry.id}${fileExtension}`;
-    const filePath = path.join(downloadsDir, fileName);
+    let filePath = path.join(downloadsDir, fileName);
     const downloadTransfer = initialTransferStates.find((t) => t.originalAssetId === entry.id);
     const downloadTransferId = downloadTransfer.id;
     const creatorKey = `${entry.creatorType}:${entry.creatorId}`;
@@ -2027,7 +2214,7 @@ async function handleSpooferAction(
     const tryDownloadUrl = async (
       url,
       statusMessage,
-      placeIdForRequest = entryPlaceId,
+      placeIdForRequest = null,
       suppressErrorUpdate = false,
     ) => {
       if (statusMessage) {
@@ -2040,7 +2227,7 @@ async function handleSpooferAction(
         sendTransferUpdate({ id: downloadTransferId, status: 'processing' });
       }
 
-      return downloadAnimationAssetWithProgress(
+      const downloadResult = await downloadAnimationAssetWithProgress(
         url,
         robloxSession,
         filePath,
@@ -2057,12 +2244,56 @@ async function handleSpooferAction(
           abortSignal: getAbortSignal(),
         },
       );
+
+      if (!downloadResult?.success) return downloadResult;
+
+      try {
+        const validation = await validateDownloadedAssetFile(filePath, assetTypeName);
+        filePath = validation.filePath;
+        return {
+          ...downloadResult,
+          filePath,
+          payloadMetadata: validation.payloadMetadata,
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : String(error || `Downloaded ${assetTypeName.toLowerCase()} file is not uploadable.`);
+        await fs.rm(filePath, { force: true }).catch(() => {});
+        sendTransferUpdate({
+          id: downloadTransferId,
+          status: 'error',
+          error: errorMessage,
+        });
+        return {
+          success: false,
+          error: errorMessage,
+          nonRetryable: error?.nonRetryable === true,
+          payloadMetadata: error?.payloadMetadata || null,
+        };
+      }
     };
 
     if (loc?.locations && loc.locations.length > 0 && loc.locations[0].location) {
-      result = await tryDownloadUrl(loc.locations[0].location);
-    } else {
-      batchErrorMessage = extractBatchLocationError(loc);
+      const batchLocation = loc.locations[0].location;
+      result = await tryDownloadUrl(
+        batchLocation,
+        null,
+        getPlaceIdFromDownloadUrl(batchLocation) || entryPlaceId,
+      );
+      if (!result?.success) {
+        batchErrorMessage = result?.error || 'Batch URL download failed';
+        if (DEVELOPER_MODE) {
+          console.log(
+            `(Dev) Batch URL download failed for ${entry.id}: ${batchErrorMessage}. Trying direct asset fallback...`,
+          );
+        }
+      }
+    }
+
+    if (!result?.success) {
+      batchErrorMessage = batchErrorMessage || extractBatchLocationError(loc);
       if (DEVELOPER_MODE) {
         console.log(
           `(Dev) Batch location failed for ${entry.id}: ${batchErrorMessage}. Trying direct asset fallback...`,
@@ -2076,8 +2307,8 @@ async function handleSpooferAction(
           result = await tryDownloadUrl(
             scrapedUrl,
             'Batch lookup failed; trying CDN web scraper fallback',
-            entryPlaceId,
-            true
+            getPlaceIdFromDownloadUrl(scrapedUrl),
+            true,
           );
           if (result && result.success) {
             scraperSuccess = true;
@@ -2086,15 +2317,15 @@ async function handleSpooferAction(
       }
 
       if (!scraperSuccess) {
-        const directUrls = buildDirectAssetDownloadUrls(entry.id, normalizedEntryPlaceIds);
-        for (let index = 0; index < directUrls.length; index += 1) {
+        const directAttempts = buildDirectAssetDownloadAttempts(entry.id, normalizedEntryPlaceIds);
+        for (let index = 0; index < directAttempts.length; index += 1) {
           checkCancelled();
           await checkPaused();
-          const urlPlaceId = new URL(directUrls[index]).searchParams.get('placeId') || entryPlaceId;
+          const attempt = directAttempts[index];
           result = await tryDownloadUrl(
-            directUrls[index],
-            `Batch lookup failed; trying direct download fallback ${index + 1}/${directUrls.length}`,
-            urlPlaceId,
+            attempt.url,
+            `Batch lookup failed; trying direct download fallback ${index + 1}/${directAttempts.length}`,
+            attempt.placeId,
             true,
           );
           if (result.success) break;
@@ -2103,9 +2334,17 @@ async function handleSpooferAction(
 
       if (!result || !result.success) {
         const directError = result?.error || 'Direct download fallback failed';
+        const accessDenied = /403|forbidden|not authorized|unauthorized|permission/i.test(
+          `${batchErrorMessage} ${directError}`,
+        );
+        const missingExplicitPlace = !overridePlaceId && !entry.placeId;
+        const placeContextHint =
+          accessDenied && missingExplicitPlace
+            ? ' Missing Studio place context for this private asset; re-import from the current Studio plugin scan or add [Place:<placeId>] / Override place ID for a game that can load it.'
+            : '';
         result = {
           success: false,
-          error: `Batch error: ${batchErrorMessage}. Direct fallback: ${directError}`,
+          error: `Batch error: ${batchErrorMessage}. Direct fallback: ${directError}.${placeContextHint}`,
         };
         sendTransferUpdate({
           id: downloadTransferId,
@@ -2244,7 +2483,7 @@ async function handleSpooferAction(
           filePath,
           finalName,
           robloxCookie,
-          csrfToken,
+          null,
           data.groupId && String(data.groupId).trim() ? data.groupId : null,
           uploadTransferId,
           sendTransferUpdate,
@@ -2253,7 +2492,11 @@ async function handleSpooferAction(
           authenticatedUserId || null,
           { abortSignal: getAbortSignal() },
         );
-        if (!result.success) throw new Error(result.error || 'Upload failed');
+        if (!result.success) {
+          const error = new Error(result.error || 'Upload failed');
+          if (result.nonRetryable) error.nonRetryable = true;
+          throw error;
+        }
         return result;
       };
       try {
@@ -2476,10 +2719,8 @@ async function handleSpooferAction(
       finalOutput += `\n${runSummary}`;
     }
   } else {
-    if (downloadedSuccessfullyCount > 0 && csrfToken && successfulUploadCount === 0) {
+    if (downloadedSuccessfullyCount > 0 && successfulUploadCount === 0) {
       finalOutput = `Downloads successful (${downloadedSuccessfullyCount}/${animationEntries.length}), but no ${isSoundMode ? 'sounds' : 'animations'} were successfully uploaded.\n${runSummary}`;
-    } else if (downloadedSuccessfullyCount > 0 && !csrfToken) {
-      finalOutput = `Downloads successful (${downloadedSuccessfullyCount}/${animationEntries.length}). Uploads skipped (CSRF token missing).\n${runSummary}`;
     } else if (animationEntries.length > 0) {
       finalOutput = hasAuthError
         ? 'Authentication failed. Please check your Roblox cookie.'
@@ -2550,4 +2791,19 @@ async function handleSpooferAction(
 
 module.exports = {
   registerIpcHandlers,
+  __private: {
+    buildDirectAssetDownloadAttempts,
+    buildDirectAssetDownloadUrls,
+    extractBatchLocationError,
+    getPlaceIdFromDownloadUrl,
+    getAssetCreatorFromDetails,
+    getAssetMetadataFromDetails,
+    hasBatchAccessDeniedErrors,
+    hasBatchLocationSuccess,
+    applyResolvedAssetMetadata,
+    parseSpooferAssetLine,
+    setBatchLocation,
+    uniquePlaceIds,
+    validateDownloadedAssetFile,
+  },
 };

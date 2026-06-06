@@ -4,6 +4,7 @@ const fsSync = require('node:fs');
 const fs = require('node:fs/promises');
 const { setTimeout: delay } = require('node:timers/promises');
 const { DEVELOPER_MODE } = require('./common');
+const { inspectTransferPayload } = require('./payload-inspector');
 
 // --- Upload configuration ---
 
@@ -564,9 +565,43 @@ async function publishAnimationRbxmWithProgress(
     return { success: false, error };
   }
 
-  const creator = groupId ? { groupId: String(groupId) } : { userId: String(userId) };
-  const fileType = isAudio ? 'audio/ogg' : 'model/x-rbxm';
-  const fileName = `${sanitizeUploadName(name)}.${isAudio ? 'ogg' : 'rbxm'}`;
+  const creator = groupId ? { groupId: String(groupId) } : userId ? { userId: String(userId) } : null;
+  if (!creator) {
+    const error =
+      'Upload creator could not be resolved. Make sure your Open Cloud API key is valid and belongs to the account you are uploading to.';
+    sendTransferUpdateSafe(sendTransferUpdate, {
+      id: transferId,
+      status: 'error',
+      error,
+      progress: 0,
+    });
+    return { success: false, error, nonRetryable: true };
+  }
+
+  let payloadMetadata;
+  try {
+    payloadMetadata = inspectTransferPayload(fileBuffer, assetType);
+  } catch (error) {
+    const errorMsg = getErrorMessage(error, `Downloaded ${assetType.toLowerCase()} file is not uploadable.`);
+    if (DEVELOPER_MODE) {
+      console.warn(`[UPLOAD DEBUG] Refusing invalid ${assetType} payload: ${errorMsg}`);
+    }
+    sendTransferUpdateSafe(sendTransferUpdate, {
+      id: transferId,
+      status: 'error',
+      error: errorMsg,
+      progress: 0,
+    });
+    return {
+      success: false,
+      error: errorMsg,
+      nonRetryable: true,
+      payloadMetadata: error?.payloadMetadata || null,
+    };
+  }
+
+  const fileType = payloadMetadata.mimeType;
+  const fileName = `${sanitizeUploadName(name)}${payloadMetadata.extension}`;
   const requestMetadata = {
     assetType,
     displayName: String(name || 'Asset'),
