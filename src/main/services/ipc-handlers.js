@@ -16,12 +16,9 @@ const {
   getPlaceIdFromCreator,
   getPlaceSuggestionsFromCreator,
   getPlaceSuggestionByPlaceId,
+  getPlaceIdsFromAllUserContext,
 } = require('./assets');
-const {
-  getCookieFromAutoDetect,
-  getAuthenticatedUserId,
-  readResponseText,
-} = require('./auth');
+const { getCookieFromAutoDetect, getAuthenticatedUserId, readResponseText } = require('./auth');
 const {
   downloadAnimationAssetWithProgress,
   publishAnimationRbxmWithProgress,
@@ -242,7 +239,9 @@ function hasBatchAccessDeniedErrors(loc) {
   return getBatchLocationErrors(loc).some((error) => {
     const status = Number(error?.code || error?.Code || error?.status || error?.statusCode || 0);
     const message = getBatchLocationErrorMessage(error);
-    return status === 403 || /\b403\b|not authorized|unauthorized|forbidden|permission/i.test(message);
+    return (
+      status === 403 || /\b403\b|not authorized|unauthorized|forbidden|permission/i.test(message)
+    );
   });
 }
 
@@ -462,8 +461,6 @@ async function resolveAssetEntryMetadata(entries, robloxSession, options = {}) {
 
   return resolvedCount;
 }
-
-
 
 async function readJsonFile(filePath, fallback) {
   try {
@@ -767,17 +764,13 @@ async function detectOpenCloudApiKeyOwner(apiKey) {
         assetType: 'Audio',
         displayName: 'ownership-probe',
         description: 'probe',
-        // User ID 1 is the official Roblox account — always valid as a creator
+        // User ID 1 is the official Roblox account - always valid as a creator
         // type, and the API key will never own it, so the auth check returns
         // a "User <owner> is unauthorized..." error revealing the owner.
         creationContext: { creator: { userId: '1' } },
       }),
     );
-    formData.append(
-      'fileContent',
-      new Blob([dummyBuffer], { type: 'audio/ogg' }),
-      'probe.ogg',
-    );
+    formData.append('fileContent', new Blob([dummyBuffer], { type: 'audio/ogg' }), 'probe.ogg');
 
     const response = await fetch('https://apis.roblox.com/assets/v1/assets', {
       method: 'POST',
@@ -787,9 +780,7 @@ async function detectOpenCloudApiKeyOwner(apiKey) {
     const text = await readResponseText(response, 1000);
 
     if (DEVELOPER_MODE) {
-      console.log(
-        `[OWNER DETECT] Probe response status=${response.status} body=${text}`,
-      );
+      console.log(`[OWNER DETECT] Probe response status=${response.status} body=${text}`);
     }
 
     // Parse the owner from the error message. Pattern matches:
@@ -890,13 +881,15 @@ async function validateOpenCloudApiKey(apiKey) {
 }
 
 function normalizeSpooferInputLine(line) {
-  return String(line || '')
-    .replace(/^\uFEFF/, '')
-    .replace(/[\u200B-\u200D\u2060]/g, '')
-    .replace(/\u00A0/g, ' ')
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
-    .trim();
+  return (
+    String(line || '')
+      .replace(/^\uFEFF/, '')
+      .replace(/[\u200B-\u200D\u2060]/g, '')
+      .replace(/\u00A0/g, ' ')
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+      .trim()
+  );
 }
 
 function isSpooferOutputMetadataLine(line) {
@@ -940,10 +933,13 @@ function uniquePlaceIds(...groups) {
 }
 
 function parseSpooferAssetLine(trimmedLine) {
-  const match = trimmedLine.match(/^\[([^\]]+)\]\s*\[([^\]]+)\]\s*\[([^\]]+)\](?:\s*\[([^\]]+)\])?,?$/);
+  const match = trimmedLine.match(
+    /^\[([^\]]+)\]\s*\[([^\]]+)\]\s*\[([^\]]+)\](?:\s*\[([^\]]+)\])?,?$/,
+  );
   if (!match) {
     return {
-      error: 'Expected [assetId] [name] [User:123] or [Group:123], optionally followed by [Place:123].',
+      error:
+        'Expected [assetId] [name] [User:123] or [Group:123], optionally followed by [Place:123].',
     };
   }
 
@@ -1037,7 +1033,7 @@ function registerIpcHandlers(
   handleIpc('get-roblox-profile', (_event, context) => getRobloxProfile(context));
   handleIpc('validate-opencloud-api-key', async (_event, apiKey) => {
     const validation = await validateOpenCloudApiKey(apiKey);
-    // Best-effort owner detection — does not change validation result.
+    // Best-effort owner detection - does not change validation result.
     if (validation.ok) {
       try {
         const owner = await detectOpenCloudApiKeyOwner(apiKey);
@@ -1766,20 +1762,7 @@ async function handleSpooferAction(
 
   // Get placeIds for each creator (map creatorId -> array of placeIds)
   const placeIdMap = {};
-  if (overridePlaceId) {
-    // If override place ID is provided, use it for all creators
-    if (DEVELOPER_MODE)
-      console.log(
-        `(Dev) Override Place ID provided: ${overridePlaceId}. Using this for all creators instead of fetching.`,
-      );
-    for (const creatorKey of uniqueCreators) {
-      placeIdMap[creatorKey] = uniquePlaceIds(
-        overridePlaceId,
-        entryPlaceIdsByCreator[creatorKey],
-      );
-    }
-    if (DEVELOPER_MODE) console.log(`(Dev) Resolved placeIdMap with override:`, placeIdMap);
-  } else if (animationEntries.length > 0) {
+  if (animationEntries.length > 0) {
     sendStatusMessage('Discovering compatible Roblox places...');
     if (DEVELOPER_MODE)
       console.log(
@@ -1801,10 +1784,7 @@ async function handleSpooferAction(
               console.warn(`(Dev) Attempt ${attempt}/${max} for ${creatorKey}: ${err.message}`);
           },
         );
-        placeIdMap[creatorKey] = uniquePlaceIds(
-          entryPlaceIdsByCreator[creatorKey],
-          placeIds,
-        );
+        placeIdMap[creatorKey] = uniquePlaceIds(entryPlaceIdsByCreator[creatorKey], placeIds);
         if (DEVELOPER_MODE)
           console.log(`(Dev) Got ${placeIdMap[creatorKey].length} placeIds for ${creatorKey}`);
       } catch (error) {
@@ -1813,6 +1793,72 @@ async function handleSpooferAction(
         placeIdMap[creatorKey] = entryPlaceIdsByCreator[creatorKey] || [];
       }
     });
+
+    // For creators with no place IDs found, build a broad fallback pool from:
+    //  1. Authenticated user's own games
+    //  2. Games owned by groups the authenticated user is in
+    //  3. Games owned by groups the asset creator is in
+    //  4. Personal games of the OWNER of each group the creator belongs to
+    //  5. Personal games of the creator's friends
+    // This gives the batch lookup the best possible chance of finding a valid
+    // authorization context for private/restricted assets.
+    const creatorsNeedingFallback = uniqueCreators.filter(
+      (k) => !placeIdMap[k] || placeIdMap[k].length === 0,
+    );
+    if (creatorsNeedingFallback.length > 0) {
+      sendStatusMessage('Searching for alternate place context for private assets...');
+      if (DEVELOPER_MODE)
+        console.log(
+          `(Dev) ${creatorsNeedingFallback.length} creator(s) have no places. Building fallback pools...`,
+        );
+
+      // Resolve the auth user ID once
+      let fallbackAuthUserId = null;
+      try {
+        fallbackAuthUserId = await getAuthenticatedUserId(robloxCookie);
+      } catch (e) {
+        if (DEVELOPER_MODE)
+          console.warn('(Dev) Could not resolve auth user ID for fallback:', e.message);
+      }
+
+      // Cache the fallback pool per creator so we don't rebuild it if called repeatedly
+      const fallbackPools = new Map();
+      const getFallbackPool = async (creatorKey, creatorType, creatorId) => {
+        if (fallbackPools.has(creatorKey)) return fallbackPools.get(creatorKey);
+        const pool = await getPlaceIdsFromAllUserContext(
+          fallbackAuthUserId,
+          creatorId,
+          creatorType,
+          robloxCookie,
+          10,
+        );
+        fallbackPools.set(creatorKey, pool);
+        if (DEVELOPER_MODE)
+          console.log(`(Dev) Fallback pool for ${creatorKey} has ${pool.length} place IDs`);
+        return pool;
+      };
+
+      for (const creatorKey of creatorsNeedingFallback) {
+        const [creatorType, creatorId] = creatorKey.split(':');
+        const fallbackPool = await getFallbackPool(creatorKey, creatorType, creatorId);
+        if (fallbackPool.length > 0) {
+          placeIdMap[creatorKey] = uniquePlaceIds(entryPlaceIdsByCreator[creatorKey], fallbackPool);
+          if (DEVELOPER_MODE)
+            console.log(
+              `(Dev) Assigned ${placeIdMap[creatorKey].length} fallback place IDs to ${creatorKey}`,
+            );
+        }
+      }
+    }
+
+    // If an override Place ID was provided, prepend it to every creator's list
+    // so it gets tried absolutely first, before the plugin's place ID and the fallbacks.
+    if (overridePlaceId) {
+      for (const creatorKey of uniqueCreators) {
+        placeIdMap[creatorKey] = uniquePlaceIds(overridePlaceId, placeIdMap[creatorKey]);
+      }
+      if (DEVELOPER_MODE) console.log('(Dev) Prepended overridePlaceId to all creator placeIdMaps');
+    }
 
     if (DEVELOPER_MODE) console.log('(Dev) Resolved placeIdMap:', placeIdMap);
   }
@@ -1842,27 +1888,18 @@ async function handleSpooferAction(
       `(Dev) Fetching batch locations for ${batchItems.length} ${isSoundMode ? 'sounds' : 'animations'} with creator-specific placeIds`,
     );
   const batchTasks = [];
-  if (overridePlaceId) {
-    for (let i = 0; i < batchItems.length; i += chunkSize) {
+  const creatorGroups = {};
+  for (const item of batchItems) {
+    const creatorKey = `${item.creatorType}:${item.creatorId}`;
+    if (!creatorGroups[creatorKey]) creatorGroups[creatorKey] = [];
+    creatorGroups[creatorKey].push(item);
+  }
+  for (const [creatorKey, items] of Object.entries(creatorGroups)) {
+    for (let i = 0; i < items.length; i += chunkSize) {
       batchTasks.push({
-        creatorKey: `override:${overridePlaceId}`,
-        items: batchItems.slice(i, i + chunkSize),
+        creatorKey,
+        items: items.slice(i, i + chunkSize),
       });
-    }
-  } else {
-    const creatorGroups = {};
-    for (const item of batchItems) {
-      const creatorKey = `${item.creatorType}:${item.creatorId}`;
-      if (!creatorGroups[creatorKey]) creatorGroups[creatorKey] = [];
-      creatorGroups[creatorKey].push(item);
-    }
-    for (const [creatorKey, items] of Object.entries(creatorGroups)) {
-      for (let i = 0; i < items.length; i += chunkSize) {
-        batchTasks.push({
-          creatorKey,
-          items: items.slice(i, i + chunkSize),
-        });
-      }
     }
   }
 
@@ -1873,7 +1910,7 @@ async function handleSpooferAction(
 
     const { creatorKey, items } = task;
     const [creatorType, creatorId] = creatorKey.split(':');
-    let placeIdArray = overridePlaceId ? [overridePlaceId] : placeIdMap[creatorKey] || [];
+    let placeIdArray = placeIdMap[creatorKey] || [];
     let placeIdIndex = 0;
     let retryCount = 0;
     const maxRetries = maxPlaceIdRetries;
@@ -1898,11 +1935,13 @@ async function handleSpooferAction(
         checkCancelled();
         await checkPaused();
         const placeId = placeIdArray[placeIdIndex];
-        const itemsWithoutCreator = items.map(({ creatorType: _creatorType, creatorId: _creatorId, ...rest }) => ({
-          ...rest,
-          placeId: placeId,
-          serverPlaceId: placeId,
-        }));
+        const itemsWithoutCreator = items.map(
+          ({ creatorType: _creatorType, creatorId: _creatorId, ...rest }) => ({
+            ...rest,
+            placeId: placeId,
+            serverPlaceId: placeId,
+          }),
+        );
 
         if (DEVELOPER_MODE)
           console.log(
@@ -1985,8 +2024,7 @@ async function handleSpooferAction(
                 const clonedResp = resp.clone();
                 const text = await clonedResp.text();
                 console.warn(`(Dev) [Diagnostics] Response Body: ${text.substring(0, 500)}`);
-              } catch {
-              }
+              } catch {}
             }
             throw new Error(`Batch request failed for ${creatorKey}: ${statusText}`);
           }
@@ -2038,16 +2076,6 @@ async function handleSpooferAction(
             placeIdIndex++;
             continue;
           } else {
-            if (overridePlaceId) {
-              if (DEVELOPER_MODE)
-                console.log(
-                  `(Dev) Override Place ID in use for ${creatorKey}. Skipping fresh placeId fetch and accepting batch errors.`,
-                );
-              for (const loc of locations) {
-                setBatchLocation(locationsMap, loc);
-              }
-              break;
-            }
             if (retryCount < maxRetries) {
               retryCount++;
               if (DEVELOPER_MODE)
@@ -2404,8 +2432,7 @@ async function handleSpooferAction(
           );
       }
     } catch (err) {
-      if (DEVELOPER_MODE)
-        console.warn(`(Dev) Could not resolve upload user ID: ${err.message}`);
+      if (DEVELOPER_MODE) console.warn(`(Dev) Could not resolve upload user ID: ${err.message}`);
       sendSpooferResultToRenderer({
         output: `Failed to resolve your Roblox user ID: ${err.message}\n\nMake sure your cookie and API key are valid.`,
         success: false,
@@ -2605,7 +2632,7 @@ async function handleSpooferAction(
   } else {
     verboseOutputMessage += `Uploads: Skipped (Download-Only Mode)\n`;
   }
-  
+
   if (DEVELOPER_MODE) console.log(`(Dev) Verbose Spoofer Run Log:\n${verboseOutputMessage}`);
 
   try {

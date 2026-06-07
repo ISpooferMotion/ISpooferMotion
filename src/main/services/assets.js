@@ -434,8 +434,175 @@ async function getPlaceSuggestionByPlaceId(placeId, cookie) {
   }
 }
 
+/**
+ * Fetches all groups that a user belongs to.
+ * Returns an array of objects: { groupId, ownerId } so callers can also
+ * check the group owner's personal games as a fallback source.
+ */
+async function getGroupsForUser(userId, cookie) {
+  const normalizedId = normalizeNumericId(userId);
+  if (!normalizedId) return [];
+
+  const robloxSession = createRobloxSession(cookie);
+  try {
+    const url = new URL(`https://groups.roblox.com/v1/users/${normalizedId}/groups/roles`);
+    const data = await fetchJsonWithRetries(url, robloxSession, 'User groups API', 2);
+    if (!Array.isArray(data?.data)) return [];
+    return data.data
+      .map((entry) => {
+        const groupId = normalizeNumericId(entry?.group?.id);
+        const ownerId = normalizeNumericId(entry?.group?.owner?.userId);
+        return groupId ? { groupId, ownerId: ownerId || null } : null;
+      })
+      .filter(Boolean);
+  } catch (err) {
+    debugWarn('(Dev) Failed to fetch user groups:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Fetches the first page of friends for a user.
+ * Returns an array of user ID strings.
+ */
+async function getFriendsForUser(userId, cookie) {
+  const normalizedId = normalizeNumericId(userId);
+  if (!normalizedId) return [];
+
+  const robloxSession = createRobloxSession(cookie);
+  try {
+    const url = new URL(`https://friends.roblox.com/v1/users/${normalizedId}/friends`);
+    const data = await fetchJsonWithRetries(url, robloxSession, 'Friends API', 2);
+    if (!Array.isArray(data?.data)) return [];
+    return data.data.map((f) => normalizeNumericId(f?.id || f?.userId)).filter(Boolean);
+  } catch (err) {
+    debugWarn('(Dev) Failed to fetch user friends:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Gathers a broad pool of place IDs from multiple sources to use as fallback
+ * authorization context when the asset creator has no discoverable games.
+ *
+ * Sources (tried in order, deduplicated):
+ *  1. Authenticated user's own games
+ *  2. Games owned by groups the authenticated user is a member of
+ *  3. Games owned by groups the asset creator is a member of
+ *  4. Personal games of the OWNER of each group the creator belongs to
+ *  5. Personal games of the creator's friends
+ *
+ * @param {string} authUserId   - The authenticated (downloading) user's ID
+ * @param {string} creatorId    - The asset creator's user ID
+ * @param {string} creatorType  - 'user' or 'group'
+ * @param {string} cookie       - ROBLOSECURITY cookie
+ * @param {number} maxPerSource - Max place IDs to gather per source (default 10)
+ * @returns {Promise<string[]>} Deduplicated list of place ID strings
+ */
+async function getPlaceIdsFromAllUserContext(
+  authUserId,
+  creatorId,
+  creatorType,
+  cookie,
+  maxPerSource = 10,
+) {
+  const seenPlaceIds = new Set();
+  const results = [];
+
+  const addPlaceIds = (ids) => {
+    for (const id of ids || []) {
+      const normalized = normalizePlaceId(id);
+      if (normalized && !seenPlaceIds.has(normalized)) {
+        seenPlaceIds.add(normalized);
+        results.push(normalized);
+      }
+    }
+  };
+
+  const fetchUserPlaces = async (userId, label) => {
+    try {
+      const r = await collectPlaceSuggestionsForCreator('user', userId, cookie, maxPerSource);
+      addPlaceIds(r.places.map((p) => p.placeId));
+      if (r.places.length > 0)
+        debugLog(`(Dev) Fallback: got ${r.places.length} places from ${label} (${userId})`);
+    } catch {
+      // silently skip users with no games
+    }
+  };
+
+  const fetchGroupPlaces = async (groupId, label) => {
+    try {
+      const r = await collectPlaceSuggestionsForCreator('group', groupId, cookie, maxPerSource);
+      addPlaceIds(r.places.map((p) => p.placeId));
+      if (r.places.length > 0)
+        debugLog(`(Dev) Fallback: got ${r.places.length} places from group ${label} (${groupId})`);
+    } catch {
+      // silently skip groups with no games
+    }
+  };
+
+  // --- Authenticated user's own games ---
+  if (authUserId) {
+    await fetchUserPlaces(authUserId, 'auth user');
+    debugLog(`(Dev) Fallback pool after (auth user games): ${results.length}`);
+  }
+
+  // --- Games owned by groups the authenticated user belongs to ---
+  if (authUserId) {
+    const authGroups = await getGroupsForUser(authUserId, cookie);
+    debugLog(`(Dev) Fallback: auth user is in ${authGroups.length} groups`);
+    for (const { groupId } of authGroups) {
+      if (results.length >= maxPerSource * 5) break;
+      await fetchGroupPlaces(groupId, 'auth-user-group');
+    }
+    debugLog(`(Dev) Fallback pool after (auth user group games): ${results.length}`);
+  }
+
+  if (creatorType === 'user' && creatorId && creatorId !== authUserId) {
+    const creatorGroups = await getGroupsForUser(creatorId, cookie);
+    debugLog(`(Dev) Fallback: creator ${creatorId} is in ${creatorGroups.length} groups`);
+
+    // --- Games owned by groups the asset creator belongs to ---
+    for (const { groupId } of creatorGroups) {
+      if (results.length >= maxPerSource * 8) break;
+      await fetchGroupPlaces(groupId, 'creator-group');
+    }
+    debugLog(`(Dev) Fallback pool after (creator group games): ${results.length}`);
+
+    // --- Personal games of the OWNER of each group the creator is in ---
+    const seenOwnerIds = new Set([authUserId, creatorId].filter(Boolean));
+    for (const { groupId, ownerId } of creatorGroups) {
+      if (results.length >= maxPerSource * 12) break;
+      if (!ownerId || seenOwnerIds.has(ownerId)) continue;
+      seenOwnerIds.add(ownerId);
+      debugLog(`(Dev) Fallback: checking personal games of group ${groupId} owner (${ownerId})`);
+      await fetchUserPlaces(ownerId, `group-${groupId}-owner`);
+    }
+    debugLog(`(Dev) Fallback pool after (group owner personal games): ${results.length}`);
+
+    // --- Personal games of the creator's friends ---
+    // Only run this if we still haven't found enough places
+    if (results.length < maxPerSource * 3) {
+      const friendIds = await getFriendsForUser(creatorId, cookie);
+      debugLog(`(Dev) Fallback: creator has ${friendIds.length} friends`);
+      for (const friendId of friendIds) {
+        if (results.length >= maxPerSource * 15) break;
+        if (seenOwnerIds.has(friendId)) continue;
+        seenOwnerIds.add(friendId);
+        await fetchUserPlaces(friendId, `creator-friend`);
+      }
+      debugLog(`(Dev) Fallback pool after (creator friends): ${results.length}`);
+    }
+  }
+
+  return results;
+}
+
 module.exports = {
   getPlaceIdFromCreator,
   getPlaceSuggestionsFromCreator,
   getPlaceSuggestionByPlaceId,
+  getGroupsForUser,
+  getFriendsForUser,
+  getPlaceIdsFromAllUserContext,
 };
