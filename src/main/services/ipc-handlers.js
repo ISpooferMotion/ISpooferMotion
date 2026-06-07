@@ -260,8 +260,9 @@ function extractBatchLocationError(loc) {
   return getBatchLocationErrorMessage(errors[0]) || 'Unknown batch error';
 }
 
-function buildDirectAssetDownloadUrls(assetId, placeIds = []) {
+function buildDirectAssetDownloadUrls(assetId, placeIds = [], isSoundMode = false) {
   const encodedAssetId = encodeURIComponent(String(assetId));
+  const expectedAssetType = isSoundMode ? 'Audio' : 'Animation';
   const urls = new Set();
 
   for (const placeId of placeIds) {
@@ -273,10 +274,14 @@ function buildDirectAssetDownloadUrls(assetId, placeIds = []) {
     urls.add(
       `https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}&placeId=${encodedPlaceId}`,
     );
+    urls.add(
+      `https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}&expectedAssetType=${expectedAssetType}&placeId=${encodedPlaceId}`,
+    );
   }
 
   urls.add(`https://assetdelivery.roblox.com/v1/asset?id=${encodedAssetId}`);
   urls.add(`https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}`);
+  urls.add(`https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}&expectedAssetType=${expectedAssetType}`);
 
   return [...urls];
 }
@@ -289,8 +294,8 @@ function getPlaceIdFromDownloadUrl(url) {
   }
 }
 
-function buildDirectAssetDownloadAttempts(assetId, placeIds = []) {
-  return buildDirectAssetDownloadUrls(assetId, placeIds).map((url) => ({
+function buildDirectAssetDownloadAttempts(assetId, placeIds = [], isSoundMode = false) {
+  return buildDirectAssetDownloadUrls(assetId, placeIds, isSoundMode).map((url) => ({
     url,
     placeId: getPlaceIdFromDownloadUrl(url),
   }));
@@ -2345,7 +2350,7 @@ async function handleSpooferAction(
       }
 
       if (!scraperSuccess) {
-        const directAttempts = buildDirectAssetDownloadAttempts(entry.id, normalizedEntryPlaceIds);
+        const directAttempts = buildDirectAssetDownloadAttempts(entry.id, normalizedEntryPlaceIds, isSoundMode);
         for (let index = 0; index < directAttempts.length; index += 1) {
           checkCancelled();
           await checkPaused();

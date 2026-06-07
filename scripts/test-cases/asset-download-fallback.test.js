@@ -33,19 +33,20 @@ test('direct asset fallback keeps bare URLs free of place authorization context'
 
   assert.deepEqual(
     attempts.map((attempt) => attempt.placeId),
-    ['987654321', '987654321', null, null],
+    ['987654321', '987654321', '987654321', null, null, null],
   );
-  assert.equal(attempts.at(-2).url, 'https://assetdelivery.roblox.com/v1/asset?id=123456789');
-  assert.equal(attempts.at(-1).url, 'https://assetdelivery.roblox.com/v1/asset/?id=123456789');
+  assert.equal(attempts.at(-3).url, 'https://assetdelivery.roblox.com/v1/asset?id=123456789');
+  assert.equal(attempts.at(-2).url, 'https://assetdelivery.roblox.com/v1/asset/?id=123456789');
+  assert.equal(attempts.at(-1).url, 'https://assetdelivery.roblox.com/v1/asset/?id=123456789&expectedAssetType=Animation');
 });
 
 test('direct asset fallback still includes plain retries when no places are known', () => {
   const attempts = buildDirectAssetDownloadAttempts('123456789', []);
 
-  assert.equal(attempts.length, 2);
+  assert.equal(attempts.length, 3);
   assert.deepEqual(
     attempts.map((attempt) => attempt.placeId),
-    [null, null],
+    [null, null, null],
   );
 });
 
@@ -61,7 +62,7 @@ test('download URL place extraction only trusts the URL query string', () => {
 test('direct asset fallback URL builder de-duplicates duplicate place IDs', () => {
   const urls = buildDirectAssetDownloadUrls('123456789', ['987654321', '987654321']);
 
-  assert.equal(urls.length, 4);
+  assert.equal(urls.length, 6);
 });
 
 test('batch access-denied detection handles Roblox message-only item errors', () => {
@@ -186,7 +187,7 @@ test('place ID merging keeps scanned places before discovered places', () => {
 test('localhost scan formatting carries payload place context into asset lines', () => {
   assert.equal(
     appendPlaceContextToLine('[123456789] [Lucas] [User:42],', '987654321'),
-    '[123456789] [Lucas] [User:42] [Place:987654321],',
+    '[123456789] [Lucas] [User:42],',
   );
   assert.equal(
     appendPlaceContextToLine('[123456789] [Lucas] [User:42] [Place:111],', '987654321'),
@@ -202,7 +203,7 @@ test('localhost scan formatting carries payload place context into asset lines',
         placeId: '987654321',
       },
     ]),
-    '[123456789] [Lucas] [User:42000] [Place:987654321],',
+    '[123456789] [Lucas] [User:42000],',
   );
   assert.deepEqual(
     normalizeAssets({ placeId: '987654321', assets: [{ assetId: '123456789', creatorId: '42000' }] }),
