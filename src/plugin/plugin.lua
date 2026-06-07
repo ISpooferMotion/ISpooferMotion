@@ -1064,10 +1064,6 @@ end
 local function formatLine(asset, placeId)
   local base = string.format("[%s] [%s] [%s:%s]", asset.assetId, cleanText(asset.name, asset.assetId), asset.creatorType,
     asset.creatorId)
-  local place = tostring(placeId or ""):match("%d+")
-  if place and place ~= "0" then
-    return string.format("%s [Place:%s],", base, place)
-  end
   return base .. ","
 end
 

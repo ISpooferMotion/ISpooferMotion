@@ -147,11 +147,9 @@ function normalizeAssets(payload) {
   return assets;
 }
 
-function appendPlaceContextToLine(line, placeId) {
-  const normalizedPlaceId = normalizePlaceId(placeId);
+function appendPlaceContextToLine(line) {
   const trimmed = String(line || '').trim();
-  if (!trimmed || !normalizedPlaceId || /\[\s*place\s*:/i.test(trimmed)) return trimmed;
-  return `${trimmed.replace(/,?\s*$/, '')} [Place:${normalizedPlaceId}],`;
+  return trimmed ? `${trimmed.replace(/,?\s*$/, '')},` : trimmed;
 }
 
 function formatAssetsForInput(assets) {
@@ -160,7 +158,7 @@ function formatAssetsForInput(assets) {
     .map(
       (asset) => {
         const base = `[${asset.assetId}] [${cleanText(asset.name, asset.assetId)}] [${asset.creatorType}:${asset.creatorId}]`;
-        return appendPlaceContextToLine(base, asset.placeId);
+        return appendPlaceContextToLine(base);
       },
     )
     .join('\n');
@@ -231,7 +229,7 @@ async function handleScanPayload(payload, callbacks) {
       ? payload.lines
           .map((line) => String(line || '').trim())
           .filter(Boolean)
-          .map((line) => appendPlaceContextToLine(line, payloadPlaceId))
+          .map((line) => appendPlaceContextToLine(line))
           .join('\n')
       : formatAssetsForInput(assets);
   const lines = text ? text.split(/\r?\n/).filter(Boolean) : [];
