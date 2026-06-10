@@ -28,7 +28,6 @@ export default function ProfilesView({ isActive }) {
     loadProfiles();
   }, []);
 
-  // Clean up confirm timeout on unmount
   useEffect(() => {
     return () => clearTimeout(deleteTimeoutRef.current);
   }, []);
@@ -195,13 +194,11 @@ export default function ProfilesView({ isActive }) {
     if (Object.keys(profiles).length <= 1) return;
 
     if (deleteState !== 'confirm') {
-      // First click: enter confirm mode, auto-cancel after 3s
       setDeleteState('confirm');
       deleteTimeoutRef.current = setTimeout(() => setDeleteState(null), 3000);
       return;
     }
 
-    // Second click: actually delete
     clearTimeout(deleteTimeoutRef.current);
     setDeleteState(null);
     await window.electronAPI?.saveProfileSecrets?.({
@@ -376,7 +373,10 @@ export default function ProfilesView({ isActive }) {
                 />
               )}
               <div className="roblox-data-info">
-                <span className={`roblox-data-name ${isLoading ? 'loading-dots' : ''}`} id="profile-user-name">
+                <span
+                  className={`roblox-data-name ${isLoading ? 'loading-dots' : ''}`}
+                  id="profile-user-name"
+                >
                   {isLoading ? 'Loading' : robloxData?.user?.name || 'Invalid Cookie'}
                 </span>
                 <span className="roblox-data-id" id="profile-user-id">
@@ -406,7 +406,10 @@ export default function ProfilesView({ isActive }) {
                     />
                   )}
                   <div className="roblox-data-info">
-                    <span className={`roblox-data-name ${isLoading ? 'loading-dots' : ''}`} id="profile-group-name">
+                    <span
+                      className={`roblox-data-name ${isLoading ? 'loading-dots' : ''}`}
+                      id="profile-group-name"
+                    >
                       {isLoading ? 'Loading' : robloxData?.group?.name || 'Invalid Group ID'}
                     </span>
                     <span className="roblox-data-id" id="profile-group-id">

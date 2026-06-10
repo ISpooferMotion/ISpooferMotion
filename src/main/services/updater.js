@@ -20,7 +20,9 @@ function getVersionFromNameOrTag(value) {
 }
 
 function parseVersionParts(value) {
-  const match = String(value || '').match(/v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z][0-9A-Za-z.-]*))?/i);
+  const match = String(value || '').match(
+    /v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z][0-9A-Za-z.-]*))?/i,
+  );
   if (!match) return null;
   return {
     core: match.slice(1, 4).map((part) => Number(part)),
@@ -142,7 +144,7 @@ async function promptUpdateFailed(err, releaseUrl) {
   });
 
   if (response === 0) {
-    return checkForUpdates(true); // retry
+    return checkForUpdates(true);
   } else if (response === 1) {
     shell.openExternal(
       releaseUrl || `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest`,
@@ -170,16 +172,13 @@ async function applyUpdate(downloadPath) {
     if (downloadPath.endsWith('.AppImage')) {
       try {
         fs.chmodSync(downloadPath, '755');
-      } catch {
-        // Ignore
-      }
+      } catch {}
     }
     shell.showItemInFolder(downloadPath);
     app.quit();
     return;
   }
 
-  // Windows silent install using NSIS installer
   const scriptPath = path.join(os.tmpdir(), `ispoofer_update_${Date.now()}.bat`);
   const scriptContent = `
 @echo off
@@ -201,7 +200,7 @@ del "%~f0"
 }
 
 async function checkForUpdates(force = false) {
-  if (!app.isPackaged && !force) return; // Don't auto-update in dev
+  if (!app.isPackaged && !force) return;
 
   try {
     const release = await requestJson(API_URL);
@@ -209,7 +208,7 @@ async function checkForUpdates(force = false) {
     const currentVersion = getVersionFromNameOrTag(app.getVersion());
 
     if (!releaseVersion || compareVersions(releaseVersion, currentVersion) <= 0) {
-      return; // Up to date
+      return;
     }
 
     const { response } = await dialog.showMessageBox({
@@ -222,18 +221,16 @@ async function checkForUpdates(force = false) {
       defaultId: 0,
     });
 
-    if (response === 1) return; // Skip
+    if (response === 1) return;
 
     let extension = '.exe';
     if (process.platform === 'darwin') extension = '.dmg';
     else if (process.platform === 'linux') extension = '.AppImage';
 
-    // Find the right OS asset
     const osAsset = release.assets.find((a) =>
       a.name.toLowerCase().endsWith(extension.toLowerCase()),
     );
 
-    // Find the plugin asset
     const pluginAsset = release.assets.find((a) => a.name.toLowerCase().endsWith('.rbxmx'));
 
     if (!osAsset) {
@@ -242,10 +239,8 @@ async function checkForUpdates(force = false) {
 
     const downloadPath = path.join(os.tmpdir(), `ISpooferMotion-Update-${Date.now()}${extension}`);
 
-    // Download OS app update
     await downloadFile(osAsset.browser_download_url, downloadPath);
 
-    // Download and install plugin silently
     if (pluginAsset) {
       try {
         const pluginsDir = getRobloxPluginsDir();

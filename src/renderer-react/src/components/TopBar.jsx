@@ -28,7 +28,7 @@ export default function TopBar() {
     };
     fetchProfiles();
     window.addEventListener('profile-changed', fetchProfiles);
-    
+
     const fetchMeta = async () => {
       try {
         const appVersion = await window.electronAPI?.getAppVersion?.();
@@ -42,7 +42,6 @@ export default function TopBar() {
     return () => window.removeEventListener('profile-changed', fetchProfiles);
   }, []);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     if (!isProfileMenuOpen) return;
     const handler = (e) => {

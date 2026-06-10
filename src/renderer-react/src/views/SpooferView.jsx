@@ -141,7 +141,6 @@ export default function SpooferView({ isActive }) {
   }, [spoofSounds, robloxCookie, autoDetectCookie]);
 
   useEffect(() => {
-    // When profile changes, we want to update the fields
     const handleProfileChanged = async () => {
       const profile = await getActiveProfileSettings();
       if (profile) {
@@ -159,9 +158,8 @@ export default function SpooferView({ isActive }) {
     window.addEventListener('profile-changed', handleProfileChanged);
     handleProfileChanged();
 
-    // IPC listeners
     const cleanupStatus = window.electronAPI?.onStatusUpdate?.((msg) => {
-      setStatusText(msg || 'Ready'); // Basic normalization logic here
+      setStatusText(msg || 'Ready');
     });
 
     const cleanupResult = window.electronAPI?.onSpooferResult?.((result) => {
@@ -335,7 +333,6 @@ export default function SpooferView({ isActive }) {
     }
   };
 
-  // Profile saving helper
   const updateProfileValue = async (key, value) => {
     try {
       const secrets = await window.electronAPI?.loadProfileSecrets?.();
@@ -690,167 +687,167 @@ export default function SpooferView({ isActive }) {
                   <div className="advanced-dropdown-panel-wrap">
                     <div className="advanced-dropdown-panel">
                       <div className="advanced-dropdown-panel-inner">
-                    <label className="floating-label">
-                      <input
-                        className="ui-input"
-                        type="text"
-                        id="overridePlaceId"
-                        name="overridePlaceId"
-                        placeholder=" "
-                        value={overridePlaceId}
-                        onChange={(e) => {
-                          const next = e.target.value.replace(/\D/g, '');
-                          setOverridePlaceId(next);
-                          updateProfileValue('overridePlaceId', next);
-                        }}
-                      />
-                      <span>Override place ID</span>
-                    </label>
-                    <div className="place-options-grid">
-                      <label className="floating-label">
-                        <input
-                          className="ui-input"
-                          type="number"
-                          id="maxPlaceIds"
-                          name="maxPlaceIds"
-                          value={maxPlaceIds}
-                          min="10"
-                          max="50"
-                          placeholder=" "
-                          onChange={(e) => setMaxPlaceIds(Number(e.target.value))}
-                        />
-                        <span>Max places</span>
-                      </label>
-                      <label className="floating-label">
-                        <input
-                          className="ui-input"
-                          type="number"
-                          id="maxPlaceIdRetries"
-                          name="maxPlaceIdRetries"
-                          value={maxPlaceIdRetries}
-                          min="1"
-                          max="10"
-                          placeholder=" "
-                          onChange={(e) => setMaxPlaceIdRetries(Number(e.target.value))}
-                        />
-                        <span>Max retries</span>
-                      </label>
-                    </div>
-                    <div className="place-search-block">
-                      <div className="place-search-row">
-                        <div
-                          className={`profile-picker place-type-picker ${placeTypeOpen ? 'open' : ''}`}
-                        >
-                          <button
-                            className="profile-trigger ui-button"
-                            type="button"
-                            aria-label="Place owner type"
-                            aria-expanded={placeTypeOpen}
-                            onClick={() => setPlaceTypeOpen((open) => !open)}
-                          >
-                            <span className="profile-trigger-label">
-                              {placeCreatorType === 'group'
-                                ? 'Group ID'
-                                : placeCreatorType === 'place'
-                                  ? 'Place ID / URL'
-                                  : 'User ID'}
-                            </span>
-                            <svg
-                              className="profile-trigger-arrow"
-                              viewBox="0 0 24 24"
-                              aria-hidden="true"
+                        <label className="floating-label">
+                          <input
+                            className="ui-input"
+                            type="text"
+                            id="overridePlaceId"
+                            name="overridePlaceId"
+                            placeholder=" "
+                            value={overridePlaceId}
+                            onChange={(e) => {
+                              const next = e.target.value.replace(/\D/g, '');
+                              setOverridePlaceId(next);
+                              updateProfileValue('overridePlaceId', next);
+                            }}
+                          />
+                          <span>Override place ID</span>
+                        </label>
+                        <div className="place-options-grid">
+                          <label className="floating-label">
+                            <input
+                              className="ui-input"
+                              type="number"
+                              id="maxPlaceIds"
+                              name="maxPlaceIds"
+                              value={maxPlaceIds}
+                              min="10"
+                              max="50"
+                              placeholder=" "
+                              onChange={(e) => setMaxPlaceIds(Number(e.target.value))}
+                            />
+                            <span>Max places</span>
+                          </label>
+                          <label className="floating-label">
+                            <input
+                              className="ui-input"
+                              type="number"
+                              id="maxPlaceIdRetries"
+                              name="maxPlaceIdRetries"
+                              value={maxPlaceIdRetries}
+                              min="1"
+                              max="10"
+                              placeholder=" "
+                              onChange={(e) => setMaxPlaceIdRetries(Number(e.target.value))}
+                            />
+                            <span>Max retries</span>
+                          </label>
+                        </div>
+                        <div className="place-search-block">
+                          <div className="place-search-row">
+                            <div
+                              className={`profile-picker place-type-picker ${placeTypeOpen ? 'open' : ''}`}
                             >
-                              <path d="M7.4 9.2 12 13.8l4.6-4.6L18 10.6l-6 6-6-6 1.4-1.4Z" />
-                            </svg>
-                          </button>
-                          {placeTypeOpen && (
-                            <div className="profile-menu ui-dropdown" role="listbox">
-                              {[
-                                ['user', 'User ID'],
-                                ['group', 'Group ID'],
-                                ['place', 'Place ID / URL'],
-                              ].map(([value, label]) => (
-                                <button
-                                  key={value}
-                                  className={`profile-option ui-button ${placeCreatorType === value ? 'selected' : ''}`}
-                                  type="button"
-                                  role="option"
-                                  aria-selected={placeCreatorType === value}
-                                  onClick={() => {
-                                    setPlaceCreatorType(value);
-                                    setPlaceTypeOpen(false);
-                                    updateProfileValue('placeCreatorType', value);
-                                  }}
+                              <button
+                                className="profile-trigger ui-button"
+                                type="button"
+                                aria-label="Place owner type"
+                                aria-expanded={placeTypeOpen}
+                                onClick={() => setPlaceTypeOpen((open) => !open)}
+                              >
+                                <span className="profile-trigger-label">
+                                  {placeCreatorType === 'group'
+                                    ? 'Group ID'
+                                    : placeCreatorType === 'place'
+                                      ? 'Place ID / URL'
+                                      : 'User ID'}
+                                </span>
+                                <svg
+                                  className="profile-trigger-arrow"
+                                  viewBox="0 0 24 24"
+                                  aria-hidden="true"
                                 >
-                                  <span>{label}</span>
+                                  <path d="M7.4 9.2 12 13.8l4.6-4.6L18 10.6l-6 6-6-6 1.4-1.4Z" />
+                                </svg>
+                              </button>
+                              {placeTypeOpen && (
+                                <div className="profile-menu ui-dropdown" role="listbox">
+                                  {[
+                                    ['user', 'User ID'],
+                                    ['group', 'Group ID'],
+                                    ['place', 'Place ID / URL'],
+                                  ].map(([value, label]) => (
+                                    <button
+                                      key={value}
+                                      className={`profile-option ui-button ${placeCreatorType === value ? 'selected' : ''}`}
+                                      type="button"
+                                      role="option"
+                                      aria-selected={placeCreatorType === value}
+                                      onClick={() => {
+                                        setPlaceCreatorType(value);
+                                        setPlaceTypeOpen(false);
+                                        updateProfileValue('placeCreatorType', value);
+                                      }}
+                                    >
+                                      <span>{label}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <label className="floating-label place-search-input">
+                              <input
+                                className="ui-input"
+                                type="text"
+                                inputMode={placeCreatorType === 'place' ? 'text' : 'numeric'}
+                                id="placeSearchInput"
+                                name="placeSearchInput"
+                                placeholder=" "
+                                value={placeSearchInput}
+                                onChange={(e) =>
+                                  setPlaceSearchInput(
+                                    placeCreatorType === 'place'
+                                      ? e.target.value
+                                      : e.target.value.replace(/\D/g, ''),
+                                  )
+                                }
+                              />
+                              <span>
+                                {placeCreatorType === 'group'
+                                  ? 'Group ID for place search'
+                                  : placeCreatorType === 'place'
+                                    ? 'Place ID or Roblox game URL'
+                                    : 'User ID for place search'}
+                              </span>
+                            </label>
+                            <button
+                              className="ui-button place-search-button"
+                              type="button"
+                              disabled={placeSearchLoading}
+                              onClick={handlePlaceSearch}
+                            >
+                              {placeSearchLoading
+                                ? 'Searching...'
+                                : placeCreatorType === 'place'
+                                  ? 'Use Place'
+                                  : 'Find Places'}
+                            </button>
+                          </div>
+                          {placeSearchMessage && (
+                            <div className="field-status">{placeSearchMessage}</div>
+                          )}
+                          {placeSuggestions.length > 1 && (
+                            <div className="place-suggestion-list">
+                              {placeSuggestions.map((place) => (
+                                <button
+                                  className={`place-suggestion ${overridePlaceId === place.placeId ? 'is-selected' : ''}`}
+                                  key={place.placeId}
+                                  type="button"
+                                  onClick={() => selectSuggestedPlace(place)}
+                                >
+                                  <span>{place.name}</span>
+                                  <strong>{place.placeId}</strong>
                                 </button>
                               ))}
                             </div>
                           )}
                         </div>
-                        <label className="floating-label place-search-input">
-                          <input
-                            className="ui-input"
-                            type="text"
-                            inputMode={placeCreatorType === 'place' ? 'text' : 'numeric'}
-                            id="placeSearchInput"
-                            name="placeSearchInput"
-                            placeholder=" "
-                            value={placeSearchInput}
-                            onChange={(e) =>
-                              setPlaceSearchInput(
-                                placeCreatorType === 'place'
-                                  ? e.target.value
-                                  : e.target.value.replace(/\D/g, ''),
-                              )
-                            }
-                          />
-                          <span>
-                            {placeCreatorType === 'group'
-                              ? 'Group ID for place search'
-                              : placeCreatorType === 'place'
-                                ? 'Place ID or Roblox game URL'
-                                : 'User ID for place search'}
-                          </span>
-                        </label>
-                        <button
-                          className="ui-button place-search-button"
-                          type="button"
-                          disabled={placeSearchLoading}
-                          onClick={handlePlaceSearch}
-                        >
-                          {placeSearchLoading
-                            ? 'Searching...'
-                            : placeCreatorType === 'place'
-                              ? 'Use Place'
-                              : 'Find Places'}
-                        </button>
                       </div>
-                      {placeSearchMessage && (
-                        <div className="field-status">{placeSearchMessage}</div>
-                      )}
-                      {placeSuggestions.length > 1 && (
-                        <div className="place-suggestion-list">
-                          {placeSuggestions.map((place) => (
-                            <button
-                              className={`place-suggestion ${overridePlaceId === place.placeId ? 'is-selected' : ''}`}
-                              key={place.placeId}
-                              type="button"
-                              onClick={() => selectSuggestedPlace(place)}
-                            >
-                              <span>{place.name}</span>
-                              <strong>{place.placeId}</strong>
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-          </div>
           </div>
 
           <div className="bento-card output-card">

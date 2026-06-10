@@ -546,8 +546,13 @@
 }
 
 @keyframes pulse-danger {
-  0%, 100% { box-shadow: none; }
-  50% { box-shadow: 0 0 0 3px var(--danger-soft); }
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--danger-soft);
+  }
 }
 .profile-name-input {
   flex: 1;

@@ -4,13 +4,9 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { inspect } = require('node:util');
 
-// --- Constants ---
-
 const DEVELOPER_MODE = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
 const KEEP_DOWNLOADS_ON_FAILURE = false;
 const LOG_TO_FILE = true;
-
-// --- Sensitive-data redaction (used by the file logger) ---
 
 const REDACTED_COOKIE = '{Cookie:Here}';
 const REDACTED_API_KEY = '{ApiKey:Here}';
@@ -36,8 +32,6 @@ const SENSITIVE_PATTERNS = [
     (match) => match.replace(/:\s*"[^"]*"/, `:"${REDACTED_COOKIE}"`),
   ],
 ];
-
-// --- Logging ---
 
 let fileLoggingInitialized = false;
 
@@ -73,9 +67,7 @@ async function writeToLogFile(message, logFilePath) {
   if (!LOG_TO_FILE || !logFilePath) return;
   try {
     await fs.appendFile(logFilePath, `${message}\n`, 'utf8');
-  } catch {
-    // Never let logging failure break app flow.
-  }
+  } catch {}
 }
 
 async function initializeFileLogging(logsDir) {
@@ -114,8 +106,6 @@ async function initializeFileLogging(logsDir) {
   }
 }
 
-// --- Cookie helpers ---
-
 function normalizeRobloxCookie(cookieValue) {
   if (typeof cookieValue !== 'string') return '';
 
@@ -131,17 +121,10 @@ function normalizeRobloxCookie(cookieValue) {
   return normalized;
 }
 
-/**
- * Builds a properly formatted Roblox cookie header value from any cookie input
- * (raw token, prefixed string, or already-formatted header). Always outputs
- * exactly `.ROBLOSECURITY=<token>` or an empty string if the value is invalid.
- */
 function buildRobloxCookieHeader(cookieValue) {
   const normalized = normalizeRobloxCookie(cookieValue);
   return normalized ? `.ROBLOSECURITY=${normalized}` : '';
 }
-
-// --- Async helpers ---
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 
@@ -181,8 +164,6 @@ async function retryAsync(fn, retries = 3, delayMs = 1000, onRetryAttempt) {
   });
 }
 
-// --- File system helpers ---
-
 async function clearDownloadsDirectory(directoryPath, skipIfEnabled = KEEP_DOWNLOADS_ON_FAILURE) {
   if (skipIfEnabled) {
     if (DEVELOPER_MODE)
@@ -218,7 +199,7 @@ function sanitizeFilename(filename) {
   return (
     String(filename || 'untitled')
       .normalize('NFKC')
-      // eslint-disable-next-line no-control-regex
+
       .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
       .replace(/[.\s]+$/g, '')
       .slice(0, 180) || 'untitled'

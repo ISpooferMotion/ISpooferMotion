@@ -219,7 +219,7 @@ function parseJobSummary(output) {
 
 function extractFailedEntries(output, payload) {
   if (!output || !payload?.animationId) return null;
-  // Find IDs that appear in failure lines
+
   const failedIds = new Set();
   const failurePattern =
     /(?:Download Failed|Upload Failed|UPLOAD FAILED|DOWNLOAD FAILED)[^(]*\(ID:\s*(\d+)\)/gi;
@@ -243,7 +243,6 @@ function extractFailedEntries(output, payload) {
 function JobCard({ job, redoJob, deleteJob, retryFailed }) {
   const [expanded, setExpanded] = useState(false);
 
-  // job.output is the flat text field; job.result is not used (legacy check kept for resilience)
   const output = job.output || job.result?.output || '';
 
   let statusText = 'Completed';
@@ -280,7 +279,7 @@ function JobCard({ job, redoJob, deleteJob, retryFailed }) {
         </span>
       </div>
 
-      {/* Collapsed summary - always visible even when not expanded */}
+      {}
       <div className="job-details">
         <span className="job-progress-text">{statusText}</span>
         {collapsedInfo && (

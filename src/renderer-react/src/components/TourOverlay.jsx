@@ -142,9 +142,7 @@ export default function TourOverlay() {
     document.body.classList.remove('tour-active');
     try {
       window.localStorage?.setItem(TOUR_VERSION_KEY, appVersionRef.current);
-    } catch {
-      // Local storage can be unavailable in hardened or private contexts.
-    }
+    } catch {}
   };
 
   const renderStep = () => {

@@ -195,7 +195,6 @@ export default function SettingsView({ isActive }) {
     }
   };
 
-  // Close color picker on click outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (colorPickerRef.current && !colorPickerRef.current.contains(e.target)) {

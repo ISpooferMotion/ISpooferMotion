@@ -1,7 +1,5 @@
 'use strict';
 
-// --- Upload name helpers ---
-
 function buildFinalUploadName(entry, data = {}) {
   let finalName = String(entry?.name || '');
 
@@ -27,8 +25,6 @@ function describeRenameRules(data = {}) {
   if (data.renameSuffix) rules.push(`suffix "${data.renameSuffix}"`);
   return rules.length > 0 ? rules.join(', ') : 'none';
 }
-
-// --- Duplicate final-name detection ---
 
 function findDuplicateFinalNames(entries, data = {}) {
   const byFinalName = new Map();

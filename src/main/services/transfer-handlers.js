@@ -6,8 +6,6 @@ const { setTimeout: delay } = require('node:timers/promises');
 const { DEVELOPER_MODE } = require('./common');
 const { inspectTransferPayload } = require('./payload-inspector');
 
-// --- Upload configuration ---
-
 const DOWNLOAD_DEFAULTS = Object.freeze({
   timeoutMs: 15_000,
   retries: 2,
@@ -15,15 +13,11 @@ const DOWNLOAD_DEFAULTS = Object.freeze({
 });
 
 const MAX_UPLOAD_RATE_LIMIT_RETRIES = 10000;
-// Poll up to ~90s total (180 attempts × 500ms) for slow Roblox processing.
+
 const MAX_UPLOAD_POLL_ATTEMPTS = 180;
 const UPLOAD_POLL_INTERVAL_MS = 500;
 const UPLOAD_START_FALLBACK_INTERVAL_MS = 50;
 const ASSET_UPLOAD_URL = 'https://apis.roblox.com/assets/v1/assets';
-
-// --- Global upload rate limiting ---
-// All upload slots share a single queue and rate-limit window so we respect
-// Roblox's per-key limits across concurrent workers.
 
 let rateLimitUntil = 0;
 let nextUploadStartAt = 0;
@@ -67,8 +61,6 @@ function waitUploadStartSlot() {
   uploadStartQueue = result.catch(() => {});
   return result;
 }
-
-// --- Small utilities ---
 
 function getErrorMessage(error, fallback = 'Unknown error') {
   return error instanceof Error ? error.message : String(error || fallback);
@@ -129,8 +121,6 @@ function getAssetIdFromResponse(responseData) {
   return responseData?.response?.assetId || responseData?.response?.Id || null;
 }
 
-// --- Fetch helpers ---
-
 async function fetchWithTimeout(
   url,
   options = {},
@@ -162,8 +152,6 @@ async function readJsonResponse(response) {
     return null;
   }
 }
-
-// --- File stream helpers ---
 
 async function waitForStreamEvent(stream, successEvent) {
   await new Promise((resolve, reject) => {
@@ -237,8 +225,6 @@ async function writeResponseBodyToFile(
   await waitForStreamEvent(fileStream, 'finish');
   return receivedLength;
 }
-
-// --- Upload internals ---
 
 async function uploadAsset(
   fileBuffer,
@@ -372,11 +358,6 @@ async function pollUploadOperation(
   throw new Error(`Upload timed out waiting for Roblox to process the ${assetType.toLowerCase()}.`);
 }
 
-// --- Public: Download ---
-
-/**
- * Downloads an animation or sound asset from Roblox with progress reporting.
- */
 async function downloadAnimationAssetWithProgress(
   url,
   robloxSession,
@@ -507,11 +488,6 @@ async function downloadAnimationAssetWithProgress(
   return { success: false, error: 'Download failed.' };
 }
 
-// --- Public: Upload (animation / sound via Open Cloud) ---
-
-/**
- * Publishes an animation or sound RBXM file to Roblox via the Open Cloud Assets API.
- */
 async function publishAnimationRbxmWithProgress(
   filePath,
   name,
@@ -565,7 +541,11 @@ async function publishAnimationRbxmWithProgress(
     return { success: false, error };
   }
 
-  const creator = groupId ? { groupId: String(groupId) } : userId ? { userId: String(userId) } : null;
+  const creator = groupId
+    ? { groupId: String(groupId) }
+    : userId
+      ? { userId: String(userId) }
+      : null;
   if (!creator) {
     const error =
       'Upload creator could not be resolved. Make sure your Open Cloud API key is valid and belongs to the account you are uploading to.';
@@ -582,7 +562,10 @@ async function publishAnimationRbxmWithProgress(
   try {
     payloadMetadata = inspectTransferPayload(fileBuffer, assetType);
   } catch (error) {
-    const errorMsg = getErrorMessage(error, `Downloaded ${assetType.toLowerCase()} file is not uploadable.`);
+    const errorMsg = getErrorMessage(
+      error,
+      `Downloaded ${assetType.toLowerCase()} file is not uploadable.`,
+    );
     if (DEVELOPER_MODE) {
       console.warn(`[UPLOAD DEBUG] Refusing invalid ${assetType} payload: ${errorMsg}`);
     }

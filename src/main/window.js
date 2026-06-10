@@ -34,9 +34,6 @@ function getRendererPath() {
   return path.join(__dirname, '..', 'renderer-react', 'dist', 'index.html');
 }
 
-/**
- * Creates the main application window.
- */
 function createWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.focus();
@@ -73,16 +70,10 @@ function createWindow() {
   return mainWindow;
 }
 
-/**
- * Gets the current main window instance.
- */
 function getMainWindow() {
   return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
 }
 
-/**
- * Sets up Electron lifecycle handlers.
- */
 function setupAppLifecycle() {
   const ready = app.whenReady().then(() => {
     createWindow();

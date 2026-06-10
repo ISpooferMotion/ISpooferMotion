@@ -39,7 +39,6 @@ const {
 const { pushReplacement } = require('./localhost-plugin-server');
 const { buildFinalUploadName } = require('./replacement-utils');
 
-// --- Global batch rate limiting for assetdelivery ---
 let batchRateLimitUntil = 0;
 let batchNextRequestAt = 0;
 let batchRequestIntervalMs = 100;
@@ -87,9 +86,9 @@ function getBatchRetryAfterMs(response, attempt = 1) {
   if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
     return retryAfterSeconds * 1000;
   }
-  const baseMs = 15000; // ~15 seconds
+  const baseMs = 15000;
   const expMs = baseMs * Math.pow(2, attempt - 1);
-  return Math.floor(expMs + Math.random() * 2000); // add jitter
+  return Math.floor(expMs + Math.random() * 2000);
 }
 
 function normalizePayload(value) {
@@ -260,8 +259,9 @@ function extractBatchLocationError(loc) {
   return getBatchLocationErrorMessage(errors[0]) || 'Unknown batch error';
 }
 
-function buildDirectAssetDownloadUrls(assetId, placeIds = []) {
+function buildDirectAssetDownloadUrls(assetId, placeIds = [], isSoundMode = false) {
   const encodedAssetId = encodeURIComponent(String(assetId));
+  const expectedAssetType = isSoundMode ? 'Audio' : 'Animation';
   const urls = new Set();
 
   for (const placeId of placeIds) {
@@ -273,10 +273,16 @@ function buildDirectAssetDownloadUrls(assetId, placeIds = []) {
     urls.add(
       `https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}&placeId=${encodedPlaceId}`,
     );
+    urls.add(
+      `https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}&expectedAssetType=${expectedAssetType}&placeId=${encodedPlaceId}`,
+    );
   }
 
   urls.add(`https://assetdelivery.roblox.com/v1/asset?id=${encodedAssetId}`);
   urls.add(`https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}`);
+  urls.add(
+    `https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}&expectedAssetType=${expectedAssetType}`,
+  );
 
   return [...urls];
 }
@@ -289,8 +295,8 @@ function getPlaceIdFromDownloadUrl(url) {
   }
 }
 
-function buildDirectAssetDownloadAttempts(assetId, placeIds = []) {
-  return buildDirectAssetDownloadUrls(assetId, placeIds).map((url) => ({
+function buildDirectAssetDownloadAttempts(assetId, placeIds = [], isSoundMode = false) {
+  return buildDirectAssetDownloadUrls(assetId, placeIds, isSoundMode).map((url) => ({
     url,
     placeId: getPlaceIdFromDownloadUrl(url),
   }));
@@ -609,7 +615,6 @@ async function saveProfileSecretsUnlocked(data) {
       allSecrets.activeProfileId = remaining.length > 0 ? remaining[0] : null;
     }
   } else if (payload.profileId) {
-    // Backwards compatibility
     const pId = String(payload.profileId || 'default');
     allSecrets.profiles[pId] = normalizeProfileSecrets({
       ...(allSecrets.profiles[pId] || {}),
@@ -737,16 +742,6 @@ function parsePlaceLookupInput(input, explicitType) {
   return { lookupType: 'creator', creatorType, creatorId: id };
 }
 
-/**
- * Detects the user ID that owns an Open Cloud API key by triggering a
- * deliberate unauthorized error and parsing the owner from the response.
- *
- * Roblox's Open Cloud returns errors like:
- *   "User 1200373902 is unauthorized to create an Animation asset as User 0"
- * The first number is the API key's owner. We extract it via regex.
- *
- * Returns { ok, ownerUserId, message }.
- */
 async function detectOpenCloudApiKeyOwner(apiKey) {
   const key = String(apiKey || '').trim();
   if (!key) {
@@ -764,9 +759,7 @@ async function detectOpenCloudApiKeyOwner(apiKey) {
         assetType: 'Audio',
         displayName: 'ownership-probe',
         description: 'probe',
-        // User ID 1 is the official Roblox account - always valid as a creator
-        // type, and the API key will never own it, so the auth check returns
-        // a "User <owner> is unauthorized..." error revealing the owner.
+
         creationContext: { creator: { userId: '1' } },
       }),
     );
@@ -783,8 +776,6 @@ async function detectOpenCloudApiKeyOwner(apiKey) {
       console.log(`[OWNER DETECT] Probe response status=${response.status} body=${text}`);
     }
 
-    // Parse the owner from the error message. Pattern matches:
-    //   "User 1200373902 is unauthorized"
     const match = text.match(/User\s+(\d+)\s+is\s+unauthorized/i);
     if (match && match[1]) {
       return {
@@ -794,7 +785,6 @@ async function detectOpenCloudApiKeyOwner(apiKey) {
       };
     }
 
-    // 401 = invalid key entirely; no owner to detect.
     if (response.status === 401) {
       return {
         ok: false,
@@ -1033,16 +1023,14 @@ function registerIpcHandlers(
   handleIpc('get-roblox-profile', (_event, context) => getRobloxProfile(context));
   handleIpc('validate-opencloud-api-key', async (_event, apiKey) => {
     const validation = await validateOpenCloudApiKey(apiKey);
-    // Best-effort owner detection - does not change validation result.
+
     if (validation.ok) {
       try {
         const owner = await detectOpenCloudApiKeyOwner(apiKey);
         if (owner.ok && owner.ownerUserId) {
           validation.ownerUserId = owner.ownerUserId;
         }
-      } catch {
-        /* ignore detection errors; validation stands on its own */
-      }
+      } catch {}
     }
     return validation;
   });
@@ -1224,9 +1212,7 @@ function registerIpcHandlers(
       try {
         const fs = require('fs/promises');
         await fs.unlink(getProfileSecretsPath());
-      } catch {
-        // Ignore if file doesn't exist
-      }
+      } catch {}
       return true;
     } catch (e) {
       if (DEVELOPER_MODE) console.warn('Failed to clear app data', e);
@@ -1419,9 +1405,7 @@ function registerIpcHandlers(
         try {
           const errorText = await response.text();
           if (DEVELOPER_MODE) console.log('(Dev) Quota API error:', errorText);
-        } catch {
-          // Ignore
-        }
+        } catch {}
         return { error: `Failed to fetch quota: ${response.status}` };
       }
 
@@ -1450,9 +1434,6 @@ function registerIpcHandlers(
   });
 }
 
-/**
- * Main spoofer action handler
- */
 async function handleSpooferAction(
   data,
   getMainWindowFn,
@@ -1464,8 +1445,6 @@ async function handleSpooferAction(
 ) {
   data = normalizePayload(data);
 
-  // Always reset run controls at the start of a new run so a previously-paused
-  // or cancelled run can't block the next one.
   resetRunControls();
 
   if (DEVELOPER_MODE) {
@@ -1476,8 +1455,6 @@ async function handleSpooferAction(
     console.log('MAIN_PROCESS: Received run-spoofer-action.');
   }
 
-  // If this is a resume, restore the original textarea input from the session file
-  // BEFORE parsing, so that entries are available even if the textarea is empty after a crash.
   if (data.resumeSession === true) {
     const savedSession = await loadSession();
     if (savedSession && savedSession.animationIdInput) {
@@ -1494,7 +1471,6 @@ async function handleSpooferAction(
     ? data.downloadFolder.trim()
     : path.join(app.getPath('userData'), 'ispoofer_downloads');
 
-  // Validate download-only mode requires folder selection
   if (data.downloadOnly && (!data.downloadFolder || !data.downloadFolder.trim())) {
     sendSpooferResultToRenderer({
       output: 'Please select a download folder for Download-Only mode.',
@@ -1556,7 +1532,6 @@ async function handleSpooferAction(
     console.log(`[API KEY] ${apiKeyValidation.message}`);
   }
 
-  // Parse animations or sounds
   const isSoundMode = data.spoofSounds === true;
   const assetTypeName = isSoundMode ? 'Audio' : 'Animation';
   const invalidAssetLines = [];
@@ -1699,7 +1674,7 @@ async function handleSpooferAction(
       sessionId: crypto.randomUUID(),
       startedAt: new Date().toISOString(),
       mode: isSoundMode ? 'Audio' : 'Animation',
-      animationIdInput: data.animationId, // stored so resume works even if textarea is empty after a crash
+      animationIdInput: data.animationId,
       totalCount: animationEntries.length,
       completedMappings: [],
     };
@@ -1709,7 +1684,7 @@ async function handleSpooferAction(
   let verboseOutputMessage = `Downloading ${animationEntries.length} ${isSoundMode ? 'sound' : 'animation'}(s)...\n`;
   let successfulUploadCount = 0;
   let downloadedSuccessfullyCount = 0;
-  // Seed mappings from prior completed session work
+
   let uploadMappingOutput = (session.completedMappings || [])
     .map((m) => `${m.originalId} = ${m.newId},`)
     .join('\n');
@@ -1744,7 +1719,6 @@ async function handleSpooferAction(
 
   let hasAuthError = false;
 
-  // Get the maxPlaceIds and maxPlaceIdRetries from data, defaults to 200 and 3
   const maxPlaceIds = data.maxPlaceIds || 200;
   const maxPlaceIdRetries = data.maxPlaceIdRetries || 3;
   const overridePlaceId = data.overridePlaceId ? parseInt(data.overridePlaceId) : null;
@@ -1760,7 +1734,6 @@ async function handleSpooferAction(
     );
   }
 
-  // Get placeIds for each creator (map creatorId -> array of placeIds)
   const placeIdMap = {};
   if (animationEntries.length > 0) {
     sendStatusMessage('Discovering compatible Roblox places...');
@@ -1794,14 +1767,6 @@ async function handleSpooferAction(
       }
     });
 
-    // For creators with no place IDs found, build a broad fallback pool from:
-    //  1. Authenticated user's own games
-    //  2. Games owned by groups the authenticated user is in
-    //  3. Games owned by groups the asset creator is in
-    //  4. Personal games of the OWNER of each group the creator belongs to
-    //  5. Personal games of the creator's friends
-    // This gives the batch lookup the best possible chance of finding a valid
-    // authorization context for private/restricted assets.
     const creatorsNeedingFallback = uniqueCreators.filter(
       (k) => !placeIdMap[k] || placeIdMap[k].length === 0,
     );
@@ -1812,7 +1777,6 @@ async function handleSpooferAction(
           `(Dev) ${creatorsNeedingFallback.length} creator(s) have no places. Building fallback pools...`,
         );
 
-      // Resolve the auth user ID once
       let fallbackAuthUserId = null;
       try {
         fallbackAuthUserId = await getAuthenticatedUserId(robloxCookie);
@@ -1821,7 +1785,6 @@ async function handleSpooferAction(
           console.warn('(Dev) Could not resolve auth user ID for fallback:', e.message);
       }
 
-      // Cache the fallback pool per creator so we don't rebuild it if called repeatedly
       const fallbackPools = new Map();
       const getFallbackPool = async (creatorKey, creatorType, creatorId) => {
         if (fallbackPools.has(creatorKey)) return fallbackPools.get(creatorKey);
@@ -1851,8 +1814,6 @@ async function handleSpooferAction(
       }
     }
 
-    // If an override Place ID was provided, prepend it to every creator's list
-    // so it gets tried absolutely first, before the plugin's place ID and the fallbacks.
     if (overridePlaceId) {
       for (const creatorKey of uniqueCreators) {
         placeIdMap[creatorKey] = uniquePlaceIds(overridePlaceId, placeIdMap[creatorKey]);
@@ -1863,7 +1824,6 @@ async function handleSpooferAction(
     if (DEVELOPER_MODE) console.log('(Dev) Resolved placeIdMap:', placeIdMap);
   }
 
-  // Batch download locations
   const locationsMap = {};
   const batchItems = animationEntries.map((entry) => ({
     requestId: entry.id,
@@ -1871,10 +1831,10 @@ async function handleSpooferAction(
     creatorType: entry.creatorType,
     creatorId: entry.creatorId,
   }));
-  // Batch behavior controls (allow overrides via incoming data)
+
   const BATCH_MAX_RETRIES = parseInt(data.batchRetries, 10) || 5;
   const BATCH_RETRY_DELAY_MS = parseInt(data.batchRetryDelay, 10) || 2000;
-  const BATCH_TIMEOUT_MS = parseInt(data.batchTimeoutMs, 10) || 15000; // 15s per batch
+  const BATCH_TIMEOUT_MS = parseInt(data.batchTimeoutMs, 10) || 15000;
   const chunkSize = Math.min(50, Math.max(1, parseInt(data.batchChunkSize, 10) || 10));
 
   sendStatusMessage('Resolving download locations...');
@@ -1916,7 +1876,6 @@ async function handleSpooferAction(
     const maxRetries = maxPlaceIdRetries;
 
     try {
-      // Pre-fill locationsMap so if placeIdArray is empty or an item is missing, we have a clear error
       for (const item of items) {
         setBatchLocation(locationsMap, {
           requestId: item.requestId,
@@ -2164,12 +2123,11 @@ async function handleSpooferAction(
 
   const UPLOAD_RETRIES = parseInt(data.uploadRetries, 10) || 3;
   const UPLOAD_RETRY_DELAY_MS = parseInt(data.uploadRetryDelay, 10) || 5000;
-  // Download controls (optional overrides via data)
+
   const DOWNLOAD_RETRIES = parseInt(data.downloadRetries, 10) || 2;
   const DOWNLOAD_RETRY_DELAY_MS = parseInt(data.downloadRetryDelayMs, 10) || 2000;
   const DOWNLOAD_TIMEOUT_MS = parseInt(data.downloadTimeoutMs, 10) || 15000;
 
-  // Parallel downloads
   sendStatusMessage(`Downloading ${isSoundMode ? 'sounds' : 'animations'}...`);
   const defaultDownloadLimit = 20;
   let userDownloadLimit = data.concurrentUploads
@@ -2345,7 +2303,11 @@ async function handleSpooferAction(
       }
 
       if (!scraperSuccess) {
-        const directAttempts = buildDirectAssetDownloadAttempts(entry.id, normalizedEntryPlaceIds);
+        const directAttempts = buildDirectAssetDownloadAttempts(
+          entry.id,
+          normalizedEntryPlaceIds,
+          isSoundMode,
+        );
         for (let index = 0; index < directAttempts.length; index += 1) {
           checkCancelled();
           await checkPaused();
@@ -2721,10 +2683,8 @@ async function handleSpooferAction(
     runSummary += `   Or increase "Upload Retries" for more attempts.\n`;
   }
 
-  // Output with mappings only (or download summary for download-only mode)
   let finalOutput;
   if (data.downloadOnly) {
-    // Download-only mode: show list of downloaded files
     const successfulDownloadsList = downloadResults
       .filter((r) => r.success)
       .map((r) => `${r.entry.name} (ID: ${r.entry.id})`)
@@ -2799,10 +2759,8 @@ async function handleSpooferAction(
     );
   }
 
-  // Clear session on completion (all done or all failed - no point resuming)
   await clearSession();
 
-  // Clear downloads directory after operation completes (only if using temp directory, not user-selected folder)
   if (!data.downloadOnly) {
     try {
       await clearDownloadsDirectory(downloadsDir, false);

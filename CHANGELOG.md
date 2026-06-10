@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.17
+
+**Desktop Backend Migration**: Before this Update, the Studio Plugin did all the heavy lifting, checking each ID against the Roblox API one by one, which caused scans to be slow and prone to timing out. Now, the plugin acts as a vacuum ripping every potential ID out of your game and offloading the entire payload to the Desktop App.
+
 ## v1.3.16
 
 **Massive Boost to Private Animation Downloads**: The spoofer is now significantly smarter at finding private animations. If a creator has their animations locked down and doesn't have any public games on their profile, the spoofer will now automatically scan their groups, group owners, and friends list to track down the exact game the animations were made for. This means drastically fewer "403 Forbidden" errors and more successful downloads.
