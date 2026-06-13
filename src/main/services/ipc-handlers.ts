@@ -39,7 +39,6 @@ const {
 const { pushReplacement } = require('./localhost-plugin-server');
 const { buildFinalUploadName } = require('./replacement-utils');
 
-// --- Global batch rate limiting for assetdelivery ---
 let batchRateLimitUntil = 0;
 let batchNextRequestAt = 0;
 let batchRequestIntervalMs = 100;
@@ -87,9 +86,9 @@ function getBatchRetryAfterMs(response, attempt = 1) {
   if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
     return retryAfterSeconds * 1000;
   }
-  const baseMs = 15000; // ~15 seconds
+  const baseMs = 15000;
   const expMs = baseMs * Math.pow(2, attempt - 1);
-  return Math.floor(expMs + Math.random() * 2000); // add jitter
+  return Math.floor(expMs + Math.random() * 2000);
 }
 
 function normalizePayload(value) {
@@ -142,7 +141,7 @@ function showDesktopNotification(title, body) {
   try {
     if (!Notification.isSupported()) return false;
     const iconName = process.platform === 'win32' ? 'app_icon.ico' : 'app_icon.png';
-    const rawIconPath = path.join(__dirname, '..', '..', 'assets', iconName);
+    const rawIconPath = path.join(__dirname, '..', 'src', 'assets', iconName);
     const iconPath = app.isPackaged
       ? rawIconPath.replace('app.asar', 'app.asar.unpacked')
       : rawIconPath;
@@ -281,7 +280,9 @@ function buildDirectAssetDownloadUrls(assetId, placeIds = [], isSoundMode = fals
 
   urls.add(`https://assetdelivery.roblox.com/v1/asset?id=${encodedAssetId}`);
   urls.add(`https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}`);
-  urls.add(`https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}&expectedAssetType=${expectedAssetType}`);
+  urls.add(
+    `https://assetdelivery.roblox.com/v1/asset/?id=${encodedAssetId}&expectedAssetType=${expectedAssetType}`,
+  );
 
   return [...urls];
 }
@@ -614,7 +615,6 @@ async function saveProfileSecretsUnlocked(data) {
       allSecrets.activeProfileId = remaining.length > 0 ? remaining[0] : null;
     }
   } else if (payload.profileId) {
-    // Backwards compatibility
     const pId = String(payload.profileId || 'default');
     allSecrets.profiles[pId] = normalizeProfileSecrets({
       ...(allSecrets.profiles[pId] || {}),
@@ -692,7 +692,6 @@ async function getRobloxProfile(context) {
           iconUrl: gAvatarResp?.data?.[0]?.imageUrl || '',
         };
       } catch {
-        // Ignored
       }
     }
 
@@ -733,7 +732,7 @@ function parsePlaceLookupInput(input, explicitType) {
     throw new Error('Enter a numeric User ID, Group ID, Place ID, or Roblox game URL.');
   }
   if (!creatorType) {
-    throw new Error('Choose whether the ID belongs to a user, group, or place.');
+    creatorType = 'place';
   }
   if (creatorType === 'user' && id === '1') {
     throw new Error('User ID 1 is ignored by design.');
@@ -742,16 +741,6 @@ function parsePlaceLookupInput(input, explicitType) {
   return { lookupType: 'creator', creatorType, creatorId: id };
 }
 
-/**
- * Detects the user ID that owns an Open Cloud API key by triggering a
- * deliberate unauthorized error and parsing the owner from the response.
- *
- * Roblox's Open Cloud returns errors like:
- *   "User 1200373902 is unauthorized to create an Animation asset as User 0"
- * The first number is the API key's owner. We extract it via regex.
- *
- * Returns { ok, ownerUserId, message }.
- */
 async function detectOpenCloudApiKeyOwner(apiKey) {
   const key = String(apiKey || '').trim();
   if (!key) {
@@ -759,8 +748,6 @@ async function detectOpenCloudApiKeyOwner(apiKey) {
   }
 
   try {
-    // Build a minimal valid-shaped FormData request that will be rejected for
-    // a creator mismatch (the key's owner can never be user 0).
     const dummyBuffer = Buffer.from([0]);
     const formData = new FormData();
     formData.append(
@@ -769,9 +756,7 @@ async function detectOpenCloudApiKeyOwner(apiKey) {
         assetType: 'Audio',
         displayName: 'ownership-probe',
         description: 'probe',
-        // User ID 1 is the official Roblox account - always valid as a creator
-        // type, and the API key will never own it, so the auth check returns
-        // a "User <owner> is unauthorized..." error revealing the owner.
+
         creationContext: { creator: { userId: '1' } },
       }),
     );
@@ -788,8 +773,6 @@ async function detectOpenCloudApiKeyOwner(apiKey) {
       console.log(`[OWNER DETECT] Probe response status=${response.status} body=${text}`);
     }
 
-    // Parse the owner from the error message. Pattern matches:
-    //   "User 1200373902 is unauthorized"
     const match = text.match(/User\s+(\d+)\s+is\s+unauthorized/i);
     if (match && match[1]) {
       return {
@@ -799,7 +782,6 @@ async function detectOpenCloudApiKeyOwner(apiKey) {
       };
     }
 
-    // 401 = invalid key entirely; no owner to detect.
     if (response.status === 401) {
       return {
         ok: false,
@@ -891,7 +873,6 @@ function normalizeSpooferInputLine(line) {
       .replace(/^\uFEFF/, '')
       .replace(/[\u200B-\u200D\u2060]/g, '')
       .replace(/\u00A0/g, ' ')
-      // eslint-disable-next-line no-control-regex
       .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
       .trim()
   );
@@ -1038,16 +1019,14 @@ function registerIpcHandlers(
   handleIpc('get-roblox-profile', (_event, context) => getRobloxProfile(context));
   handleIpc('validate-opencloud-api-key', async (_event, apiKey) => {
     const validation = await validateOpenCloudApiKey(apiKey);
-    // Best-effort owner detection - does not change validation result.
+
     if (validation.ok) {
       try {
         const owner = await detectOpenCloudApiKeyOwner(apiKey);
         if (owner.ok && owner.ownerUserId) {
           validation.ownerUserId = owner.ownerUserId;
         }
-      } catch {
-        /* ignore detection errors; validation stands on its own */
-      }
+      } catch {}
     }
     return validation;
   });
@@ -1229,9 +1208,7 @@ function registerIpcHandlers(
       try {
         const fs = require('fs/promises');
         await fs.unlink(getProfileSecretsPath());
-      } catch {
-        // Ignore if file doesn't exist
-      }
+      } catch {}
       return true;
     } catch (e) {
       if (DEVELOPER_MODE) console.warn('Failed to clear app data', e);
@@ -1424,9 +1401,7 @@ function registerIpcHandlers(
         try {
           const errorText = await response.text();
           if (DEVELOPER_MODE) console.log('(Dev) Quota API error:', errorText);
-        } catch {
-          // Ignore
-        }
+        } catch {}
         return { error: `Failed to fetch quota: ${response.status}` };
       }
 
@@ -1455,9 +1430,6 @@ function registerIpcHandlers(
   });
 }
 
-/**
- * Main spoofer action handler
- */
 async function handleSpooferAction(
   data,
   getMainWindowFn,
@@ -1469,8 +1441,6 @@ async function handleSpooferAction(
 ) {
   data = normalizePayload(data);
 
-  // Always reset run controls at the start of a new run so a previously-paused
-  // or cancelled run can't block the next one.
   resetRunControls();
 
   if (DEVELOPER_MODE) {
@@ -1481,8 +1451,6 @@ async function handleSpooferAction(
     console.log('MAIN_PROCESS: Received run-spoofer-action.');
   }
 
-  // If this is a resume, restore the original textarea input from the session file
-  // BEFORE parsing, so that entries are available even if the textarea is empty after a crash.
   if (data.resumeSession === true) {
     const savedSession = await loadSession();
     if (savedSession && savedSession.animationIdInput) {
@@ -1499,7 +1467,6 @@ async function handleSpooferAction(
     ? data.downloadFolder.trim()
     : path.join(app.getPath('userData'), 'ispoofer_downloads');
 
-  // Validate download-only mode requires folder selection
   if (data.downloadOnly && (!data.downloadFolder || !data.downloadFolder.trim())) {
     sendSpooferResultToRenderer({
       output: 'Please select a download folder for Download-Only mode.',
@@ -1529,7 +1496,6 @@ async function handleSpooferAction(
     ? String(data.overridePlaceId).replace(/\D/g, '')
     : '';
 
-  // Validate group ID is numeric if provided
   if (data.groupId && !/^\d+$/.test(String(data.groupId).trim())) {
     sendSpooferResultToRenderer({
       output: `Invalid Group ID "${data.groupId}" - must be a number only, not a URL or text.`,
@@ -1538,7 +1504,6 @@ async function handleSpooferAction(
     return;
   }
 
-  // Both animation and sound uploads require an Open Cloud API key
   if (!data.downloadOnly && !data.apiKey) {
     sendSpooferResultToRenderer({
       output:
@@ -1561,7 +1526,6 @@ async function handleSpooferAction(
     console.log(`[API KEY] ${apiKeyValidation.message}`);
   }
 
-  // Parse animations or sounds
   const isSoundMode = data.spoofSounds === true;
   const assetTypeName = isSoundMode ? 'Audio' : 'Animation';
   const invalidAssetLines = [];
@@ -1606,10 +1570,8 @@ async function handleSpooferAction(
     );
   }
 
-  // For backwards compatibility with code that expects animationEntries
   const animationEntries = assetEntries;
 
-  // Get cookie
   const firstEntry = animationEntries[0];
   let robloxCookie = data.robloxCookie;
   if (data.autoDetectCookie) {
@@ -1639,7 +1601,6 @@ async function handleSpooferAction(
 
   const robloxSession = createRobloxSession(robloxCookie);
 
-  // Ensure downloads directory exists
   try {
     if (!(await fs.stat(downloadsDir).catch(() => null))) {
       await fs.mkdir(downloadsDir, { recursive: true });
@@ -1669,11 +1630,9 @@ async function handleSpooferAction(
     }
   }
 
-  // Session setup (crash recovery + resume)
   const isResume = data.resumeSession === true;
   let session = isResume ? await loadSession() : null;
   if (isResume && session) {
-    // Filter to only assets not yet completed in the prior session
     const completedIds = new Set((session.completedMappings || []).map((m) => m.originalId));
     animationEntries.splice(
       0,
@@ -1682,7 +1641,6 @@ async function handleSpooferAction(
     );
 
     if (animationEntries.length === 0) {
-      // All assets were already completed - just show the saved mappings and finish
       const mappingOutput = (session.completedMappings || [])
         .map((m) => `${m.originalId} = ${m.newId},`)
         .join('\n');
@@ -1704,7 +1662,7 @@ async function handleSpooferAction(
       sessionId: crypto.randomUUID(),
       startedAt: new Date().toISOString(),
       mode: isSoundMode ? 'Audio' : 'Animation',
-      animationIdInput: data.animationId, // stored so resume works even if textarea is empty after a crash
+      animationIdInput: data.animationId,
       totalCount: animationEntries.length,
       completedMappings: [],
     };
@@ -1714,7 +1672,7 @@ async function handleSpooferAction(
   let verboseOutputMessage = `Downloading ${animationEntries.length} ${isSoundMode ? 'sound' : 'animation'}(s)...\n`;
   let successfulUploadCount = 0;
   let downloadedSuccessfullyCount = 0;
-  // Seed mappings from prior completed session work
+
   let uploadMappingOutput = (session.completedMappings || [])
     .map((m) => `${m.originalId} = ${m.newId},`)
     .join('\n');
@@ -1749,7 +1707,6 @@ async function handleSpooferAction(
 
   let hasAuthError = false;
 
-  // Get the maxPlaceIds and maxPlaceIdRetries from data, defaults to 200 and 3
   const maxPlaceIds = data.maxPlaceIds || 200;
   const maxPlaceIdRetries = data.maxPlaceIdRetries || 3;
   const overridePlaceId = data.overridePlaceId ? parseInt(data.overridePlaceId) : null;
@@ -1765,7 +1722,6 @@ async function handleSpooferAction(
     );
   }
 
-  // Get placeIds for each creator (map creatorId -> array of placeIds)
   const placeIdMap = {};
   if (animationEntries.length > 0) {
     sendStatusMessage('Discovering compatible Roblox places...');
@@ -1799,14 +1755,6 @@ async function handleSpooferAction(
       }
     });
 
-    // For creators with no place IDs found, build a broad fallback pool from:
-    //  1. Authenticated user's own games
-    //  2. Games owned by groups the authenticated user is in
-    //  3. Games owned by groups the asset creator is in
-    //  4. Personal games of the OWNER of each group the creator belongs to
-    //  5. Personal games of the creator's friends
-    // This gives the batch lookup the best possible chance of finding a valid
-    // authorization context for private/restricted assets.
     const creatorsNeedingFallback = uniqueCreators.filter(
       (k) => !placeIdMap[k] || placeIdMap[k].length === 0,
     );
@@ -1817,7 +1765,6 @@ async function handleSpooferAction(
           `(Dev) ${creatorsNeedingFallback.length} creator(s) have no places. Building fallback pools...`,
         );
 
-      // Resolve the auth user ID once
       let fallbackAuthUserId = null;
       try {
         fallbackAuthUserId = await getAuthenticatedUserId(robloxCookie);
@@ -1826,7 +1773,6 @@ async function handleSpooferAction(
           console.warn('(Dev) Could not resolve auth user ID for fallback:', e.message);
       }
 
-      // Cache the fallback pool per creator so we don't rebuild it if called repeatedly
       const fallbackPools = new Map();
       const getFallbackPool = async (creatorKey, creatorType, creatorId) => {
         if (fallbackPools.has(creatorKey)) return fallbackPools.get(creatorKey);
@@ -1856,8 +1802,6 @@ async function handleSpooferAction(
       }
     }
 
-    // If an override Place ID was provided, prepend it to every creator's list
-    // so it gets tried absolutely first, before the plugin's place ID and the fallbacks.
     if (overridePlaceId) {
       for (const creatorKey of uniqueCreators) {
         placeIdMap[creatorKey] = uniquePlaceIds(overridePlaceId, placeIdMap[creatorKey]);
@@ -1868,7 +1812,6 @@ async function handleSpooferAction(
     if (DEVELOPER_MODE) console.log('(Dev) Resolved placeIdMap:', placeIdMap);
   }
 
-  // Batch download locations
   const locationsMap = {};
   const batchItems = animationEntries.map((entry) => ({
     requestId: entry.id,
@@ -1876,10 +1819,10 @@ async function handleSpooferAction(
     creatorType: entry.creatorType,
     creatorId: entry.creatorId,
   }));
-  // Batch behavior controls (allow overrides via incoming data)
+
   const BATCH_MAX_RETRIES = parseInt(data.batchRetries, 10) || 5;
   const BATCH_RETRY_DELAY_MS = parseInt(data.batchRetryDelay, 10) || 2000;
-  const BATCH_TIMEOUT_MS = parseInt(data.batchTimeoutMs, 10) || 15000; // 15s per batch
+  const BATCH_TIMEOUT_MS = parseInt(data.batchTimeoutMs, 10) || 15000;
   const chunkSize = Math.min(50, Math.max(1, parseInt(data.batchChunkSize, 10) || 10));
 
   sendStatusMessage('Resolving download locations...');
@@ -1921,7 +1864,6 @@ async function handleSpooferAction(
     const maxRetries = maxPlaceIdRetries;
 
     try {
-      // Pre-fill locationsMap so if placeIdArray is empty or an item is missing, we have a clear error
       for (const item of items) {
         setBatchLocation(locationsMap, {
           requestId: item.requestId,
@@ -2140,7 +2082,6 @@ async function handleSpooferAction(
       }
       sendStatusMessage(`Batch request failed: ${error.message}`);
       for (const item of items) {
-        // Only overwrite if we don't already have a valid location or a specific Roblox error for it
         if (
           !locationsMap[item.requestId] ||
           locationsMap[item.requestId].errors?.[0]?.message === 'Asset missing from batch response'
@@ -2169,12 +2110,11 @@ async function handleSpooferAction(
 
   const UPLOAD_RETRIES = parseInt(data.uploadRetries, 10) || 3;
   const UPLOAD_RETRY_DELAY_MS = parseInt(data.uploadRetryDelay, 10) || 5000;
-  // Download controls (optional overrides via data)
+
   const DOWNLOAD_RETRIES = parseInt(data.downloadRetries, 10) || 2;
   const DOWNLOAD_RETRY_DELAY_MS = parseInt(data.downloadRetryDelayMs, 10) || 2000;
   const DOWNLOAD_TIMEOUT_MS = parseInt(data.downloadTimeoutMs, 10) || 15000;
 
-  // Parallel downloads
   sendStatusMessage(`Downloading ${isSoundMode ? 'sounds' : 'animations'}...`);
   const defaultDownloadLimit = 20;
   let userDownloadLimit = data.concurrentUploads
@@ -2350,7 +2290,11 @@ async function handleSpooferAction(
       }
 
       if (!scraperSuccess) {
-        const directAttempts = buildDirectAssetDownloadAttempts(entry.id, normalizedEntryPlaceIds, isSoundMode);
+        const directAttempts = buildDirectAssetDownloadAttempts(
+          entry.id,
+          normalizedEntryPlaceIds,
+          isSoundMode,
+        );
         for (let index = 0; index < directAttempts.length; index += 1) {
           checkCancelled();
           await checkPaused();
@@ -2416,10 +2360,6 @@ async function handleSpooferAction(
     downloadOne,
   );
 
-  // Resolve the upload creator user ID once before the upload loop.
-  // Open Cloud requires the creator to match the API key's owner, so we
-  // detect the API key owner first and only fall back to the cookie user
-  // ID if detection fails (e.g. older keys, network issues).
   let authenticatedUserId = null;
   if (!data.downloadOnly && data.apiKey && !data.groupId) {
     try {
@@ -2429,7 +2369,6 @@ async function handleSpooferAction(
         if (DEVELOPER_MODE)
           console.log(`(Dev) Resolved upload user ID from API key: ${authenticatedUserId}`);
       } else {
-        // Fall back to cookie-derived user ID.
         authenticatedUserId = await getAuthenticatedUserId(robloxCookie);
         if (DEVELOPER_MODE)
           console.log(
@@ -2446,7 +2385,6 @@ async function handleSpooferAction(
     }
   }
 
-  // Parallel uploads (skip if download-only mode)
   let uploadResults = [];
   if (data.downloadOnly) {
     sendStatusMessage('Download-only mode: Skipping uploads');
@@ -2458,8 +2396,6 @@ async function handleSpooferAction(
 
     let uploadCompleted = 0;
     const uploadStartTime = Date.now();
-    // Open Cloud API rate limit is 60 req/min.
-    // Normal uploads can run in parallel
     const defaultLimit = 15;
 
     let userLimit = data.maxConcurrentUploads
@@ -2472,8 +2408,6 @@ async function handleSpooferAction(
 
     const UPLOAD_CONCURRENCY = Math.max(1, Math.min(userLimit, successfulDownloads.length || 1));
 
-    // Worker pool: as soon as a slot finishes it picks up the next item immediately,
-    // instead of waiting for a whole batch to finish before starting the next.
     const uploadOne = async (downloadResult) => {
       const entry = downloadResult.entry;
       const filePath = downloadResult.filePath;
@@ -2538,7 +2472,6 @@ async function handleSpooferAction(
           UPLOAD_RETRY_DELAY_MS,
           onRetryAttempt,
         );
-        // Save progress after each successful upload
         if (uploadResult.success && uploadResult.assetId) {
           session.completedMappings.push({
             originalId: String(entry.id),
@@ -2597,14 +2530,12 @@ async function handleSpooferAction(
     uploadResults = await runWithConcurrency(successfulDownloads, UPLOAD_CONCURRENCY, uploadOne);
   }
 
-  // Process results
   for (const downloadResult of downloadResults) {
     const entry = downloadResult.entry;
     verboseOutputMessage += `\n--- Asset: ${entry.name} (ID: ${entry.id}) ---\n`;
     if (downloadResult.success) {
       downloadedSuccessfullyCount++;
 
-      // Only process upload results if not in download-only mode
       if (!data.downloadOnly) {
         const uploadResult = uploadResults.find((u) => u.entry.id === entry.id);
         if (uploadResult) {
@@ -2654,7 +2585,6 @@ async function handleSpooferAction(
     if (DEVELOPER_MODE) console.warn('(Dev) Failed to send final status message', e);
   }
 
-  // Build concise run summary (counts, failures)
   const downloadFailures = downloadResults
     .filter((r) => !r.success)
     .map((r) => ({
@@ -2672,7 +2602,6 @@ async function handleSpooferAction(
           reason: u.error || 'Unknown error',
         }));
 
-  // Detect rate-limit failures
   const rateLimitFailures = uploadFailures.filter(
     (f) => (f.reason || '').includes('429') || (f.reason || '').includes('Rate limit'),
   );
@@ -2710,7 +2639,6 @@ async function handleSpooferAction(
     runSummary += `\nInput lines skipped: ${skippedCount}\n${parseNotes.join('\n')}${skippedCount > parseNotes.length ? `\n(+${skippedCount - parseNotes.length} more)` : ''}\n`;
   }
 
-  // Add top failure details (bounded) for quick inspection
   if (downloadFailures.length) {
     runSummary += `\n` + listFailures('Download failures', downloadFailures);
   }
@@ -2718,7 +2646,6 @@ async function handleSpooferAction(
     runSummary += `\n` + listFailures('Upload failures', uploadFailures);
   }
 
-  // Add rate-limit guidance if detected
   if (rateLimitFailures.length > 0) {
     const suggestedDelay = Math.min(Math.max(UPLOAD_RETRY_DELAY_MS * 2, 10000), 60000);
     runSummary += `\nRATE LIMIT DETECTED (429): ${rateLimitFailures.length} upload(s) hit rate limits.\n`;
@@ -2726,10 +2653,8 @@ async function handleSpooferAction(
     runSummary += `   Or increase "Upload Retries" for more attempts.\n`;
   }
 
-  // Output with mappings only (or download summary for download-only mode)
   let finalOutput;
   if (data.downloadOnly) {
-    // Download-only mode: show list of downloaded files
     const successfulDownloadsList = downloadResults
       .filter((r) => r.success)
       .map((r) => `${r.entry.name} (ID: ${r.entry.id})`)
@@ -2762,7 +2687,6 @@ async function handleSpooferAction(
     }
   }
 
-  // Print final summary to console for quick inspection
   try {
     if (DEVELOPER_MODE) {
       console.log('(Dev) Run Summary:\n' + runSummary);
@@ -2804,10 +2728,8 @@ async function handleSpooferAction(
     );
   }
 
-  // Clear session on completion (all done or all failed - no point resuming)
   await clearSession();
 
-  // Clear downloads directory after operation completes (only if using temp directory, not user-selected folder)
   if (!data.downloadOnly) {
     try {
       await clearDownloadsDirectory(downloadsDir, false);

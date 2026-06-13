@@ -7,6 +7,8 @@ out/
 release/
 plugin-build/
 dist-plugin/
+/dist-main/
+/downloads/
 *.AppImage
 *.deb
 *.dmg

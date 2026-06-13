@@ -9,19 +9,14 @@ const fs = require('node:fs/promises');
 const { DEVELOPER_MODE } = require('./common');
 const { createRobloxSession } = require('./roblox-session');
 
-// --- Constants & Config ---
-
 const execFileAsync = promisify(execFile);
-// New Roblox cookies are not guaranteed to keep the old hex-only suffix. Keep
-// auto-detection format-agnostic so rotated cookies from the 2026 rollout work.
+
 const ROBLOX_COOKIE_PATTERN =
   /_\|WARNING:-DO-NOT-SHARE-THIS\.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items\.\|_[^;\s"'\\]+/i;
 const ROBLOX_STUDIO_COOKIE_TARGET = 'https://www.roblox.com:RobloxStudioAuth.ROBLOSECURITY';
 const ROBLOX_USER_AGENT = 'RobloxStudio/WinInet';
 const DEFAULT_TIMEOUT_MS = 15_000;
 const BROWSER_COOKIE_SCAN_BYTES = 25 * 1024 * 1024;
-
-// --- Network & Debug Utilities ---
 
 function debugLog(...args) {
   if (DEVELOPER_MODE) console.log(...args);
@@ -58,8 +53,6 @@ async function readJsonResponse(response, context) {
   }
   return data;
 }
-
-// --- Cookie Extraction & File Scanning ---
 
 function extractRobloxCookie(rawValue) {
   if (!rawValue) return undefined;
@@ -210,11 +203,6 @@ async function getCookieFromAutoDetect(userId = null) {
   return undefined;
 }
 
-// --- Platform-Specific Extractors ---
-
-/**
- * Retrieves Roblox cookie from Roblox Studio or Windows Credential Manager.
- */
 async function getCookieFromRobloxStudio(userId = null) {
   if (!['darwin', 'win32'].includes(process.platform)) return undefined;
 
@@ -295,11 +283,6 @@ async function getCookieFromRobloxStudio(userId = null) {
   return undefined;
 }
 
-// --- Roblox API Methods ---
-
-/**
- * Fetches CSRF token from Roblox auth endpoint.
- */
 async function getCsrfToken(cookie) {
   const csrfUrl = 'https://auth.roblox.com/v2/logout';
   const robloxSession = createRobloxSession(cookie);
@@ -335,9 +318,6 @@ async function getCsrfToken(cookie) {
   return token;
 }
 
-/**
- * Gets the authenticated user's ID from the Roblox API using their cookie.
- */
 async function getAuthenticatedUserId(cookie) {
   const robloxSession = createRobloxSession(cookie);
   const cookieHeader = robloxSession.getCookieHeader();

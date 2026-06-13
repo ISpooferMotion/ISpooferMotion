@@ -5,9 +5,6 @@ const { buildRobloxCookieHeader, normalizeRobloxCookie } = require('./common');
 const ROBLOX_COOKIE_ROLLOUT_URL =
   'https://devforum.roblox.com/t/upcoming-roblosecurity-cookie-format-changes/4328913';
 
-// Roblox began enforcing .ROBLOSECURITY cookie format and rotation changes on or
-// after May 1, 2026. Cookie-authenticated clients must accept Set-Cookie updates:
-// https://devforum.roblox.com/t/upcoming-roblosecurity-cookie-format-changes/4328913
 const sessionsByCookie = new Map();
 
 function getSetCookieHeaders(response) {

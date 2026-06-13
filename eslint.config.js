@@ -3,24 +3,25 @@ const globals = require('globals');
 
 module.exports = [
   {
-    ignores: ['dist/**', 'build/**', 'node_modules/**', 'src/renderer-react/**', 'downloads/**'],
+    ignores: ['dist/**', 'dist-main/**', 'build/**', 'node_modules/**', 'downloads/**'],
   },
   js.configs.recommended,
   {
-    files: ['**/*.js'],
+    files: ['**/*.js', '**/*.ts', '**/*.jsx', '**/*.tsx'],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: 'commonjs',
+      sourceType: 'module',
       globals: {
         ...globals.node,
-        ...globals.browser, // Some parts might expect browser globals if it touches Electron renderer lightly, but we primarily target Node/Electron main.
+        ...globals.browser,
       },
     },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      'no-console': 'off', // We heavily use console.log in CLI/scripts
+      'no-console': 'off',
       'no-empty': ['error', { allowEmptyCatch: true }],
       'no-constant-condition': ['error', { checkLoops: false }],
+      'no-control-regex': 'off',
     },
   },
 ];

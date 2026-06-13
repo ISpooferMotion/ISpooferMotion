@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.17
+
+- **Full React UI Migration**: Completely rebuilt the application's user interface from the ground up using React, Chakra UI, and Vite.
+- **Desktop Backend Migration**: Greatly accelerated Roblox Studio scans. The Studio Plugin now acts as a high-speed vacuum, ripping every potential ID out of your game in bulk and offloading the heavy lifting of API validation to the Desktop App, preventing timeouts.
+- **Upload Speed Boost**: Cranked up the concurrency limits and batch chunk sizes under the hood. Mass-uploading and downloading assets is now significantly faster and more aggressive out of the box.
+
 ## v1.3.16
 
 **Massive Boost to Private Animation Downloads**: The spoofer is now significantly smarter at finding private animations. If a creator has their animations locked down and doesn't have any public games on their profile, the spoofer will now automatically scan their groups, group owners, and friends list to track down the exact game the animations were made for. This means drastically fewer "403 Forbidden" errors and more successful downloads.

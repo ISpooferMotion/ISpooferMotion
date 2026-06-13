@@ -16,7 +16,7 @@ const WINDOW_OPTIONS = Object.freeze({
 });
 
 function resolveAssetPath(fileName) {
-  const assetPath = path.join(__dirname, '..', 'assets', fileName);
+  const assetPath = path.join(__dirname, '..', 'src', 'assets', fileName);
   return app.isPackaged ? assetPath.replace('app.asar', 'app.asar.unpacked') : assetPath;
 }
 
@@ -27,16 +27,13 @@ function getIconPath() {
 }
 
 function getPreloadPath() {
-  return path.join(__dirname, '..', 'preload', 'preload.js');
+  return path.join(__dirname, '..', 'src', 'preload', 'preload.js');
 }
 
 function getRendererPath() {
-  return path.join(__dirname, '..', 'renderer-react', 'dist', 'index.html');
+  return path.join(__dirname, '..', 'src', 'renderer-react', 'dist', 'index.html');
 }
 
-/**
- * Creates the main application window.
- */
 function createWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.focus();
@@ -73,16 +70,10 @@ function createWindow() {
   return mainWindow;
 }
 
-/**
- * Gets the current main window instance.
- */
 function getMainWindow() {
   return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
 }
 
-/**
- * Sets up Electron lifecycle handlers.
- */
 function setupAppLifecycle() {
   const ready = app.whenReady().then(() => {
     createWindow();

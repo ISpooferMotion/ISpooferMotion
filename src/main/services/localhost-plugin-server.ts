@@ -4,6 +4,9 @@ const http = require('node:http');
 const path = require('node:path');
 const { app, Notification, nativeImage } = require('electron');
 const { DEVELOPER_MODE } = require('./common');
+const { getCookieFromAutoDetect } = require('./auth');
+const { createRobloxSession } = require('./roblox-session');
+const { getPlaceSuggestionByPlaceId } = require('./assets');
 
 const DEFAULT_PORT = 3100;
 const PORT_SCAN_LIMIT = 10;
@@ -12,14 +15,8 @@ const MAX_BODY_BYTES = 5 * 1024 * 1024;
 let server = null;
 let activePort = DEFAULT_PORT;
 
-// Holds the last batch of replacement mappings pushed by the app.
-// The plugin polls /pending-replacement and clears this once applied.
 let pendingReplacement = null;
 
-/**
- * Called by the app (ipc-handlers.js) after a successful upload run.
- * Stores mappings so the Studio plugin can pick them up on its next poll.
- */
 function pushReplacement(text) {
   const trimmed = String(text || '').trim();
   if (!trimmed) return;
@@ -37,7 +34,7 @@ function pushReplacement(text) {
 
 function resolveIconPath() {
   const assetFile = process.platform === 'win32' ? 'app_icon.ico' : 'app_icon.png';
-  const assetPath = path.join(__dirname, '..', '..', 'assets', assetFile);
+  const assetPath = path.join(__dirname, '..', 'src', 'assets', assetFile);
   return app.isPackaged ? assetPath.replace('app.asar', 'app.asar.unpacked') : assetPath;
 }
 
@@ -53,7 +50,7 @@ function scanLabel(kind) {
 
 function firstNumericId(...values) {
   for (const value of values) {
-    const match = String(value ?? '').match(/\d{5,}/);
+    const match = String(value ?? '').match(/\d+/);
     if (match) return match[0];
   }
   return '';
@@ -127,7 +124,9 @@ function normalizeAssetEntry(entry, defaultPlaceId = '') {
 }
 
 function normalizeAssets(payload) {
-  const payloadPlaceId = normalizePlaceId(payload?.placeId || payload?.PlaceId || payload?.game?.placeId);
+  const payloadPlaceId = normalizePlaceId(
+    payload?.placeId || payload?.PlaceId || payload?.game?.placeId,
+  );
   const sourceAssets = Array.isArray(payload?.assets)
     ? payload.assets
     : Array.isArray(payload?.ids)
@@ -155,12 +154,10 @@ function appendPlaceContextToLine(line) {
 function formatAssetsForInput(assets) {
   return assets
     .filter((asset) => asset.assetId && asset.creatorId)
-    .map(
-      (asset) => {
-        const base = `[${asset.assetId}] [${cleanText(asset.name, asset.assetId)}] [${asset.creatorType}:${asset.creatorId}]`;
-        return appendPlaceContextToLine(base);
-      },
-    )
+    .map((asset) => {
+      const base = `[${asset.assetId}] [${cleanText(asset.name, asset.assetId)}] [${asset.creatorType}:${asset.creatorId}]`;
+      return appendPlaceContextToLine(base);
+    })
     .join('\n');
 }
 
@@ -220,45 +217,284 @@ function showScanNotification(kind, count) {
   }
 }
 
-async function handleScanPayload(payload, callbacks) {
-  const kind = normalizeScanKind(payload?.kind || payload?.type || payload?.scanType);
-  const assets = normalizeAssets(payload);
-  const payloadPlaceId = normalizePlaceId(payload?.placeId || payload?.PlaceId || payload?.game?.placeId);
-  const text =
-    Array.isArray(payload?.lines) && payload.lines.length
-      ? payload.lines
-          .map((line) => String(line || '').trim())
-          .filter(Boolean)
-          .map((line) => appendPlaceContextToLine(line))
-          .join('\n')
-      : formatAssetsForInput(assets);
-  const lines = text ? text.split(/\r?\n/).filter(Boolean) : [];
-  const count = lines.length;
 
-  const scanResult = {
-    kind,
-    label: scanLabel(kind),
-    count,
-    text,
-    lines,
-    placeId: payloadPlaceId || null,
-    source: 'localhost-plugin',
-    receivedAt: new Date().toISOString(),
+
+const METADATA_CONCURRENCY = 30;
+const ECONOMY_DETAIL_BASE = 'https://economy.roblox.com/v2/assets';
+const ROBLOX_USER_AGENT = 'RobloxStudio/WinInet';
+const ASSET_TYPE_IDS = { animation: 24, sound: 3 };
+
+async function fetchSingleAssetDetail(id, placeId, session, attempt = 1) {
+  const url = `${ECONOMY_DETAIL_BASE}/${id}/details`;
+  const headers = {
+    'User-Agent': ROBLOX_USER_AGENT,
+    Accept: 'application/json',
+  };
+  if (placeId) headers['Roblox-Place-Id'] = placeId;
+
+  try {
+    const signal =
+      typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(15_000) : undefined;
+    const fetchFn = session ? (u, o) => session.fetch(u, o) : fetch;
+    const response = await fetchFn(url, { headers, signal, includeCookie: false });
+
+    if (response.status === 429 && attempt <= 5) {
+      await new Promise((r) => setTimeout(r, 1000 * attempt));
+      return fetchSingleAssetDetail(id, placeId, session, attempt + 1);
+    }
+
+    if (!response.ok) return null;
+
+    const json = await response.json();
+    return json && json.AssetId ? json : null;
+  } catch (err) {
+    if (attempt <= 5 && err.name !== 'AbortError') {
+      await new Promise((r) => setTimeout(r, 1000 * attempt));
+      return fetchSingleAssetDetail(id, placeId, session, attempt + 1);
+    }
+    return null;
+  }
+}
+
+async function batchResolveMetadata(
+  candidateIds,
+  kind,
+  session,
+  placeId,
+  fallbackCreator,
+  names = {},
+  onProgress,
+  confirmedIds = new Set(),
+) {
+  const results = [];
+  const privateIds = [];
+
+  const seen = new Set();
+  const ids = candidateIds.filter((id) => {
+    const s = String(id);
+    if (seen.has(s)) return false;
+    seen.add(s);
+    if (s[0] === '0') return false;
+    const len = s.length;
+    return len >= 7 && len <= 15;
+  });
+
+  let processedCount = 0;
+  let index = 0;
+
+  const worker = async () => {
+    while (index < ids.length) {
+      const i = index++;
+      const id = ids[i];
+      const item = await fetchSingleAssetDetail(id, placeId, session);
+
+      processedCount++;
+      if (onProgress) onProgress(processedCount, ids.length);
+
+      if (!item) {
+        if (confirmedIds.has(String(id))) {
+          privateIds.push(id);
+        }
+        continue;
+      }
+
+      const expectedTypeId = ASSET_TYPE_IDS[kind];
+      if (expectedTypeId && item.AssetTypeId !== expectedTypeId) continue;
+
+      const creatorType = normalizeCreatorType(
+        item.Creator?.CreatorType || item.creator?.CreatorType || item.creatorType,
+      );
+      const creatorId = firstNumericId(
+        item.Creator?.CreatorTargetId,
+        item.Creator?.Id,
+        item.creator?.CreatorTargetId,
+        item.creator?.Id,
+        item.creatorTargetId,
+        item.creatorId,
+      );
+
+      const strCreatorId = String(creatorId || '');
+      if (!strCreatorId || strCreatorId === '0' || strCreatorId === '1') continue;
+
+      results.push({
+        assetId: String(item.AssetId || id),
+        name: cleanText(item.Name || item.name, id),
+        creatorType,
+        creatorId: strCreatorId,
+        placeId: normalizePlaceId(placeId),
+      });
+    }
   };
 
-  const delivered = count > 0 ? callbacks.sendScanResults(scanResult) : false;
-  const statusMessage =
-    count > 0
-      ? `${scanLabel(kind)} scan imported: ${count} ID${count === 1 ? '' : 's'}.`
-      : `${scanLabel(kind)} scan received, but no importable IDs were found.`;
-  callbacks.sendStatusMessage(statusMessage);
-  if (count > 0) showScanNotification(kind, count);
+  const workers = Array.from({ length: Math.min(METADATA_CONCURRENCY, ids.length) }, () =>
+    worker(),
+  );
+  await Promise.all(workers);
 
-  if (DEVELOPER_MODE) {
-    console.log(`[LocalhostPlugin] Received ${count} ${kind} ID(s) from Roblox Studio.`);
+  if (results.length > 0) {
+    const creatorCounts = {};
+    for (const r of results) {
+      if (r.creatorId && r.creatorId !== 'Unknown' && r.creatorId !== '1') {
+        const key = `${r.creatorType}:${r.creatorId}`;
+        creatorCounts[key] = (creatorCounts[key] || 0) + 1;
+      }
+    }
+    let bestCreator = null;
+    let maxCount = 0;
+    for (const [key, count] of Object.entries(creatorCounts)) {
+      if (count > maxCount) {
+        maxCount = count;
+        bestCreator = key;
+      }
+    }
+    if (bestCreator) {
+      const [cType, cId] = bestCreator.split(':');
+      fallbackCreator = { creatorType: cType, creatorId: cId };
+      if (DEVELOPER_MODE)
+        console.log(
+          `[LocalhostPlugin] Heuristic detected likely creator: ${cType}:${cId} (${maxCount} assets)`,
+        );
+    }
   }
 
-  return { ok: true, delivered, count, kind, port: activePort };
+  for (const id of privateIds) {
+    const contextualName = names[id] || names[String(id)] || 'Unknown';
+    results.push({
+      assetId: id,
+      name: cleanText(contextualName, id),
+      creatorType: fallbackCreator?.creatorType || 'User',
+      creatorId: fallbackCreator?.creatorId || 'Unknown',
+      placeId: normalizePlaceId(placeId),
+    });
+  }
+
+  return results;
+}
+
+async function handleScanPayload(payload, callbacks) {
+  const kind = normalizeScanKind(payload?.kind || payload?.type || payload?.scanType);
+  const placeId = normalizePlaceId(payload?.placeId || payload?.PlaceId || payload?.game?.placeId);
+  const names = payload?.names && typeof payload.names === 'object' ? payload.names : {};
+
+  const rawIds = Array.isArray(payload?.ids) ? payload.ids.map(String) : [];
+  const confirmedIdsSet = new Set(
+    Array.isArray(payload?.confirmedIds) ? payload.confirmedIds.map(String) : [],
+  );
+
+  const processScanAsync = async () => {
+    let assets = [];
+
+    if (rawIds.length > 0) {
+      callbacks.sendStatusMessage(
+        `Resolving ${rawIds.length} candidate ID${rawIds.length === 1 ? '' : 's'}...`,
+      );
+      try {
+        const cookie = await getCookieFromAutoDetect();
+
+        let fallbackCreator = { creatorType: 'User', creatorId: '' };
+        if (payload.gameCreatorId && String(payload.gameCreatorId) !== '0') {
+          fallbackCreator = {
+            creatorType: payload.gameCreatorType === 1 ? 'Group' : 'User',
+            creatorId: String(payload.gameCreatorId),
+          };
+        } else if (payload.studioUserId && String(payload.studioUserId) !== '0') {
+          fallbackCreator = {
+            creatorType: 'User',
+            creatorId: String(payload.studioUserId),
+          };
+        } else if (placeId && cookie) {
+          try {
+            const suggestion = await getPlaceSuggestionByPlaceId(placeId, cookie);
+            if (suggestion) {
+              fallbackCreator = {
+                creatorType: suggestion.creatorType,
+                creatorId: suggestion.creatorId,
+              };
+            }
+          } catch (e) {
+            if (DEVELOPER_MODE)
+              console.warn('[LocalhostPlugin] place suggestion fetch failed:', e.message);
+          }
+        }
+
+        if (cookie) {
+          const session = createRobloxSession(cookie);
+          assets = await batchResolveMetadata(
+            rawIds,
+            kind,
+            session,
+            placeId,
+            fallbackCreator,
+            names,
+            (processed, total) => {
+              callbacks.sendStatusMessage(`Resolving metadata... (${processed}/${total})`);
+            },
+            confirmedIdsSet,
+          );
+          if (DEVELOPER_MODE)
+            console.log(
+              `[LocalhostPlugin] Resolved ${assets.length} assets from ${rawIds.length} candidates.`,
+            );
+        } else {
+          if (DEVELOPER_MODE)
+            console.warn(
+              '[LocalhostPlugin] No Roblox session cookie found; falling back to raw IDs.',
+            );
+          for (const id of rawIds) {
+            const s = String(id);
+            if (s[0] === '0' || s.length < 7 || s.length > 15) continue;
+            if (confirmedIdsSet.has(s)) {
+              assets.push({
+                assetId: s,
+                name: names[s] || 'Unknown',
+                creatorType: fallbackCreator?.creatorType || 'User',
+                creatorId: fallbackCreator?.creatorId || 'Unknown',
+                placeId,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        if (DEVELOPER_MODE)
+          console.error('[LocalhostPlugin] batchResolveMetadata failed:', err.message);
+      }
+    } else {
+      assets = normalizeAssets(payload);
+    }
+
+    const text = assets.length > 0 ? formatAssetsForInput(assets) : '';
+    const lines = text ? text.split(/\r?\n/).filter(Boolean) : [];
+    const count = lines.length;
+
+    const scanResult = {
+      kind,
+      label: scanLabel(kind),
+      count,
+      text,
+      lines,
+      placeId: placeId || null,
+      source: 'localhost-plugin',
+      receivedAt: new Date().toISOString(),
+    };
+
+    if (count > 0) callbacks.sendScanResults(scanResult);
+    const statusMessage =
+      count > 0
+        ? `${scanLabel(kind)} scan imported: ${count} ID${count === 1 ? '' : 's'}.`
+        : `${scanLabel(kind)} scan received, but no importable IDs were found.`;
+    callbacks.sendStatusMessage(statusMessage);
+    if (count > 0) showScanNotification(kind, count);
+
+    if (DEVELOPER_MODE) {
+      console.log(`[LocalhostPlugin] Received ${count} ${kind} ID(s) from Roblox Studio.`);
+    }
+  };
+
+  processScanAsync().catch((err) => {
+    if (DEVELOPER_MODE) console.error('[LocalhostPlugin] Background scan processing failed:', err);
+  });
+
+  return { ok: true, delivered: true, count: rawIds.length, kind, port: activePort };
 }
 
 function extractReplacementPairs(text) {
@@ -358,7 +594,6 @@ function startLocalhostPluginServer(callbacks, options = {}) {
         return;
       }
 
-      // App → Server: push a replacement batch so the plugin can pick it up.
       if (req.method === 'POST' && url.pathname === '/push-replacements') {
         const body = await readJsonBody(req);
         const text = String(body?.text || '');
@@ -367,7 +602,6 @@ function startLocalhostPluginServer(callbacks, options = {}) {
         return;
       }
 
-      // Plugin → Server: poll for a pending replacement batch.
       if (req.method === 'GET' && url.pathname === '/pending-replacement') {
         if (pendingReplacement) {
           sendJson(res, 200, {
@@ -383,11 +617,10 @@ function startLocalhostPluginServer(callbacks, options = {}) {
         return;
       }
 
-      // Plugin → Server: acknowledge that the replacement was applied.
       if (req.method === 'POST' && url.pathname === '/mark-replacement-applied') {
         pendingReplacement = null;
         if (typeof safeCallbacks.sendStatusMessage === 'function') {
-          safeCallbacks.sendStatusMessage('Studio plugin applied the replacements ✓');
+          safeCallbacks.sendStatusMessage('Studio plugin applied the replacements');
         }
         sendJson(res, 200, { ok: true });
         return;

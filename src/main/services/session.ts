@@ -5,13 +5,9 @@ const fs = require('node:fs/promises');
 const { app } = require('electron');
 const { DEVELOPER_MODE } = require('./common');
 
-// --- Paths ---
-
 function getSessionPath() {
   return path.join(app.getPath('userData'), 'ispoofer_session.json');
 }
-
-// --- Write queue (prevents concurrent file writes from corrupting the session) ---
 
 let sessionWriteQueue = Promise.resolve();
 
@@ -20,8 +16,6 @@ function queueSessionWrite(operation) {
   sessionWriteQueue = result.catch(() => {});
   return result;
 }
-
-// --- Read / Write ---
 
 function saveSession(session) {
   const text = JSON.stringify(session, null, 2);

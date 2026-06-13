@@ -1,0 +1,3 @@
+dist-main
+src/renderer-react/dist
+node_modules
