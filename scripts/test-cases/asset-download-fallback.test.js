@@ -12,6 +12,7 @@ const {
   buildDirectAssetDownloadAttempts,
   buildDirectAssetDownloadUrls,
   extractBatchLocationError,
+  getSpooferInputTypeMarker,
   getAssetMetadataFromDetails,
   getPlaceIdFromDownloadUrl,
   hasBatchAccessDeniedErrors,
@@ -107,6 +108,19 @@ test('asset input parser accepts optional per-entry Studio place context', () =>
       placeId: '987654321',
     },
   });
+  assert.deepEqual(
+    parseSpooferAssetLine('[234567890] [Doorbell] [Group:84] [Type:Sound] [Place:987654321],'),
+    {
+      entry: {
+        id: '234567890',
+        name: 'Doorbell',
+        creatorType: 'group',
+        creatorId: '84',
+        assetTypeName: 'Audio',
+        placeId: '987654321',
+      },
+    },
+  );
   assert.deepEqual(parseSpooferAssetLine('[123456789] [Lucas] [Group:84],'), {
     entry: {
       id: '123456789',
@@ -137,6 +151,7 @@ test('asset metadata repair replaces stale pasted creator IDs before place looku
   assert.deepEqual(metadata, {
     name: 'Lucas',
     assetTypeId: 24,
+    assetTypeName: 'Animation',
     creatorType: 'user',
     creatorId: '10949827818',
   });
@@ -146,6 +161,7 @@ test('asset metadata repair replaces stale pasted creator IDs before place looku
     name: 'equip',
     creatorType: 'user',
     creatorId: '10949827818',
+    assetTypeName: 'Animation',
   });
 });
 
@@ -168,6 +184,7 @@ test('asset metadata repair also handles audio creator metadata shapes', () => {
   assert.deepEqual(metadata, {
     name: 'Door Open',
     assetTypeId: 3,
+    assetTypeName: 'Audio',
     creatorType: 'group',
     creatorId: '987654321',
   });
@@ -177,6 +194,7 @@ test('asset metadata repair also handles audio creator metadata shapes', () => {
     name: 'Door Open',
     creatorType: 'group',
     creatorId: '987654321',
+    assetTypeName: 'Audio',
   });
 });
 
@@ -217,6 +235,57 @@ test('localhost scan formatting carries payload place context into asset lines',
       },
     ],
   );
+});
+
+test('localhost scan formatting includes an import type marker when kind is known', () => {
+  assert.equal(
+    formatAssetsForInput(
+      [
+        {
+          assetId: '123456789',
+          name: 'Doorbell',
+          creatorType: 'User',
+          creatorId: '42000',
+        },
+      ],
+      'sound',
+    ),
+    '--[[ TYPE: SOUND ]]\n[123456789] [Doorbell] [User:42000] [Type:Sound],',
+  );
+  assert.equal(
+    formatAssetsForInput(
+      [
+        {
+          assetId: '123456789',
+          name: 'Run',
+          creatorType: 'User',
+          creatorId: '42000',
+          assetTypeName: 'Animation',
+        },
+        {
+          assetId: '987654321',
+          name: 'Doorbell',
+          creatorType: 'User',
+          creatorId: '42000',
+          assetTypeName: 'Audio',
+        },
+      ],
+      'mixed',
+    ),
+    '--[[ TYPE: MIXED ]]\n[123456789] [Run] [User:42000] [Type:Animation],\n[987654321] [Doorbell] [User:42000] [Type:Sound],',
+  );
+});
+
+test('spoofer input type marker is detected independently of the saved mode toggle', () => {
+  assert.equal(
+    getSpooferInputTypeMarker('--[[ TYPE: SOUND ]]\n[123456789] [Doorbell] [User:42000],'),
+    'sound',
+  );
+  assert.equal(
+    getSpooferInputTypeMarker('--[[ TYPE: ANIMATION ]]\n[123456789] [Run] [User:42000],'),
+    'animation',
+  );
+  assert.equal(getSpooferInputTypeMarker('[123456789] [Run] [User:42000],'), null);
 });
 
 test('download validation rejects HTML saved as an animation payload', async (t) => {

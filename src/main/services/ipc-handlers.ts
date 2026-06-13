@@ -368,9 +368,11 @@ function getAssetCreatorFromDetails(data) {
 
 function getAssetMetadataFromDetails(data) {
   const creator = getAssetCreatorFromDetails(data);
+  const assetTypeId = data?.AssetTypeId || data?.assetTypeId || data?.asset?.AssetTypeId || null;
   return {
     name: getAssetNameFromDetails(data),
-    assetTypeId: data?.AssetTypeId || data?.assetTypeId || data?.asset?.AssetTypeId || null,
+    assetTypeId,
+    assetTypeName: normalizeAssetTypeName(assetTypeId),
     ...(creator || {}),
   };
 }
@@ -394,6 +396,12 @@ function applyResolvedAssetMetadata(entry, metadata, options = {}) {
       entry.creatorId = creatorId;
       changed = true;
     }
+  }
+
+  const assetTypeName = getAssetTypeNameFromMetadata(metadata);
+  if (assetTypeName && entry.assetTypeName !== assetTypeName) {
+    entry.assetTypeName = assetTypeName;
+    changed = true;
   }
 
   return changed;
@@ -428,7 +436,7 @@ async function fetchAssetMetadata(assetId, robloxSession) {
 }
 
 async function resolveAssetEntryMetadata(entries, robloxSession, options = {}) {
-  const { force = false, isSoundMode = false } = options;
+  const { force = false } = options;
   const entriesToResolve = entries.filter((entry) => entry?.id);
   if (entriesToResolve.length === 0) return 0;
 
@@ -453,12 +461,12 @@ async function resolveAssetEntryMetadata(entries, robloxSession, options = {}) {
         const newCreator = `${entry.creatorType}:${entry.creatorId}`;
         if (oldName !== entry.name) {
           console.log(
-            `(Dev) Resolved ${isSoundMode ? 'sound' : 'animation'} name for ${entry.id}: "${entry.name}"`,
+            `(Dev) Resolved ${getAssetKindLabel(entry.assetTypeName).toLowerCase()} name for ${entry.id}: "${entry.name}"`,
           );
         }
         if (oldCreator !== newCreator) {
           console.log(
-            `(Dev) Resolved ${isSoundMode ? 'sound' : 'animation'} creator for ${entry.id}: ${oldCreator} -> ${newCreator}`,
+            `(Dev) Resolved ${getAssetKindLabel(entry.assetTypeName).toLowerCase()} creator for ${entry.id}: ${oldCreator} -> ${newCreator}`,
           );
         }
       }
@@ -888,12 +896,52 @@ function isSpooferOutputMetadataLine(line) {
   const withoutKnownMarkers = trimmed
     .replace(/--\[\[/g, '')
     .replace(/--\]\]/g, '')
-    .replace(/\bTYPE\s*:\s*(SOUND|ANIMATION)\b/gi, '')
+    .replace(/\bTYPE\s*:\s*(SOUND|ANIMATION|MIXED)\b/gi, '')
     .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
     .replace(/[\s,\u00A0]+/g, '')
     .replace(/[-_[\]{}()*=;:|/\\]+/g, '');
 
   return withoutKnownMarkers === '';
+}
+
+function getSpooferInputTypeMarker(text) {
+  const source = String(text || '');
+  const hasSoundMarker = /\bTYPE\s*:\s*SOUND\b/i.test(source);
+  const hasAnimationMarker = /\bTYPE\s*:\s*ANIMATION\b/i.test(source);
+  if (/\bTYPE\s*:\s*(MIXED|BOTH)\b/i.test(source)) return null;
+  if (hasSoundMarker && !hasAnimationMarker) return 'sound';
+  if (hasAnimationMarker && !hasSoundMarker) return 'animation';
+  return null;
+}
+
+function normalizeAssetTypeName(value) {
+  const text = String(value || '').toLowerCase();
+  if (text.includes('sound') || text.includes('audio') || text === '3') return 'Audio';
+  if (text.includes('anim') || text === '24') return 'Animation';
+  return '';
+}
+
+function getAssetTypeNameFromMetadata(metadata) {
+  return (
+    normalizeAssetTypeName(metadata?.assetTypeName || metadata?.assetType) ||
+    normalizeAssetTypeName(metadata?.assetTypeId)
+  );
+}
+
+function getEntryAssetTypeName(entry, fallback = 'Animation') {
+  return normalizeAssetTypeName(entry?.assetTypeName || entry?.assetType) || fallback;
+}
+
+function getAssetKindLabel(assetTypeName) {
+  return getEntryAssetTypeName({ assetTypeName }) === 'Audio' ? 'Sound' : 'Animation';
+}
+
+function summarizeAssetTypes(entries) {
+  const audio = entries.filter((entry) => getEntryAssetTypeName(entry) === 'Audio').length;
+  const animations = entries.length - audio;
+  if (audio > 0 && animations > 0) return `${animations} animation(s), ${audio} sound(s)`;
+  if (audio > 0) return `${audio} sound(s)`;
+  return `${animations} animation(s)`;
 }
 
 function normalizePlaceContextId(value) {
@@ -919,20 +967,21 @@ function uniquePlaceIds(...groups) {
 }
 
 function parseSpooferAssetLine(trimmedLine) {
-  const match = trimmedLine.match(
-    /^\[([^\]]+)\]\s*\[([^\]]+)\]\s*\[([^\]]+)\](?:\s*\[([^\]]+)\])?,?$/,
-  );
-  if (!match) {
+  const line = String(trimmedLine || '').replace(/,?\s*$/, '');
+  const tokens = [...line.matchAll(/\[([^\]]+)\]/g)].map((match) => match[1].trim());
+  const tokenText = [...line.matchAll(/\[([^\]]+)\]/g)].map((match) => match[0]).join('');
+  const leftovers = line.replace(/\[([^\]]+)\]/g, '').trim();
+
+  if (tokens.length < 3 || leftovers || tokenText.length === 0) {
     return {
       error:
-        'Expected [assetId] [name] [User:123] or [Group:123], optionally followed by [Place:123].',
+        'Expected [assetId] [name] [User:123] or [Group:123], optionally followed by [Type:Sound] and [Place:123].',
     };
   }
 
-  const id = match[1].trim();
-  const name = match[2].trim();
-  const third = match[3].trim();
-  const placeToken = match[4]?.trim() || '';
+  const id = tokens[0];
+  const name = tokens[1];
+  const third = tokens[2];
   let creatorType;
   let creatorId;
 
@@ -956,13 +1005,20 @@ function parseSpooferAssetLine(trimmedLine) {
   }
 
   let placeId = '';
-  if (placeToken) {
-    if (!/^place/i.test(placeToken)) {
-      return { error: 'Fourth field must be Place:123.' };
-    }
-    placeId = normalizePlaceContextId(placeToken);
-    if (!placeId) {
-      return { error: 'Place ID must be numeric.' };
+  let assetTypeName = '';
+  for (const extraToken of tokens.slice(3)) {
+    if (/^place/i.test(extraToken)) {
+      placeId = normalizePlaceContextId(extraToken);
+      if (!placeId) {
+        return { error: 'Place ID must be numeric.' };
+      }
+    } else if (/^(type|assettype|kind)/i.test(extraToken)) {
+      assetTypeName = normalizeAssetTypeName(extraToken);
+      if (!assetTypeName) {
+        return { error: 'Type must be Sound, Audio, or Animation.' };
+      }
+    } else {
+      return { error: 'Extra fields must be Type:Sound, Type:Animation, or Place:123.' };
     }
   }
 
@@ -972,6 +1028,7 @@ function parseSpooferAssetLine(trimmedLine) {
       name,
       creatorType,
       creatorId,
+      ...(assetTypeName ? { assetTypeName } : {}),
       ...(placeId ? { placeId } : {}),
     },
   };
@@ -1526,12 +1583,17 @@ async function handleSpooferAction(
     console.log(`[API KEY] ${apiKeyValidation.message}`);
   }
 
-  const isSoundMode = data.spoofSounds === true;
-  const assetTypeName = isSoundMode ? 'Audio' : 'Animation';
+  const inputText = String(data.animationId || '');
+  const inputTypeMarker = getSpooferInputTypeMarker(inputText);
+  const defaultInputAssetTypeName = inputTypeMarker
+    ? inputTypeMarker === 'sound'
+      ? 'Audio'
+      : 'Animation'
+    : '';
   const invalidAssetLines = [];
   const duplicateAssetLines = [];
   const seenAssetIds = new Set();
-  const assetEntries = (data.animationId || '')
+  const assetEntries = inputText
     .split('\n')
     .map((line, index) => {
       const trimmedLine = normalizeSpooferInputLine(line);
@@ -1549,6 +1611,9 @@ async function handleSpooferAction(
         return null;
       }
       seenAssetIds.add(parsed.entry.id);
+      if (!parsed.entry.assetTypeName && defaultInputAssetTypeName) {
+        parsed.entry.assetTypeName = defaultInputAssetTypeName;
+      }
       return parsed.entry;
     })
     .filter((entry) => entry && entry.id && entry.creatorId);
@@ -1558,7 +1623,7 @@ async function handleSpooferAction(
       ? `\n\nInvalid line(s):\n${invalidAssetLines.map((item) => `Line ${item.line}: ${item.reason}`).join('\n')}`
       : '';
     sendSpooferResultToRenderer({
-      output: `No valid ${isSoundMode ? 'sound' : 'animation'} entries were found. Paste entries like:\n[12345678] [ExampleAsset] [User:12345]\n[23456789] [ExampleGroupAsset] [Group:67890]${details}`,
+      output: `No valid asset entries were found. Paste entries like:\n[12345678] [ExampleAsset] [User:12345]\n[23456789] [ExampleGroupAsset] [Group:67890]\n[34567890] [ExampleSound] [User:12345] [Type:Sound]${details}`,
       success: false,
     });
     return;
@@ -1566,7 +1631,7 @@ async function handleSpooferAction(
 
   if (invalidAssetLines.length || duplicateAssetLines.length) {
     console.warn(
-      `[INPUT] Processing ${assetEntries.length} valid ${isSoundMode ? 'sound' : 'animation'} entr${assetEntries.length === 1 ? 'y' : 'ies'}; skipped ${invalidAssetLines.length} invalid and ${duplicateAssetLines.length} duplicate line(s).`,
+      `[INPUT] Processing ${assetEntries.length} valid asset entr${assetEntries.length === 1 ? 'y' : 'ies'}; skipped ${invalidAssetLines.length} invalid and ${duplicateAssetLines.length} duplicate line(s).`,
     );
   }
 
@@ -1617,18 +1682,25 @@ async function handleSpooferAction(
   try {
     const resolvedMetadataCount = await resolveAssetEntryMetadata(animationEntries, robloxSession, {
       force: data.downloadOnly,
-      isSoundMode,
     });
+    for (const entry of animationEntries) {
+      if (!entry.assetTypeName) entry.assetTypeName = 'Animation';
+    }
     if (resolvedMetadataCount > 0) {
       console.log(
-        `[METADATA] Resolved ${resolvedMetadataCount}/${animationEntries.length} ${isSoundMode ? 'sound' : 'animation'} metadata entr${resolvedMetadataCount === 1 ? 'y' : 'ies'} from Roblox.`,
+        `[METADATA] Resolved ${resolvedMetadataCount}/${animationEntries.length} asset metadata entr${resolvedMetadataCount === 1 ? 'y' : 'ies'} from Roblox.`,
       );
     }
   } catch (err) {
+    for (const entry of animationEntries) {
+      if (!entry.assetTypeName) entry.assetTypeName = 'Animation';
+    }
     if (DEVELOPER_MODE) {
       console.warn(`(Dev) Failed to refresh asset names: ${err.message}`);
     }
   }
+
+  const assetTypeSummary = summarizeAssetTypes(animationEntries);
 
   const isResume = data.resumeSession === true;
   let session = isResume ? await loadSession() : null;
@@ -1661,7 +1733,7 @@ async function handleSpooferAction(
     session = {
       sessionId: crypto.randomUUID(),
       startedAt: new Date().toISOString(),
-      mode: isSoundMode ? 'Audio' : 'Animation',
+      mode: 'Mixed',
       animationIdInput: data.animationId,
       totalCount: animationEntries.length,
       completedMappings: [],
@@ -1669,7 +1741,7 @@ async function handleSpooferAction(
     await saveSession(session);
   }
 
-  let verboseOutputMessage = `Downloading ${animationEntries.length} ${isSoundMode ? 'sound' : 'animation'}(s)...\n`;
+  let verboseOutputMessage = `Downloading ${assetTypeSummary}...\n`;
   let successfulUploadCount = 0;
   let downloadedSuccessfullyCount = 0;
 
@@ -1695,7 +1767,7 @@ async function handleSpooferAction(
 
   const totalAnimations = animationEntries.length;
   try {
-    sendStatusMessage(`Preparing ${totalAnimations} ${isSoundMode ? 'sounds' : 'animations'}...`);
+    sendStatusMessage(`Preparing ${assetTypeSummary}...`);
     sendSpooferProgress({
       phase: 'preparing',
       current: 0,
@@ -1833,7 +1905,7 @@ async function handleSpooferAction(
   });
   if (DEVELOPER_MODE)
     console.log(
-      `(Dev) Fetching batch locations for ${batchItems.length} ${isSoundMode ? 'sounds' : 'animations'} with creator-specific placeIds`,
+      `(Dev) Fetching batch locations for ${batchItems.length} assets with creator-specific placeIds`,
     );
   const batchTasks = [];
   const creatorGroups = {};
@@ -2115,7 +2187,7 @@ async function handleSpooferAction(
   const DOWNLOAD_RETRY_DELAY_MS = parseInt(data.downloadRetryDelayMs, 10) || 2000;
   const DOWNLOAD_TIMEOUT_MS = parseInt(data.downloadTimeoutMs, 10) || 15000;
 
-  sendStatusMessage(`Downloading ${isSoundMode ? 'sounds' : 'animations'}...`);
+  sendStatusMessage(`Downloading ${assetTypeSummary}...`);
   const defaultDownloadLimit = 20;
   let userDownloadLimit = data.concurrentUploads
     ? data.maxConcurrentDownloads
@@ -2128,7 +2200,6 @@ async function handleSpooferAction(
   const downloadStartTime = Date.now();
 
   const getScrapedAssetCdnUrl = async (assetId) => {
-    if (!isSoundMode) return null;
     try {
       const htmlResponse = await robloxSession.fetch(`https://www.roblox.com/library/${assetId}/`, {
         headers: {
@@ -2170,9 +2241,11 @@ async function handleSpooferAction(
   const downloadOne = async (entry) => {
     checkCancelled();
     await checkPaused();
+    const entryAssetTypeName = getEntryAssetTypeName(entry);
+    const entryIsSound = entryAssetTypeName === 'Audio';
     const loc = locationsMap[entry.id];
     const sanitizedName = sanitizeFilename(entry.name);
-    const fileExtension = isSoundMode ? '.ogg' : '.rbxm';
+    const fileExtension = entryIsSound ? '.ogg' : '.rbxm';
     const fileName = `${sanitizedName}_${entry.id}${fileExtension}`;
     let filePath = path.join(downloadsDir, fileName);
     const downloadTransfer = initialTransferStates.find((t) => t.originalAssetId === entry.id);
@@ -2221,7 +2294,7 @@ async function handleSpooferAction(
       if (!downloadResult?.success) return downloadResult;
 
       try {
-        const validation = await validateDownloadedAssetFile(filePath, assetTypeName);
+        const validation = await validateDownloadedAssetFile(filePath, entryAssetTypeName);
         filePath = validation.filePath;
         return {
           ...downloadResult,
@@ -2232,7 +2305,9 @@ async function handleSpooferAction(
         const errorMessage =
           error instanceof Error
             ? error.message
-            : String(error || `Downloaded ${assetTypeName.toLowerCase()} file is not uploadable.`);
+            : String(
+                error || `Downloaded ${entryAssetTypeName.toLowerCase()} file is not uploadable.`,
+              );
         await fs.rm(filePath, { force: true }).catch(() => {});
         sendTransferUpdate({
           id: downloadTransferId,
@@ -2274,7 +2349,7 @@ async function handleSpooferAction(
       }
 
       let scraperSuccess = false;
-      if (isSoundMode) {
+      if (entryIsSound) {
         const scrapedUrl = await getScrapedAssetCdnUrl(entry.id);
         if (scrapedUrl) {
           result = await tryDownloadUrl(
@@ -2293,7 +2368,7 @@ async function handleSpooferAction(
         const directAttempts = buildDirectAssetDownloadAttempts(
           entry.id,
           normalizedEntryPlaceIds,
-          isSoundMode,
+          entryIsSound,
         );
         for (let index = 0; index < directAttempts.length; index += 1) {
           checkCancelled();
@@ -2344,9 +2419,7 @@ async function handleSpooferAction(
     const etaMin = Math.floor(etaSeconds / 60);
     const etaSec = etaSeconds % 60;
     const etaStr = remaining > 0 ? ` (ETA: ${etaMin}:${String(etaSec).padStart(2, '0')})` : '';
-    sendStatusMessage(
-      `Downloaded ${downloadCompleted}/${animationEntries.length} ${isSoundMode ? 'sounds' : 'animations'}${etaStr}`,
-    );
+    sendStatusMessage(`Downloaded ${downloadCompleted}/${animationEntries.length} assets${etaStr}`);
     return {
       entry,
       filePath: result.success ? filePath : null,
@@ -2392,7 +2465,7 @@ async function handleSpooferAction(
   } else {
     const successfulDownloads = downloadResults.filter((r) => r.success);
 
-    sendStatusMessage(`Uploading ${isSoundMode ? 'sounds' : 'animations'}...`);
+    sendStatusMessage(`Uploading ${summarizeAssetTypes(successfulDownloads.map((r) => r.entry))}...`);
 
     let uploadCompleted = 0;
     const uploadStartTime = Date.now();
@@ -2410,6 +2483,7 @@ async function handleSpooferAction(
 
     const uploadOne = async (downloadResult) => {
       const entry = downloadResult.entry;
+      const entryAssetTypeName = getEntryAssetTypeName(entry);
       const filePath = downloadResult.filePath;
       const uploadTransferId = crypto.randomUUID();
       const fileSize = (await fs.stat(filePath).catch(() => ({ size: 0 }))).size;
@@ -2453,7 +2527,7 @@ async function handleSpooferAction(
           data.groupId && String(data.groupId).trim() ? data.groupId : null,
           uploadTransferId,
           sendTransferUpdate,
-          assetTypeName,
+          entryAssetTypeName,
           data.apiKey || null,
           authenticatedUserId || null,
           { abortSignal: getAbortSignal() },
@@ -2493,9 +2567,7 @@ async function handleSpooferAction(
         const etaSec = etaSeconds % 60;
         const etaStr = remaining > 0 ? ` (ETA: ${etaMin}:${String(etaSec).padStart(2, '0')})` : '';
         const actionText = 'Uploaded';
-        sendStatusMessage(
-          `${actionText} ${uploadCompleted}/${successfulDownloads.length} ${isSoundMode ? 'sounds' : 'animations'}${etaStr}`,
-        );
+        sendStatusMessage(`${actionText} ${uploadCompleted}/${successfulDownloads.length} assets${etaStr}`);
         return {
           entry,
           success: uploadResult.success,
@@ -2521,9 +2593,7 @@ async function handleSpooferAction(
         const etaMin = Math.floor(etaSeconds / 60);
         const etaSec = etaSeconds % 60;
         const etaStr = remaining > 0 ? ` (ETA: ${etaMin}:${String(etaSec).padStart(2, '0')})` : '';
-        sendStatusMessage(
-          `Uploaded ${uploadCompleted}/${successfulDownloads.length} ${isSoundMode ? 'sounds' : 'animations'}${etaStr}`,
-        );
+        sendStatusMessage(`Uploaded ${uploadCompleted}/${successfulDownloads.length} assets${etaStr}`);
         return { entry, success: false, error: finalRetryError.message };
       }
     };
@@ -2532,7 +2602,8 @@ async function handleSpooferAction(
 
   for (const downloadResult of downloadResults) {
     const entry = downloadResult.entry;
-    verboseOutputMessage += `\n--- Asset: ${entry.name} (ID: ${entry.id}) ---\n`;
+    const entryLabel = getAssetKindLabel(entry.assetTypeName);
+    verboseOutputMessage += `\n--- ${entryLabel}: ${entry.name} (ID: ${entry.id}) ---\n`;
     if (downloadResult.success) {
       downloadedSuccessfullyCount++;
 
@@ -2542,12 +2613,12 @@ async function handleSpooferAction(
           if (uploadResult.success) {
             successfulUploadCount++;
             uploadMappingOutput += `${entry.id} = ${uploadResult.assetId},\n`;
-            verboseOutputMessage += `Uploaded ${isSoundMode ? 'Sound' : 'Animation'}: ${entry.name} (Original ID: ${entry.id}) -> New Asset ID: ${uploadResult.assetId}\n`;
+            verboseOutputMessage += `Uploaded ${entryLabel}: ${entry.name} (Original ID: ${entry.id}) -> New Asset ID: ${uploadResult.assetId}\n`;
           } else {
             console.error(
-              `[${isSoundMode ? 'SOUND' : 'ANIMATION'} UPLOAD FAILED] ${entry.name} (ID: ${entry.id}): ${uploadResult.error || 'Unknown upload error'}`,
+              `[${entryLabel.toUpperCase()} UPLOAD FAILED] ${entry.name} (ID: ${entry.id}): ${uploadResult.error || 'Unknown upload error'}`,
             );
-            verboseOutputMessage += `✗ ${isSoundMode ? 'Sound' : 'Animation'} Upload Failed: ${entry.name} (ID: ${entry.id}): ${uploadResult.error || 'Unknown upload error'}\n`;
+            verboseOutputMessage += `X ${entryLabel} Upload Failed: ${entry.name} (ID: ${entry.id}): ${uploadResult.error || 'Unknown upload error'}\n`;
           }
         } else {
           console.error(`[UPLOAD SKIPPED] ${entry.name} (ID: ${entry.id}): Download failed.`);
@@ -2562,7 +2633,7 @@ async function handleSpooferAction(
     }
   }
 
-  verboseOutputMessage += `\n--- Summary ---\nTotal ${isSoundMode ? 'sounds' : 'animations'}: ${animationEntries.length}\nDownloaded: ${downloadedSuccessfullyCount}\n`;
+  verboseOutputMessage += `\n--- Summary ---\nTotal assets: ${animationEntries.length} (${assetTypeSummary})\nDownloaded: ${downloadedSuccessfullyCount}\n`;
   if (!data.downloadOnly) {
     verboseOutputMessage += `Uploaded: ${successfulUploadCount}\n\n--- Output Mapping ---\n${uploadMappingOutput}`;
   } else {
@@ -2621,7 +2692,7 @@ async function handleSpooferAction(
   let runSummary =
     `\n--- Summary ---\n` +
     `Mode: ${data.downloadOnly ? 'Download-Only' : 'Download + Upload'}\n` +
-    `Total ${isSoundMode ? 'sounds' : 'animations'}: ${animationEntries.length}\n` +
+    `Total assets: ${animationEntries.length} (${assetTypeSummary})\n` +
     `Downloaded: ${downloadedSuccessfullyCount}/${animationEntries.length}${downloadFailures.length ? ` (Failed: ${downloadFailures.length})` : ''}\n` +
     (!data.downloadOnly
       ? `Uploaded: ${successfulUploadCount}/${downloadResults.filter((r) => r.success).length}${uploadFailures.length ? ` (Failed: ${uploadFailures.length}, Skipped: ${skippedUploadsCount})` : skippedUploadsCount ? ` (Skipped: ${skippedUploadsCount})` : ''}\n`
@@ -2657,13 +2728,13 @@ async function handleSpooferAction(
   if (data.downloadOnly) {
     const successfulDownloadsList = downloadResults
       .filter((r) => r.success)
-      .map((r) => `${r.entry.name} (ID: ${r.entry.id})`)
+      .map((r) => `${getAssetKindLabel(r.entry.assetTypeName)}: ${r.entry.name} (ID: ${r.entry.id})`)
       .join('\n');
 
     if (successfulDownloadsList) {
-      finalOutput = `Downloaded ${downloadedSuccessfullyCount}/${animationEntries.length} ${isSoundMode ? 'sounds' : 'animations'} to:\n${downloadsDir}\n\nFiles:\n${successfulDownloadsList}`;
+      finalOutput = `Downloaded ${downloadedSuccessfullyCount}/${animationEntries.length} assets to:\n${downloadsDir}\n\nFiles:\n${successfulDownloadsList}`;
     } else {
-      finalOutput = `No ${isSoundMode ? 'sounds' : 'animations'} were successfully downloaded.`;
+      finalOutput = 'No assets were successfully downloaded.';
     }
   } else if (uploadMappingOutput.trim()) {
     finalOutput = uploadMappingOutput.trim().replace(/,$/, '');
@@ -2677,11 +2748,11 @@ async function handleSpooferAction(
     }
   } else {
     if (downloadedSuccessfullyCount > 0 && successfulUploadCount === 0) {
-      finalOutput = `Downloads successful (${downloadedSuccessfullyCount}/${animationEntries.length}), but no ${isSoundMode ? 'sounds' : 'animations'} were successfully uploaded.\n${runSummary}`;
+      finalOutput = `Downloads successful (${downloadedSuccessfullyCount}/${animationEntries.length}), but no assets were successfully uploaded.\n${runSummary}`;
     } else if (animationEntries.length > 0) {
       finalOutput = hasAuthError
         ? 'Authentication failed. Please check your Roblox cookie.'
-        : `No ${isSoundMode ? 'sounds' : 'animations'} were successfully processed to provide mappings. Valid entries were parsed, but every download or upload failed.\n${runSummary}`;
+        : `No assets were successfully processed to provide mappings. Valid entries were parsed, but every download or upload failed.\n${runSummary}`;
     } else {
       finalOutput = 'No operations performed.';
     }
@@ -2724,7 +2795,7 @@ async function handleSpooferAction(
     const action = data.downloadOnly ? 'downloaded' : 'uploaded';
     showDesktopNotification(
       'ISpooferMotion Complete',
-      `${isSoundMode ? 'Sounds' : 'Animations'} ${action}: ${data.downloadOnly ? downloadedSuccessfullyCount : successfulUploadCount}/${animationEntries.length}.`,
+      `Assets ${action}: ${data.downloadOnly ? downloadedSuccessfullyCount : successfulUploadCount}/${animationEntries.length}.`,
     );
   }
 
@@ -2755,6 +2826,7 @@ module.exports = {
     hasBatchAccessDeniedErrors,
     hasBatchLocationSuccess,
     applyResolvedAssetMetadata,
+    getSpooferInputTypeMarker,
     parseSpooferAssetLine,
     setBatchLocation,
     uniquePlaceIds,

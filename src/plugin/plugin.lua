@@ -173,8 +173,11 @@ local animationsButton =
 	toolbar:CreateButton("Animations", "Scan the open game for animation IDs and send them to ISpooferMotion.", ICON_ID)
 local soundsButton =
 	toolbar:CreateButton("Sounds", "Scan the open game for sound IDs and send them to ISpooferMotion.", ICON_ID)
+local bothButton =
+	toolbar:CreateButton("Both", "Scan the open game for animation and sound IDs and send them to ISpooferMotion.", ICON_ID)
 animationsButton.ClickableWhenViewportHidden = true
 soundsButton.ClickableWhenViewportHidden = true
+bothButton.ClickableWhenViewportHidden = true
 
 local scanInProgress = false
 local replaceInProgress = false
@@ -191,6 +194,9 @@ local function setButtonsEnabled(enabled)
 	end)
 	pcall(function()
 		soundsButton.Enabled = enabled
+	end)
+	pcall(function()
+		bothButton.Enabled = enabled
 	end)
 end
 
@@ -342,15 +348,18 @@ local function isValidId(id)
 	return len >= 7 and len <= 15
 end
 
-local function addId(ids, value, objName, isConfirmed)
+local function addId(ids, value, objName, isConfirmed, assetTypeName)
 	local text = tostring(value or "")
 	for id in text:gmatch("(%d+)") do
 		if isValidId(id) then
 			if not ids[id] then
-				ids[id] = { name = objName or "Unknown", confirmed = isConfirmed }
+				ids[id] = { name = objName or "Unknown", confirmed = isConfirmed, assetTypeName = assetTypeName }
 			else
 				if isConfirmed then
 					ids[id].confirmed = true
+				end
+				if assetTypeName and not ids[id].assetTypeName then
+					ids[id].assetTypeName = assetTypeName
 				end
 				if
 					objName
@@ -488,49 +497,57 @@ local function collectIdsFromSource(source, ids, defaultObjName, checkYield)
 	end
 end
 
-local function collectIdsFromObject(obj, ids, checkYield)
+local function collectIdsFromObject(obj, ids, checkYield, kind)
 	local objName = obj.Name or "Unknown"
 	if obj:IsA("Animation") then
-		addId(ids, obj.AnimationId, objName, true)
+		if kind ~= "sound" then
+			addId(ids, obj.AnimationId, objName, true, "Animation")
+		end
 		return
 	end
 
 	if obj:IsA("Sound") then
-		addId(ids, obj.SoundId, objName, true)
-		local ok, ac = pcall(function()
-			return obj.AudioContent
-		end)
-		if ok then
-			addId(ids, ac, objName, true)
+		if kind ~= "animation" then
+			addId(ids, obj.SoundId, objName, true, "Audio")
+			local ok, ac = pcall(function()
+				return obj.AudioContent
+			end)
+			if ok then
+				addId(ids, ac, objName, true, "Audio")
+			end
 		end
 		return
 	end
 
 	if obj:IsA("AudioPlayer") then
-		for _, prop in ipairs({ "Asset", "AssetId", "AudioContent" }) do
-			local ok, v = pcall(function()
-				return obj[prop]
-			end)
-			if ok then
-				addId(ids, v, objName, true)
+		if kind ~= "animation" then
+			for _, prop in ipairs({ "Asset", "AssetId", "AudioContent" }) do
+				local ok, v = pcall(function()
+					return obj[prop]
+				end)
+				if ok then
+					addId(ids, v, objName, true, "Audio")
+				end
 			end
 		end
 		return
 	end
 	if obj:IsA("HumanoidDescription") then
-		for _, prop in ipairs(HUMANOID_DESCRIPTION_ANIMATION_PROPERTIES) do
-			local ok, v = pcall(function()
-				return obj[prop]
-			end)
-			if ok then
-				addId(ids, v, objName, true)
+		if kind ~= "sound" then
+			for _, prop in ipairs(HUMANOID_DESCRIPTION_ANIMATION_PROPERTIES) do
+				local ok, v = pcall(function()
+					return obj[prop]
+				end)
+				if ok then
+					addId(ids, v, objName, true, "Animation")
+				end
 			end
-		end
-		local okE, emotes = pcall(function()
-			return obj:GetEmotes()
-		end)
-		if okE and emotes then
-			addNestedIds(ids, emotes, nil, objName, true)
+			local okE, emotes = pcall(function()
+				return obj:GetEmotes()
+			end)
+			if okE and emotes then
+				addNestedIds(ids, emotes, nil, objName, true)
+			end
 		end
 		return
 	end
@@ -1078,10 +1095,14 @@ end
 local function sortedIds(idsMap)
 	local list = {}
 	local names = {}
+	local assetTypes = {}
 	local confirmed = {}
 	for id, data in pairs(idsMap) do
 		table.insert(list, id)
 		names[id] = data.name
+		if data.assetTypeName then
+			assetTypes[id] = data.assetTypeName
+		end
 		if data.confirmed then
 			table.insert(confirmed, id)
 		end
@@ -1089,13 +1110,13 @@ local function sortedIds(idsMap)
 	table.sort(list, function(a, b)
 		return tonumber(a) < tonumber(b)
 	end)
-	return list, names, confirmed
+	return list, names, assetTypes, confirmed
 end
 
-local function scanOpenGame(progressCallback)
+local function scanOpenGame(kind, progressCallback)
 	local ids = {}
 	local scannedObjects = traverseValidDescendants(function(obj, count, checkYield)
-		collectIdsFromObject(obj, ids, checkYield)
+		collectIdsFromObject(obj, ids, checkYield, kind)
 	end, progressCallback)
 	return ids, scannedObjects
 end
@@ -1323,7 +1344,7 @@ local function runScan(kind)
 	scanInProgress = true
 	setButtonsEnabled(false)
 
-	local label = kind == "sound" and "Sounds" or "Animations"
+	local label = kind == "sound" and "Sounds" or (kind == "both" and "Animations + Sounds" or "Animations")
 	local statusText = "Starting " .. label .. " scan..."
 	print("[ISpooferMotion] " .. label .. " scan started.")
 
@@ -1369,13 +1390,14 @@ local function runScan(kind)
 		local ok, err = pcall(function()
 			local startedAt = os.clock()
 			local scanStart = os.clock()
-			local ids, scannedObjects = scanOpenGame(function(count)
+			local scanKind = kind == "both" and "mixed" or kind
+			local ids, scannedObjects = scanOpenGame(kind, function(count)
 				local elapsed = math.floor((os.clock() - scanStart) * 10) / 10
 				textLabel.Text = string.format("Scanning %s... (%d objects)", label, count)
 				etaLabel.Text = "Elapsed: " .. tostring(elapsed) .. "s"
 			end)
 			etaLabel.Text = ""
-			local idsArray, idsNames, confirmedIds = sortedIds(ids)
+			local idsArray, idsNames, assetTypes, confirmedIds = sortedIds(ids)
 			print(
 				string.format("[ISpooferMotion] Found %d raw potential IDs in %d objects.", #idsArray, scannedObjects)
 			)
@@ -1386,7 +1408,7 @@ local function runScan(kind)
 			end
 
 			local payload = {
-				kind = kind,
+				kind = scanKind,
 				version = PLUGIN_VERSION,
 				placeId = game.PlaceId,
 				gameId = game.GameId,
@@ -1398,6 +1420,7 @@ local function runScan(kind)
 				candidateCount = #idsArray,
 				ids = idsArray,
 				names = idsNames,
+				assetTypes = assetTypes,
 				confirmedIds = confirmedIds,
 			}
 
@@ -1443,10 +1466,13 @@ end)
 soundsButton.Click:Connect(function()
 	runScan("sound")
 end)
+bothButton.Click:Connect(function()
+	runScan("both")
+end)
 
 print(
 	"[ISpooferMotion] Plugin loaded (v"
 		.. tostring(PLUGIN_VERSION)
-		.. "). Open the desktop app, then click Animations or Sounds."
+		.. "). Open the desktop app, then click Animations, Sounds, or Both."
 )
 pollForPendingReplacement()

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { Box, Flex, VStack, HStack, Text, Button, Textarea, Input, Switch, Select, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, Collapse, Badge, InputGroup, InputRightElement, IconButton, Tooltip } from '@chakra-ui/react';
 import { FolderOpen, Key, Hash, Settings2, Play, Pause, Square, MonitorUp } from 'lucide-react';
 
@@ -10,7 +10,6 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
 
   const [autoDetectCookie, setAutoDetectCookie] = useState(true);
   const [downloadOnly, setDownloadOnly] = useState(false);
-  const [spoofSounds, setSpoofSounds] = useState(false);
   const [downloadFolder, setDownloadFolder] = useState('');
 
   const [maxPlaceIds, setMaxPlaceIds] = useState(10);
@@ -44,25 +43,23 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
     }
   };
 
-  const normalizePastedLine = (line: string) => String(line || '').replace(/^\uFEFF/, '').replace(/[\u200B-\u200D\u2060]/g, '').replace(/\u00A0/g, ' ').split('').filter((char) => { const code = char.charCodeAt(0); return code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127); }).join('').trim();
-
   const handleInputTextChange = (val: string) => {
     setAnimationId(val);
     setUploadComplete(false);
-    const markerText = val.split(/\r?\n/).filter((line) => {
-      const trimmed = normalizePastedLine(line);
-      const stripped = trimmed.replace(/--\[\[/g, '').replace(/--\]\]/g, '').replace(/\bTYPE\s*:\s*(SOUND|ANIMATION)\b/gi, '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/[\s,\u00A0]+/g, '').replace(/[-_[\]{}()*=;:|/\\]+/g, '');
-      return stripped === '';
-    }).join('\n');
-    const hasSoundMarker = /\bTYPE\s*:\s*SOUND\b/i.test(markerText);
-    const hasAnimationMarker = /\bTYPE\s*:\s*ANIMATION\b/i.test(markerText);
-    if (hasSoundMarker && !hasAnimationMarker) setSpoofSounds(true);
-    else if (hasAnimationMarker && !hasSoundMarker) setSpoofSounds(false);
   };
+
+  const hasAudio = useMemo(() => {
+    return /\bTYPE\s*:\s*(SOUND|MIXED)\b/i.test(animationId) || /\[Type:Sound\]/i.test(animationId);
+  }, [animationId]);
 
   useEffect(() => {
     let active = true;
-    if (!spoofSounds) return;
+
+    if (!hasAudio) {
+      setInlineQuotaText('');
+      setInlineQuotaError(false);
+      return;
+    }
 
     setInlineQuotaText('Checking quota...');
     setInlineQuotaError(false);
@@ -103,7 +100,7 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
       });
 
     return () => { active = false; };
-  }, [spoofSounds, robloxCookie, autoDetectCookie]);
+  }, [hasAudio, robloxCookie, autoDetectCookie]);
 
   useEffect(() => {
     const handleProfileChanged = async () => {
@@ -114,7 +111,6 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
         setGroupId(profile.groupId ?? '');
         setAutoDetectCookie(profile.autoDetectCookie ?? true);
         setDownloadOnly(profile.downloadOnly ?? false);
-        setSpoofSounds(profile.spoofSounds ?? false);
         setDownloadFolder(profile.downloadFolder ?? '');
         setOverridePlaceId(profile.overridePlaceId ?? '');
         setPlaceSearchInput(profile.placeSearchInput ?? '');
@@ -196,7 +192,7 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
     const profile = (await getActiveProfileSettings()) || {};
 
     const payload = {
-      animationId, robloxCookie, apiKey: normalizedApiKey, groupId, spoofSounds,
+      animationId, robloxCookie, apiKey: normalizedApiKey, groupId,
       enableSpoofing: !downloadOnly, downloadOnly, autoDetectCookie, downloadFolder,
       maxPlaceIds, maxPlaceIdRetries, overridePlaceId, uploadRetries, uploadRetryDelay,
       batchRetries: profile.defRetries ?? 3, batchRetryDelay: profile.defDelay ?? 5000,
@@ -298,6 +294,12 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
           }}
         />
 
+        {inlineQuotaText && (
+          <Text fontSize="12px" color={inlineQuotaError ? 'red.400' : 'discord.muted'} mt="-16px" mb="8px" ml="4px" fontWeight={500}>
+            {inlineQuotaText}
+          </Text>
+        )}
+
         <Box h="200px" bg="discord.inputDark" p="16px" borderRadius="8px" border="1px solid" borderColor="discord.border" overflowY="auto" sx={{
           '&::-webkit-scrollbar': { width: '8px' },
           '&::-webkit-scrollbar-thumb': { bg: 'discord.card', borderRadius: '4px' },
@@ -372,7 +374,6 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
           <VStack spacing="12px" align="stretch" mt="8px">
             <HStack justify="space-between"><Text fontSize="13px" color="discord.text" fontWeight={500}>Auto detect cookie</Text><Switch colorScheme="brand" size="sm" isChecked={autoDetectCookie} onChange={(e) => { setAutoDetectCookie(e.target.checked); updateProfileValue('autoDetectCookie', e.target.checked); }} /></HStack>
             <HStack justify="space-between"><Text fontSize="13px" color="discord.text" fontWeight={500}>Download only</Text><Switch colorScheme="brand" size="sm" isChecked={downloadOnly} onChange={(e) => { setDownloadOnly(e.target.checked); updateProfileValue('downloadOnly', e.target.checked); }} /></HStack>
-            <HStack justify="space-between"><Text fontSize="13px" color="discord.text" fontWeight={500}>Sound mode</Text><Switch colorScheme="brand" size="sm" isChecked={spoofSounds} onChange={(e) => { setSpoofSounds(e.target.checked); updateProfileValue('spoofSounds', e.target.checked); }} /></HStack>
           </VStack>
         </VStack>
 
