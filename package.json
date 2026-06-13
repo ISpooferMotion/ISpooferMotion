@@ -11,7 +11,7 @@
   "scripts": {
     "start": "npm run build:main && electron .",
     "dev": "npm run build:main && electron . --dev",
-    "test": "node --test",
+    "test": "node --import tsx --test",
     "build:main": "node scripts/build-main.js",
     "build:renderer": "node scripts/build-renderer.js",
     "build": "npm run build:main && npm run build:renderer && electron-builder",
@@ -37,6 +37,7 @@
     "png-to-ico": "^3.0.1",
     "prettier": "^3.8.3",
     "strip-comments": "^2.0.1",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   },
   "dependencies": {
