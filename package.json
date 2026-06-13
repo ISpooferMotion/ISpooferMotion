@@ -49,6 +49,7 @@
     "productName": "ISpooferMotion",
     "files": [
       "src/**/*",
+      "dist-main/**/*",
       "build/**/*",
       "package.json",
       "!**/.git/**/*",
