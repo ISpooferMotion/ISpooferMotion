@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.icns binary
+*.webp binary
+*.gif binary
+*.pdf binary
+*.zip binary
+*.rbxmx binary

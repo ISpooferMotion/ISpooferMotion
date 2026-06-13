@@ -1,0 +1,4 @@
+cognitive-complexity-threshold = 20
+max-fn-params-bools = 3
+max-struct-bools = 5
+warn-on-all-wildcard-imports = true

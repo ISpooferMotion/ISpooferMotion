@@ -1,0 +1,14 @@
+newmtl Rig1Mtl
+Material Color
+Ka 0.215764 0.215764 0.215764
+Kd 0.215764 0.215764 0.215764
+Ks 0.0135382 0.0135382 0.0135382 
+
+d 1
+
+Ns 0
+
+map_Ka Rig1_diff.png
+map_Kd Rig1_diff.png
+map_d Rig1_diff.png
+

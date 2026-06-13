@@ -1,0 +1,271 @@
+import { IsmProvider } from '@codycon/ism-library';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { isRegistered, register, unregister } from '@tauri-apps/plugin-global-shortcut';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ChevronLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
+import ratImage from './assets/rat.png';
+import Sidebar from './components/layout/Sidebar';
+import StatusBar from './components/layout/StatusBar';
+import Titlebar from './components/layout/Titlebar';
+import CreditsModal from './components/modals/CreditsModal';
+import { RobloxStatusBanner } from './components/RobloxStatusBanner';
+import AssetExplorer from './components/views/AssetExplorer';
+import ConfigView from './components/views/ConfigView';
+import DebugConsole from './components/views/DebugConsole';
+import ExperimentalView from './components/views/ExperimentalView';
+import HomeView from './components/views/HomeView';
+import SettingsView from './components/views/SettingsView';
+import SpoofingView from './components/views/SpoofingView';
+import { useConfig } from './contexts/ConfigContext';
+import { useThemeAccent } from './contexts/ThemeContext';
+import { useCloudThemeSync } from './hooks/useCloudThemeSync';
+import { isTauriRuntime } from './utils/tauriRuntime';
+
+function resolveThemeBackgroundUrl(path: string) {
+  if (/^(?:blob:|data:|https?:|asset:|tauri:)/i.test(path)) {
+    return path;
+  }
+
+  if (path.startsWith('/') || path.startsWith('./') || path.startsWith('../')) {
+    return new URL(path, window.location.href).toString();
+  }
+
+  if (!isTauriRuntime()) {
+    return path;
+  }
+
+  return convertFileSrc(path);
+}
+
+export default function App() {
+  const [isCreditsOpen, setCreditsOpen] = useState(false);
+  const { customBackground } = useThemeAccent();
+  const { config, updateConfig } = useConfig();
+  const activeTab = config.ui.activeTab;
+  const isExplorerOpen = config.ui.assetExplorerOpen;
+  const [showRat, setShowRat] = useState(false);
+  const [isRobloxApiDown, setIsRobloxApiDown] = useState(false);
+
+  useCloudThemeSync();
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+
+    const checkStatus = async () => {
+      try {
+        const isUp: boolean = await invoke('check_roblox_api_status');
+        setIsRobloxApiDown(!isUp);
+      } catch (e) {
+        setIsRobloxApiDown(true);
+      }
+    };
+    checkStatus();
+    const interval = setInterval(checkStatus, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const setActiveTab = (tabId: string) => updateConfig('ui', 'activeTab', tabId);
+  const setIsExplorerOpen = (isOpen: boolean) => updateConfig('ui', 'assetExplorerOpen', isOpen);
+  const backgroundUrl = customBackground ? resolveThemeBackgroundUrl(customBackground.path) : null;
+
+  useEffect(() => {
+    const allowedTabs = ['home', 'spoofing', 'settings', 'config'];
+    if (config.debug?.enableExperimentalTab) {
+      allowedTabs.push('experimental');
+    }
+
+    if (!allowedTabs.includes(activeTab)) {
+      updateConfig('ui', 'activeTab', 'home');
+    }
+  }, [activeTab, config.debug?.enableExperimentalTab, updateConfig]);
+
+  useEffect(() => {
+    const handleCredits = () => setCreditsOpen(true);
+    document.addEventListener('open-credits', handleCredits);
+
+    const preventDrag = (e: Event) => e.preventDefault();
+    window.addEventListener('dragover', preventDrag);
+    window.addEventListener('drop', preventDrag);
+
+    const shortcut = 'Alt+I';
+    let isCancelled = false;
+    let didRegisterShortcut = false;
+    const registerShortcut = async () => {
+      if (!isTauriRuntime()) return;
+      try {
+        if (await isRegistered(shortcut)) return;
+        await register(shortcut, async (event) => {
+          if (event.state === 'Pressed') {
+            const win = getCurrentWindow();
+            await win.show();
+            await win.setFocus();
+          }
+        });
+        didRegisterShortcut = true;
+        if (isCancelled) {
+          await unregister(shortcut);
+          didRegisterShortcut = false;
+        }
+      } catch (error) {
+        if (!String(error).includes('already registered')) {
+          console.error(error);
+        }
+      }
+    };
+
+    void registerShortcut();
+
+    return () => {
+      isCancelled = true;
+      document.removeEventListener('open-credits', handleCredits);
+      if (!didRegisterShortcut) return;
+      unregister(shortcut).catch((error) => {
+        if (!String(error).toLowerCase().includes('not registered')) {
+          console.error(error);
+        }
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    if (config.spoofing.cookie) {
+      invoke('get_economy_metadata', { cookie: config.spoofing.cookie }).catch(() => {});
+    }
+  }, [config.spoofing.cookie]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    let hideRatTimeout: ReturnType<typeof setTimeout> | undefined;
+    listen('trigger-easter-egg', () => {
+      if (import.meta.env.DEV || Math.random() < 0.01) {
+        setShowRat(true);
+        hideRatTimeout = setTimeout(() => setShowRat(false), 2000);
+      }
+    }).then((u) => {
+      if (disposed) u();
+      else unlisten = u;
+    });
+    return () => {
+      disposed = true;
+      if (hideRatTimeout) clearTimeout(hideRatTimeout);
+      if (unlisten) unlisten();
+    };
+  }, []);
+  return (
+    <IsmProvider config={{ autoScrollAccordions: config.ui.autoScrollSections }}>
+      <div
+        className="flex flex-col h-screen w-screen overflow-hidden text-foreground relative font-sans selection:bg-primary/30 antialiased"
+        style={{ backgroundColor: 'var(--bg-base)' }}
+      >
+        {customBackground && backgroundUrl && (
+          <div className="absolute inset-0 w-full h-full z-0 pointer-events-none overflow-hidden">
+            {customBackground.type === 'video' ? (
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="absolute inset-0 w-full h-full object-cover"
+                src={backgroundUrl}
+              />
+            ) : (
+              <img
+                className="absolute inset-0 w-full h-full object-cover"
+                src={backgroundUrl}
+                alt="Custom background"
+              />
+            )}
+            <div className="absolute inset-0 bg-background/50 backdrop-blur-[2px]" />
+          </div>
+        )}
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+          className="flex flex-col h-full w-full relative z-10"
+        >
+          <Titlebar />
+
+          <div className="flex flex-1 overflow-hidden relative">
+            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+
+            <div className="flex-1 relative overflow-hidden bg-transparent flex flex-col">
+              <RobloxStatusBanner isVisible={isRobloxApiDown} />
+
+              <div className="flex-1 relative overflow-hidden">
+                <AnimatePresence mode="wait" initial={false}>
+                  {activeTab === 'home' && <HomeView key="home" />}
+                  {activeTab === 'spoofing' && <SpoofingView key="spoofing" />}
+                  {activeTab === 'settings' && <SettingsView key="settings" />}
+                  {activeTab === 'config' && <ConfigView key="config" />}
+                  {activeTab === 'experimental' && <ExperimentalView key="experimental" />}
+                </AnimatePresence>
+              </div>
+
+              <DebugConsole
+                isOpen={config.debug?.debugMode || false}
+                onClose={() => updateConfig('debug', 'debugMode', false)}
+              />
+            </div>
+
+            <AssetExplorer isOpen={isExplorerOpen} setIsOpen={setIsExplorerOpen} />
+
+            {!isExplorerOpen && (
+              <motion.div
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 20, opacity: 0 }}
+                transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-[45] cursor-pointer flex items-center justify-end group"
+                onClick={() => setIsExplorerOpen(true)}
+              >
+                <motion.div
+                  whileHover={{ width: 28, backgroundColor: 'var(--bg-elevated)' }}
+                  className="w-6 h-28 bg-bg-elevated/60 backdrop-blur-xl border border-border-subtle border-r-0 rounded-l-2xl flex items-center justify-center shadow-floating transition-colors"
+                >
+                  <ChevronLeft
+                    size={16}
+                    strokeWidth={2.5}
+                    className="text-text-secondary group-hover:text-text-primary transition-colors"
+                  />
+                </motion.div>
+              </motion.div>
+            )}
+          </div>
+
+          <div
+            className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none z-[60] opacity-[0.03] mix-blend-screen"
+            style={{ background: 'linear-gradient(to top, var(--primary), transparent)' }}
+          />
+
+          <StatusBar />
+        </motion.div>
+
+        <CreditsModal isOpen={isCreditsOpen} onClose={() => setCreditsOpen(false)} />
+
+        <AnimatePresence>
+          {showRat && (
+            <motion.div
+              key="rat-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 z-[200] pointer-events-none flex items-center justify-center bg-black"
+            >
+              <img src={ratImage} alt="secret rat" className="w-full h-full object-cover" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </IsmProvider>
+  );
+}

@@ -1,0 +1,63 @@
+name: 'Setup Environment'
+description: 'Checks out code, sets up Node and Rust, and installs dependencies'
+inputs:
+  os:
+    description: 'The OS running the job (e.g. linux, windows, macos)'
+    required: false
+    default: 'linux'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout ISM-Library
+      uses: actions/checkout@v4
+      with:
+        repository: ISpooferMotion/ISM-Library
+        path: ISM-Library-temp
+
+    - name: Move ISM-Library to relative path
+      shell: bash
+      run: mv ISM-Library-temp ../ISM-Library
+
+    - name: Install Linux dependencies
+      if: inputs.os == 'linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev pkg-config
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+        cache: npm
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Add macOS rust targets
+      if: inputs.os == 'macos'
+      shell: bash
+      run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+    - name: Rust cache
+      uses: swatinem/rust-cache@v2
+      with:
+        workspaces: './src-tauri -> target'
+
+    - name: Install ISM-Library dependencies
+      shell: bash
+      working-directory: ../ISM-Library
+      run: |
+        rm -f package-lock.json
+        rm -rf node_modules
+        npm install --no-audit --no-fund
+
+    - name: Install npm dependencies
+      shell: bash
+      run: |
+        rm -f package-lock.json
+        rm -rf node_modules
+        npm install --no-audit --no-fund

@@ -1,0 +1,70 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "ISpooferMotion",
+  "version": "2.0.0-beta.1",
+  "identifier": "com.github.IncrediDev.ISpooferMotion",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "ISpooferMotion",
+        "label": "main",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": false,
+        "center": true,
+        "visible": true
+      }
+    ],
+    "security": {
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$HOME/**",
+          "$APPDATA/**",
+          "$RESOURCE/**",
+          "$PICTURE/**",
+          "$VIDEO/**",
+          "$DESKTOP/**",
+          "$DOWNLOAD/**",
+          "$DOCUMENT/**",
+          "$TEMP/**"
+        ]
+      },
+      "csp": "default-src 'self' ipc: http://ipc.localhost; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https: http: blob: data:; connect-src 'self' http://localhost:* http://127.0.0.1:* https: ipc: http://ipc.localhost tauri: asset:; media-src 'self' asset: https: blob: data:; font-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "windows": {
+      "nsis": {
+        "installerIcon": "assets/app_icon.ico",
+        "uninstallerIcon": "assets/app_icon.ico"
+      }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["ispoofermotion"]
+      }
+    }
+  }
+}

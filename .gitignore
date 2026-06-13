@@ -1,0 +1,87 @@
+# Node / npm
+node_modules/
+.npm-cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vite build output
+/dist
+vite-*.log
+
+# Tauri build artifacts
+src-tauri/target/release/bundle/
+*.AppImage
+*.deb
+*.dmg
+*.msi
+*.nsis
+*.snap
+*.blockmap
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Vite / build tool caches
+.cache/
+.vite/
+.parcel-cache/
+.turbo/
+node_modules/.cache/
+
+# Runtime / generated data
+temp/
+tmp/
+*.part
+*.part-*
+*.tmp
+*.bak
+*.old
+
+# App data files
+/settings.json
+/profiles.json
+/session.json
+/asset-history.json
+/asset-resolution-cache.json
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.local
+*.cookie
+*.token
+*.secret
+*.pem
+*.p12
+*.pfx
+*.cert
+*.crt
+*.der
+*.mobileprovision
+
+# Roblox plugin build output
+*.rbxmx
+plugin-build/
+dist-plugin/
+
+# Test / coverage output
+coverage/
+*.lcov
+
+# Release helpers / archives
+release/
+out/
+*.zip
+*.7z
+*.rar
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+/docs

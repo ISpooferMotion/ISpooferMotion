@@ -1,0 +1,112 @@
+[package]
+name = "app"
+version = "2.0.0-beta.1"
+authors = ["IncredibroXP <incredibroxpdev@gmail.com>"]
+description = "Animation spoofing utility for Roblox"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.2", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.2", features = ["protocol-asset", "tray-icon"] }
+tauri-plugin-log = "2"
+reqwest = { version = "0.12", features = ["json", "cookies", "default-tls", "multipart", "stream"] }
+futures-util = "0.3"
+keyring = "3"
+regex = "1"
+tokio = { version = "1", features = ["full"] }
+tauri-plugin-notification = "2.3.3"
+chrono = "0.4"
+open = "5"
+tauri-plugin-dialog = "2"
+axum = "0.7"
+tower-http = { version = "0.6", features = ["cors", "limit"] }
+tauri-plugin-shell = "2.3.5"
+tauri-plugin-fs = "2.5.1"
+thiserror = "2.0.18"
+parking_lot = "0.12.5"
+base64 = "0.22"
+rusqlite = { version = "0.32", features = ["bundled"] }
+aes-gcm = "0.10"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security_Credentials", "Win32_Security_Cryptography", "Win32_System_Diagnostics_Debug", "Win32_System_Memory", "Win32_System_ProcessStatus", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging"] }
+rbx_binary = "2.0.1"
+rbx_xml = "2.0.1"
+rbx_dom_weak = "4.1.0"
+tauri-plugin-global-shortcut = "2.3.2"
+tauri-plugin-process = "2.3.1"
+tauri-plugin-http = "2.5.9"
+uuid = { version = "1.20.0", features = ["v4"] }
+futures = "0.3.32"
+tauri-plugin-opener = "2.5.4"
+sysinfo = "0.36.1"
+rayon = "1.10.0"
+aho-corasick = "1.1"
+tauri-plugin-clipboard-manager = "2.3.2"
+rand = "0.9.4"
+hex = "0.4.3"
+subtle = "2"
+crc32fast = "1.5.0"
+scraper = "0.27.0"
+html-escape = "0.2.13"
+dashmap = "6.2.1"
+specta = { version = "=2.0.0-rc.25", features = ["serde_json"] }
+tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript", "javascript"] }
+specta-typescript = "0.0.12"
+semver = "1.0.28"
+tauri-plugin-deep-link = "2.4.9"
+
+[lints.clippy]
+complexity = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+style = { level = "warn", priority = -1 }
+suspicious = { level = "warn", priority = -1 }
+correctness = { level = "warn", priority = -1 }
+
+clone_on_ref_ptr = "warn"
+dbg_macro = "warn"
+empty_enums = "warn"
+enum_glob_use = "warn"
+fallible_impl_from = "warn"
+filter_map_next = "warn"
+flat_map_option = "warn"
+float_cmp = "warn"
+if_not_else = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+invalid_upcast_comparisons = "warn"
+large_digit_groups = "warn"
+macro_use_imports = "warn"
+manual_let_else = "warn"
+manual_string_new = "warn"
+match_wild_err_arm = "warn"
+mem_forget = "warn"
+missing_const_for_fn = "warn"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+multiple_inherent_impl = "warn"
+mut_mut = "warn"
+needless_continue = "warn"
+needless_pass_by_value = "allow"
+redundant_closure_for_method_calls = "warn"
+similar_names = "warn"
+single_match_else = "warn"
+todo = "warn"
+too_many_arguments = "allow"
+unimplemented = "warn"
+unwrap_used = "warn"
+wildcard_imports = "allow"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true

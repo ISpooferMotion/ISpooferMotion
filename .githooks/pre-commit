@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+echo "Running lint-staged..."
+node node_modules/lint-staged/bin/lint-staged.js

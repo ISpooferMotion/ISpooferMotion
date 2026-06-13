@@ -1,0 +1,79 @@
+name: Build Portable Apps
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portable-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-portable:
+    name: Portable (${{ matrix.os }})
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-2025
+            os: windows
+            bundles: nsis
+            artifact: windows
+          - platform: macos-latest
+            os: macos
+            bundles: app
+            artifact: macos
+          - platform: ubuntu-22.04
+            os: linux
+            bundles: appimage
+            artifact: linux
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup
+        with:
+          os: ${{ matrix.os }}
+
+      - run: npm run build:plugin
+      - run: npm run tauri build -- --bundles ${{ matrix.bundles }}
+
+      - name: Package portable archive
+        shell: bash
+        run: |
+          mkdir -p portable
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            cp src-tauri/target/release/app.exe portable/ISpooferMotion.exe
+          elif [ "${{ matrix.os }}" = "macos" ]; then
+            cp -R src-tauri/target/release/bundle/macos/*.app portable/
+          else
+            cp src-tauri/target/release/bundle/appimage/*.AppImage portable/
+          fi
+          cp dist-plugin/ISpooferMotion.rbxmx portable/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ISpooferMotion-portable-${{ matrix.artifact }}
+          path: portable
+
+  combined-archive:
+    name: Combined Portable Archive
+    needs: build-portable
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: portable-builds
+      - run: zip -r ISpooferMotion-portable-all-platforms.zip portable-builds
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ISpooferMotion-portable-all-platforms
+          path: ISpooferMotion-portable-all-platforms.zip
