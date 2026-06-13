@@ -153,9 +153,9 @@ function appendPlaceContextToLine(line) {
 
 function formatAssetsForInput(assets) {
   return assets
-    .filter((asset) => asset.assetId)
+    .filter((asset) => asset.assetId && asset.creatorId)
     .map((asset) => {
-      const base = `[${asset.assetId}] [${cleanText(asset.name, asset.assetId)}] [${asset.creatorType}:${asset.creatorId || '1'}]`;
+      const base = `[${asset.assetId}] [${cleanText(asset.name, asset.assetId)}] [${asset.creatorType}:${asset.creatorId}]`;
       return appendPlaceContextToLine(base);
     })
     .join('\n');
@@ -216,6 +216,7 @@ function showScanNotification(kind, count) {
     return false;
   }
 }
+
 
 
 const METADATA_CONCURRENCY = 30;
