@@ -343,37 +343,46 @@ export default function AssetExplorer({ isOpen, setIsOpen }: AssetExplorerProps)
     processStudioData(bundle.anims, bundle.sounds, bundle.images, bundle.meshes, bundle.scriptRefs);
   });
 
-  const toggleAsset = useCallback((assetId: string, checked: boolean) => {
-    setSelectedAssetIds((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(assetId);
-      else next.delete(assetId);
-      return next;
-    });
-  }, [setSelectedAssetIds]);
+  const toggleAsset = useCallback(
+    (assetId: string, checked: boolean) => {
+      setSelectedAssetIds((prev) => {
+        const next = new Set(prev);
+        if (checked) next.add(assetId);
+        else next.delete(assetId);
+        return next;
+      });
+    },
+    [setSelectedAssetIds],
+  );
 
-  const getAllAssetIds = useCallback((node: RbxInstance): string[] => {
-    let ids: string[] = node.assets
-      .filter((a) => activeAssetFilters.length === 0 || activeAssetFilters.includes(a.type))
-      .map((a) => getAssetId(a))
-      .filter(Boolean);
-    for (const child of node.children) {
-      ids = ids.concat(getAllAssetIds(child));
-    }
-    return ids;
-  }, [activeAssetFilters]);
-
-  const toggleNode = useCallback((node: RbxInstance, checked: boolean) => {
-    const ids = getAllAssetIds(node);
-    setSelectedAssetIds((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) {
-        if (checked) next.add(id);
-        else next.delete(id);
+  const getAllAssetIds = useCallback(
+    (node: RbxInstance): string[] => {
+      let ids: string[] = node.assets
+        .filter((a) => activeAssetFilters.length === 0 || activeAssetFilters.includes(a.type))
+        .map((a) => getAssetId(a))
+        .filter(Boolean);
+      for (const child of node.children) {
+        ids = ids.concat(getAllAssetIds(child));
       }
-      return next;
-    });
-  }, [getAllAssetIds, setSelectedAssetIds]);
+      return ids;
+    },
+    [activeAssetFilters],
+  );
+
+  const toggleNode = useCallback(
+    (node: RbxInstance, checked: boolean) => {
+      const ids = getAllAssetIds(node);
+      setSelectedAssetIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) {
+          if (checked) next.add(id);
+          else next.delete(id);
+        }
+        return next;
+      });
+    },
+    [getAllAssetIds, setSelectedAssetIds],
+  );
 
   const unlistenRef = useRef<(() => void) | null>(null);
 

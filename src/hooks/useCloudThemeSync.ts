@@ -71,10 +71,13 @@ export function useCloudThemeSync() {
         );
 
         const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://ispoofermotion.com';
-        const response = await tauriFetch(`${baseUrl}/api/cloud-theme/state?since=${localVersion}`, {
-          headers: { Authorization: `Bearer ${auth.loginToken}` },
-          signal: stateController.signal,
-        });
+        const response = await tauriFetch(
+          `${baseUrl}/api/cloud-theme/state?since=${localVersion}`,
+          {
+            headers: { Authorization: `Bearer ${auth.loginToken}` },
+            signal: stateController.signal,
+          },
+        );
 
         if (stateController.signal.aborted) return;
 

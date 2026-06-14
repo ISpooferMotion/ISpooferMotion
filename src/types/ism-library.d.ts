@@ -1,4 +1,4 @@
-declare module "@codycon/ism-library" {
+declare module '@codycon/ism-library' {
   export const Button: any;
   export const MultiSelectDropdown: any;
   export const Spinner: any;

@@ -40,7 +40,11 @@ export function useStudioConnection(port: string, onPortDiscovered?: (port: stri
         }
         if (activePort !== port) onPortDiscovered?.(activePort);
 
-        const result = await invoke<{ synced: boolean; scanStatus: any; studioPlaceId: string | null }>('get_studio_health_status');
+        const result = await invoke<{
+          synced: boolean;
+          scanStatus: any;
+          studioPlaceId: string | null;
+        }>('get_studio_health_status');
         if (!cancelled) {
           setStudioConnected(result.synced === true);
           setScanStatus(result.scanStatus || null);

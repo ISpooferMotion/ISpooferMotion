@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+
 import { fetchPluginBridge } from './pluginBridge';
 
 const SCAN_WAIT_MS = 120_000;
@@ -8,7 +9,9 @@ async function waitForStudioScanComplete(): Promise<void> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < SCAN_WAIT_MS) {
     try {
-      const health = await invoke<{ scanStatus?: { scanning?: boolean } | null }>('get_studio_health_status');
+      const health = await invoke<{ scanStatus?: { scanning?: boolean } | null }>(
+        'get_studio_health_status',
+      );
       if (!health.scanStatus || !health.scanStatus.scanning) {
         return;
       }

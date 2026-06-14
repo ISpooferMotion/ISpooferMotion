@@ -116,7 +116,7 @@ pub async fn queue_replace_mappings_internal(mappings: Vec<Value>) -> bool {
     let Some(data) = bridge_data() else {
         return false;
     };
-    let records = data.read().await.studio_records.clone();
+    let records = std::sync::Arc::clone(&data.read().await.studio_records);
     if records.is_empty() || mappings.is_empty() {
         return false;
     }
@@ -291,10 +291,14 @@ async fn bind_available_listener() -> Option<(tokio::net::TcpListener, SocketAdd
 #[must_use]
 pub async fn get_studio_health_status() -> AnyValue {
     let Some(data) = bridge_data() else {
-        return AnyValue(json!({ "synced": false, "protocolVersion": STUDIO_PROTOCOL_VERSION, "scanStatus": null, "studioPlaceId": null }));
+        return AnyValue(
+            json!({ "synced": false, "protocolVersion": STUDIO_PROTOCOL_VERSION, "scanStatus": null, "studioPlaceId": null }),
+        );
     };
     let guard = data.read().await;
-    let synced = guard.last_plugin_poll_time.is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(3));
+    let synced = guard
+        .last_plugin_poll_time
+        .is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(3));
     AnyValue(json!({
         "synced": synced,
         "protocolVersion": STUDIO_PROTOCOL_VERSION,

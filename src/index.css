@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import '@codycon/ism-library/styles.css';
+@import '../../ISM-Library/packages/ui/theme/ism-library.css';
 @source "../node_modules/@codycon/ism-library/dist";
 
 input[type='number']::-webkit-inner-spin-button,

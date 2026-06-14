@@ -24,7 +24,6 @@
     "test": "vitest run --passWithNoTests",
     "check": "npm run format:check && npm run typecheck && npm run rust:check && npm run rust:lint && npm run rust:test && npm run lint && npm run test && npm run build && npm run build:plugin"
   },
-
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.0",

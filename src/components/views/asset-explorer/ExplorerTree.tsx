@@ -270,32 +270,34 @@ export const ExplorerTreeNode = memo(function ExplorerTreeNode({
 
       {expanded && (
         <div className="flex flex-col overflow-hidden">
-            {filteredAssets.length > 0 && (
-              <div className="flex flex-col">
-                {filteredAssets.map((asset, index) => (
-                  <div key={`${asset.type}:${asset.path}:${asset.propertyName}:${getAssetId(asset)}:${index}`}>
-                    {renderAssetRow(asset, index)}
-                  </div>
-                ))}
-              </div>
-            )}
+          {filteredAssets.length > 0 && (
+            <div className="flex flex-col">
+              {filteredAssets.map((asset, index) => (
+                <div
+                  key={`${asset.type}:${asset.path}:${asset.propertyName}:${getAssetId(asset)}:${index}`}
+                >
+                  {renderAssetRow(asset, index)}
+                </div>
+              ))}
+            </div>
+          )}
 
-            {node.children.map((child, index) => (
-              <ExplorerTreeNode
-                key={`${child.referent}-${index}`}
-                node={child}
-                level={level + 1}
-                config={config}
-                selectedAssetIds={selectedAssetIds}
-                toggleAsset={toggleAsset}
-                toggleNode={toggleNode}
-                getAllAssetIds={getAllAssetIds}
-                setEnlargedImage={setEnlargedImage}
-                setPreviewingAnimation={setPreviewingAnimation}
-                activeAssetFilters={activeAssetFilters}
-                playingAudioId={playingAudioId}
-              />
-            ))}
+          {node.children.map((child, index) => (
+            <ExplorerTreeNode
+              key={`${child.referent}-${index}`}
+              node={child}
+              level={level + 1}
+              config={config}
+              selectedAssetIds={selectedAssetIds}
+              toggleAsset={toggleAsset}
+              toggleNode={toggleNode}
+              getAllAssetIds={getAllAssetIds}
+              setEnlargedImage={setEnlargedImage}
+              setPreviewingAnimation={setPreviewingAnimation}
+              activeAssetFilters={activeAssetFilters}
+              playingAudioId={playingAudioId}
+            />
+          ))}
         </div>
       )}
     </div>

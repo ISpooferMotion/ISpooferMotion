@@ -257,14 +257,14 @@ export default function SpoofingView() {
         const rawGroups = await invoke<RobloxGroup[]>('get_manageable_groups', {
           cookie: config.spoofing.cookie,
         });
-        const groupIds = rawGroups.map(g => String(g.id));
+        const groupIds = rawGroups.map((g) => String(g.id));
         const iconMap = await invoke<Record<string, string>>('get_group_icons_batch', {
-          groupIds
+          groupIds,
         }).catch(() => ({}) as Record<string, string>);
-        
-        const withIcons = rawGroups.map(group => ({
+
+        const withIcons = rawGroups.map((group) => ({
           ...group,
-          iconUrl: iconMap[String(group.id)] || undefined
+          iconUrl: iconMap[String(group.id)] || undefined,
         }));
         if (!cancelled) {
           setGroups(withIcons);

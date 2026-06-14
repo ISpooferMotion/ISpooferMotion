@@ -3,7 +3,6 @@ use reqwest::Response;
 use serde_json::{json, Value};
 use std::sync::{Mutex, OnceLock};
 
-
 const REPORT_AUTH_SERVICE: &str = "ISpooferMotion.DiscordReportAuth";
 const REPORT_AUTH_ACCOUNT: &str = "default";
 static RUNTIME_LOGIN_TOKEN: OnceLock<Mutex<Option<String>>> = OnceLock::new();
@@ -18,14 +17,20 @@ async fn report_api_url() -> crate::error::Result<String> {
     let dev_url = "http://127.0.0.1:3000";
     let fallback_url = "http://localhost:3000";
     let prod_url = "https://ispoofermotion.com";
-    
+
     let mut configured = prod_url.to_string();
 
     #[cfg(debug_assertions)]
     {
-        if crate::utils::get_http_client().get(format!("{dev_url}/api/cache")).send().await.is_ok() {
+        if crate::utils::get_http_client().get(format!("{dev_url}/api/cache")).send().await.is_ok()
+        {
             configured = dev_url.to_string();
-        } else if crate::utils::get_http_client().get(format!("{fallback_url}/api/cache")).send().await.is_ok() {
+        } else if crate::utils::get_http_client()
+            .get(format!("{fallback_url}/api/cache"))
+            .send()
+            .await
+            .is_ok()
+        {
             configured = fallback_url.to_string();
         }
     }

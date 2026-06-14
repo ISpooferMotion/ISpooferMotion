@@ -249,12 +249,14 @@ pub async fn get_group_icon(group_id: String) -> crate::error::Result<String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_group_icons_batch(group_ids: Vec<String>) -> crate::error::Result<std::collections::HashMap<String, String>> {
+pub async fn get_group_icons_batch(
+    group_ids: Vec<String>,
+) -> crate::error::Result<std::collections::HashMap<String, String>> {
     let mut map = std::collections::HashMap::new();
     if group_ids.is_empty() {
         return Ok(map);
     }
-    
+
     let valid_ids: Vec<String> = group_ids
         .into_iter()
         .map(|id| id.trim().to_string())
@@ -289,7 +291,9 @@ pub async fn get_group_icons_batch(group_ids: Vec<String>) -> crate::error::Resu
 
     if let Some(data) = json["data"].as_array() {
         for item in data {
-            if let (Some(target_id), Some(image_url)) = (item["targetId"].as_i64(), item["imageUrl"].as_str()) {
+            if let (Some(target_id), Some(image_url)) =
+                (item["targetId"].as_i64(), item["imageUrl"].as_str())
+            {
                 map.insert(target_id.to_string(), image_url.to_string());
             }
         }
