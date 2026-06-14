@@ -232,7 +232,7 @@ local function scanAssets(): ()
 
 	if bundledAssetClasses == 0 then
 		warn(
-			"[ISpooferMotion] Bundled API property tables are empty. Rebuild the plugin with `npm run build:plugin`."
+			"[ISpooferMotion] Bundled API property tables are empty. Rebuild the plugin with `bun run build:plugin`."
 		)
 	else
 		print(

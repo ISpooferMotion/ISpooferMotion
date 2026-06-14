@@ -10,19 +10,19 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:plugin": "node scripts/build-plugin.mjs",
+    "build:plugin": "bun scripts/build-plugin.mjs",
     "tauri": "tauri",
     "tauri:build": "tauri build",
-    "tauri:dev": "node scripts/clear-dev-state.mjs && tauri dev",
-    "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml && npx @johnnymorganz/stylua-bin .",
-    "format:check": "prettier --check . && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && npx @johnnymorganz/stylua-bin --check .",
+    "tauri:dev": "bun scripts/clear-dev-state.mjs && tauri dev",
+    "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml && bunx @johnnymorganz/stylua-bin .",
+    "format:check": "prettier --check . && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && bunx @johnnymorganz/stylua-bin --check .",
     "typecheck": "tsc --noEmit",
     "rust:check": "cargo check --manifest-path src-tauri/Cargo.toml --lib",
     "rust:lint": "cargo clippy --manifest-path src-tauri/Cargo.toml --lib --all-targets -- -D warnings",
     "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
-    "check": "npm run format:check && npm run typecheck && npm run rust:check && npm run rust:lint && npm run rust:test && npm run lint && npm run test && npm run build && npm run build:plugin"
+    "check": "bun run format:check && bun run typecheck && bun run rust:check && bun run rust:lint && bun run rust:test && bun run lint && bun run test && bun run build && bun run build:plugin"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -46,8 +46,9 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@codycon/ism-library": "file:../ISM-Library/packages/ui",
+    "@codycon/ism-library": "link:@codycon/ism-library",
     "@floating-ui/react-dom": "^2.1.8",
+    "@tanstack/query-core": "^5.101.0",
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-query-devtools": "^5.101.0",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",

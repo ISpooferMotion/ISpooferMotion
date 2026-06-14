@@ -66,7 +66,7 @@ jobs:
 
       - name: Build app (Windows Unsigned Inner)
         if: matrix.os == 'windows'
-        run: npm run tauri build -- --no-bundle
+        run: bun run tauri build -- --no-bundle
 
       - name: Sign Windows Executable
         if: matrix.os == 'windows'
@@ -86,7 +86,7 @@ jobs:
 
       - name: Build app (Windows Bundle)
         if: matrix.os == 'windows'
-        run: npm run tauri build -- --bundles ${{ matrix.bundles }}
+        run: bun run tauri build -- --bundles ${{ matrix.bundles }}
 
       - name: Sign Windows Installer
         if: matrix.os == 'windows'
@@ -128,7 +128,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Build plugin
-        run: npm run build:plugin
+        run: bun run build:plugin
 
       - name: Upload plugin to release
         uses: softprops/action-gh-release@v2
