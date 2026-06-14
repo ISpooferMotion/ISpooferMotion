@@ -26,6 +26,12 @@ const {
 const { loadJobs, saveJobRecord, deleteJobRecord } = require('./jobs');
 const { saveSession, loadSession, clearSession } = require('./session');
 const { createRobloxSession } = require('./roblox-session');
+  savePlaceIdCache,
+  pruneExpiredEntries,
+  getCachedPlaceIds,
+  recordSuccessfulPlaceId,
+  evictPlaceId,
+} = require('./place-id-cache');
 const { inspectTransferPayload } = require('./payload-inspector');
 const {
   pauseSpoofer,
@@ -1666,6 +1672,20 @@ async function handleSpooferAction(
 
   const robloxSession = createRobloxSession(robloxCookie);
 
+  let preflightAuthUserId = null;
+  sendStatusMessage('Validating Roblox session...');
+  try {
+    preflightAuthUserId = await getAuthenticatedUserId(robloxCookie);
+    if (DEVELOPER_MODE) console.log(`(Dev) Cookie pre-flight OK — authenticated as user ${preflightAuthUserId}`);
+  } catch (preflightErr) {
+    sendSpooferResultToRenderer({
+      output: `Cookie validation failed: ${preflightErr.message}\n\nMake sure your ROBLOSECURITY cookie is current and not expired. You can re-copy it from your browser.`,
+      success: false,
+    });
+    sendStatusMessage('Cookie validation failed');
+    return;
+  }
+
   try {
     if (!(await fs.stat(downloadsDir).catch(() => null))) {
       await fs.mkdir(downloadsDir, { recursive: true });
@@ -1794,6 +1814,16 @@ async function handleSpooferAction(
     );
   }
 
+  const userDataPath = app.getPath('userData');
+  let placeIdCacheEntries = {};
+  try {
+    const cachedCreatorCount = Object.keys(placeIdCacheEntries).length;
+    if (DEVELOPER_MODE && cachedCreatorCount > 0)
+      console.log(`(Dev) Loaded placeId cache with ${cachedCreatorCount} creator(s)`);
+  } catch (cacheErr) {
+    if (DEVELOPER_MODE) console.warn('(Dev) Failed to load placeId cache:', cacheErr.message);
+  }
+
   const placeIdMap = {};
   if (animationEntries.length > 0) {
     sendStatusMessage('Discovering compatible Roblox places...');
@@ -1807,6 +1837,10 @@ async function handleSpooferAction(
 
     await runWithConcurrency(uniqueCreators, 5, async (creatorKey) => {
       const [creatorType, creatorId] = creatorKey.split(':');
+      // Prepend cached (proven) placeIds so they are tried before fresh discovery.
+      const cachedIds = getCachedPlaceIds(placeIdCacheEntries, creatorKey);
+      if (cachedIds.length > 0 && DEVELOPER_MODE)
+        console.log(`(Dev) Cache hit for ${creatorKey}: ${cachedIds.length} cached placeId(s)`);
       try {
         const placeIds = await retryAsync(
           () => getPlaceIdFromCreator(creatorType, creatorId, robloxCookie, maxPlaceIds),
@@ -1817,13 +1851,20 @@ async function handleSpooferAction(
               console.warn(`(Dev) Attempt ${attempt}/${max} for ${creatorKey}: ${err.message}`);
           },
         );
-        placeIdMap[creatorKey] = uniquePlaceIds(entryPlaceIdsByCreator[creatorKey], placeIds);
+        placeIdMap[creatorKey] = uniquePlaceIds(
+          entryPlaceIdsByCreator[creatorKey],
+          cachedIds,
+          placeIds,
+        );
         if (DEVELOPER_MODE)
-          console.log(`(Dev) Got ${placeIdMap[creatorKey].length} placeIds for ${creatorKey}`);
+          console.log(`(Dev) Got ${placeIdMap[creatorKey].length} placeIds for ${creatorKey} (${cachedIds.length} cached)`);
       } catch (error) {
         if (DEVELOPER_MODE)
           console.warn(`(Dev) Could not get placeIds for ${creatorKey}: ${error.message}`);
-        placeIdMap[creatorKey] = entryPlaceIdsByCreator[creatorKey] || [];
+        placeIdMap[creatorKey] = uniquePlaceIds(
+          entryPlaceIdsByCreator[creatorKey],
+          cachedIds,
+        );
       }
     });
 
@@ -1837,13 +1878,7 @@ async function handleSpooferAction(
           `(Dev) ${creatorsNeedingFallback.length} creator(s) have no places. Building fallback pools...`,
         );
 
-      let fallbackAuthUserId = null;
-      try {
-        fallbackAuthUserId = await getAuthenticatedUserId(robloxCookie);
-      } catch (e) {
-        if (DEVELOPER_MODE)
-          console.warn('(Dev) Could not resolve auth user ID for fallback:', e.message);
-      }
+      const fallbackAuthUserId = preflightAuthUserId;
 
       const fallbackPools = new Map();
       const getFallbackPool = async (creatorKey, creatorType, creatorId) => {
@@ -1882,6 +1917,21 @@ async function handleSpooferAction(
     }
 
     if (DEVELOPER_MODE) console.log('(Dev) Resolved placeIdMap:', placeIdMap);
+
+    const creatorsWithNoPlaces = uniqueCreators.filter((k) => !placeIdMap[k]?.length);
+    if (creatorsWithNoPlaces.length > 0) {
+      const affectedCount = animationEntries.filter((e) =>
+        creatorsWithNoPlaces.includes(`${e.creatorType}:${e.creatorId}`),
+      ).length;
+      const warnMsg =
+        `⚠️ No Roblox place context found for ${creatorsWithNoPlaces.length} creator(s) ` +
+        `(affects ${affectedCount} asset${affectedCount !== 1 ? 's' : ''}). ` +
+        `Private assets from these creators may fail with 403. ` +
+        `Consider adding an Override Place ID or re-importing from the Studio plugin scan.`;
+      console.warn(`[PLACE CONTEXT] ${warnMsg}`);
+      sendStatusMessage(warnMsg);
+      sendSpooferLog?.(warnMsg);
+    }
   }
 
   const locationsMap = {};
@@ -2126,6 +2176,10 @@ async function handleSpooferAction(
                 for (const loc of locations) {
                   setBatchLocation(locationsMap, loc);
                 }
+                if (locations.every((loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc))) {
+                  hasAuthError = true;
+                }
+                evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
                 break;
               }
             } else {
@@ -2134,6 +2188,10 @@ async function handleSpooferAction(
               for (const loc of locations) {
                 setBatchLocation(locationsMap, loc);
               }
+              if (locations.every((loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc))) {
+                hasAuthError = true;
+              }
+              evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
               break;
             }
           }
@@ -2143,6 +2201,7 @@ async function handleSpooferAction(
           for (const loc of locations) {
             setBatchLocation(locationsMap, loc);
           }
+          recordSuccessfulPlaceId(placeIdCacheEntries, creatorKey, placeId);
           break;
         }
       }
@@ -2179,6 +2238,14 @@ async function handleSpooferAction(
     });
     sendStatusMessage(`Resolved download locations ${resolvedLocationsCount}/${batchItems.length}`);
   });
+
+  // Save the updated placeId success cache to disk.
+  try {
+    await savePlaceIdCache(userDataPath, placeIdCacheEntries);
+    if (DEVELOPER_MODE) console.log('(Dev) Saved placeId cache');
+  } catch (cacheErr) {
+    if (DEVELOPER_MODE) console.warn('(Dev) Failed to save placeId cache:', cacheErr.message);
+  }
 
   const UPLOAD_RETRIES = parseInt(data.uploadRetries, 10) || 3;
   const UPLOAD_RETRY_DELAY_MS = parseInt(data.uploadRetryDelay, 10) || 5000;
@@ -2387,16 +2454,25 @@ async function handleSpooferAction(
       if (!result || !result.success) {
         const directError = result?.error || 'Direct download fallback failed';
         const accessDenied = /403|forbidden|not authorized|unauthorized|permission/i.test(
-          `${batchErrorMessage} ${directError}`,
+        const batchIsAccessDenied = /403|forbidden|not authorized|unauthorized|permission/i.test(
+          String(batchErrorMessage || ''),
+          directError,
         );
-        const missingExplicitPlace = !overridePlaceId && !entry.placeId;
-        const placeContextHint =
-          accessDenied && missingExplicitPlace
-            ? ' Missing Studio place context for this private asset; re-import from the current Studio plugin scan or add [Place:<placeId>] / Override place ID for a game that can load it.'
-            : '';
+        const accessDenied = batchIsAccessDenied || directIsAccessDenied;
+        // Always show the place-context hint on any 403 — even if a placeId was supplied,
+        // it may be wrong or stale for this private asset.
+        const placeContextHint = accessDenied
+          ? ' Asset is private or restricted — re-import from the Studio plugin scan, or add [Place:<placeId>] / Override place ID for a game that has access to it.'
+          : '';
+        // Collapse both errors into one clean message when both are access-denied,
+        // otherwise keep the full dual-error message for debugging.
+        const combinedError =
+          batchIsAccessDenied && directIsAccessDenied
+            ? `Failed to download asset: Access denied (403).${placeContextHint}`
+            : `Batch error: ${batchErrorMessage}. Direct fallback: ${directError}.${placeContextHint}`;
         result = {
           success: false,
-          error: `Batch error: ${batchErrorMessage}. Direct fallback: ${directError}.${placeContextHint}`,
+          error: combinedError,
         };
         sendTransferUpdate({
           id: downloadTransferId,
