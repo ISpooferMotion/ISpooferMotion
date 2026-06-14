@@ -59,7 +59,7 @@ function pruneExpiredEntries(entries) {
   return pruned;
 }
 
- * Expired entries are automatically excluded.
+
 function getCachedPlaceIds(entries, creatorKey) {
   const entry = entries[creatorKey];
   if (!entry?.placeIds?.length) return [];

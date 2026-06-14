@@ -227,8 +227,8 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
 
   const handleSelectFolder = async () => {
     const result = await (window as any).electronAPI?.selectFolder?.();
-    if (result && !result.canceled && result.filePaths?.length > 0) {
-      const folder = result.filePaths[0];
+    if (result && typeof result === 'string') {
+      const folder = result;
       setDownloadFolder(folder);
       await updateProfileValue('downloadFolder', folder);
     }
@@ -363,8 +363,8 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
             <Box>
               <HStack mb="8px"><FolderOpen size={14} color="#949ba4" /><Text fontSize="12px" color="discord.muted" fontWeight={600}>Download Folder</Text></HStack>
               <InputGroup size="sm">
-                <Input readOnly value={downloadFolder} placeholder="Select a folder..." bg="discord.input" border="none" color="discord.text" pr="40px" borderRadius="4px" h="36px" _focus={{ boxShadow: 'none' }} />
-                <InputRightElement w="40px" h="36px">
+                <Input cursor="pointer" onClick={handleSelectFolder} readOnly value={downloadFolder} placeholder="Select a folder..." bg="discord.input" border="none" color="discord.text" pr="40px" borderRadius="4px" h="36px" _focus={{ boxShadow: 'none' }} />
+                <InputRightElement w="40px" h="36px" pointerEvents="auto">
                   <IconButton aria-label="Select Folder" icon={<FolderOpen size={14} />} size="xs" variant="ghost" h="24px" mt="6px" color="discord.muted" _hover={{ bg: 'discord.background', color: 'discord.text' }} onClick={handleSelectFolder} />
                 </InputRightElement>
               </InputGroup>

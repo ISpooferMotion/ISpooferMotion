@@ -389,13 +389,9 @@ local function addNestedIds(ids, value, visited, objName, isConfirmed)
 	end
 end
 
-local function collectIdsFromSource(source, ids, defaultObjName, checkYield)
-	local actionKeywords = {
+local function collectIdsFromSource(source, ids, defaultObjName, checkYield, kind)
+	local animationKeywords = {
 		"anim",
-		"sound",
-		"audio",
-		"music",
-		"track",
 		"walk",
 		"run",
 		"idle",
@@ -421,6 +417,32 @@ local function collectIdsFromSource(source, ids, defaultObjName, checkYield)
 		"load",
 		"play",
 	}
+	
+	local soundKeywords = {
+		"sound",
+		"audio",
+		"music",
+		"track",
+		"play",
+	}
+
+	local actionKeywords = {}
+	if kind == "animation" then
+		for _, kw in ipairs(animationKeywords) do
+			table.insert(actionKeywords, kw)
+		end
+	elseif kind == "sound" then
+		for _, kw in ipairs(soundKeywords) do
+			table.insert(actionKeywords, kw)
+		end
+	else
+		for _, kw in ipairs(animationKeywords) do
+			table.insert(actionKeywords, kw)
+		end
+		for _, kw in ipairs(soundKeywords) do
+			table.insert(actionKeywords, kw)
+		end
+	end
 
 	local function hasActionKeyword(text)
 		if not text then
@@ -556,7 +578,7 @@ local function collectIdsFromObject(obj, ids, checkYield, kind)
 			return obj.Source
 		end)
 		if ok and source and #source > 0 then
-			collectIdsFromSource(source, ids, objName, checkYield)
+			collectIdsFromSource(source, ids, objName, checkYield, kind)
 		end
 		return
 	end

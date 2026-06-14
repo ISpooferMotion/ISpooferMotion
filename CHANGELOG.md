@@ -7,6 +7,8 @@
 - **Pre-Flight Place Context Warning**: If the spoofer cannot find any accessible places for a creator, it will now warn you *before* downloading starts, giving you a chance to add an Override Place ID for private assets.
 - **Smarter Auth Error Messaging**: JSON-level access-denied errors from Roblox are now properly detected, resulting in clean "Authentication failed" or "Access denied (403)" messages instead of generic "No assets processed" errors.
 - **Plugin Server & Local Features**: Fixed issues with the Localhost Plugin Server and finalized local features to improve stability and workflow testing.
+- **Fixed "Select Download Folder" Bug**: Resolved an issue where selecting a custom download directory in the UI would fail to apply the chosen folder properly due to an IPC data parsing mismatch.
+- **Fixed Studio Plugin Scan Mismatches (403 Errors)**: Fixed a critical bug where the Studio plugin incorrectly captured audio IDs during an Animation scan (and vice versa).
 
 ## v1.3.17
 
