@@ -1,16 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
-import { useThemeAccent } from '../contexts/ThemeContext';
-import { isTauriRuntime } from '../utils/tauriRuntime';
-
-const CLOUD_THEME_APP_VERSION = '2.0.0';
-
-interface StoredDiscordAuth {
-  loginToken: string;
-}
+import { isTauriRuntime } from '@/utils/tauriRuntime';
 
 interface CloudThemeStateResponse {
   changed: boolean;
@@ -18,9 +10,14 @@ interface CloudThemeStateResponse {
   themeData?: string;
   themeHash?: string;
 }
+import { useThemeAccent } from '../contexts/ThemeContext';
+import type { StoredDiscordAuth } from '../types/discordAuth';
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
+const CLOUD_THEME_APP_VERSION = '2.0.0';
+
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return String(e);
 }
 
 async function sendThemeReceipt(
@@ -29,13 +26,11 @@ async function sendThemeReceipt(
   themeHash: string,
   status: 'applied' | 'failed',
   error: string | null,
-  signal: AbortSignal,
 ) {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://ispoofermotion.com';
   await tauriFetch(`${baseUrl}/api/cloud-theme/receipt`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    signal,
     body: JSON.stringify({
       loginToken,
       version,
@@ -44,124 +39,114 @@ async function sendThemeReceipt(
       error,
       appVersion: CLOUD_THEME_APP_VERSION,
     }),
-  });
+  }).catch(() => {});
 }
 
 export function useCloudThemeSync() {
   const { clearCustomTheme, loadThemeFromJson, setThemeMode } = useThemeAccent();
   const syncInProgress = useRef(false);
-  const activeAbort = useRef<AbortController | null>(null);
+  const mountedAbort = useRef<AbortController | null>(null);
 
-  const performSync = useCallback(async () => {
-    if (!isTauriRuntime() || syncInProgress.current) return;
+  const themeOps = useRef({ clearCustomTheme, loadThemeFromJson, setThemeMode });
+  useEffect(() => {
+    themeOps.current = { clearCustomTheme, loadThemeFromJson, setThemeMode };
+  });
 
-    const controller = new AbortController();
-    activeAbort.current = controller;
-    syncInProgress.current = true;
+  const performSyncRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  useEffect(() => {
+    performSyncRef.current = async () => {
+      if (!isTauriRuntime() || syncInProgress.current) return;
+      syncInProgress.current = true;
 
-    try {
-      const auth = await invoke<StoredDiscordAuth | null>('load_discord_report_auth');
-      if (!auth?.loginToken || controller.signal.aborted) return;
-
-      const localVersion = Number.parseInt(
-        window.localStorage.getItem('cloud_theme_version') || '0',
-        10,
-      );
-
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://ispoofermotion.com';
-      const response = await tauriFetch(`${baseUrl}/api/cloud-theme/state?since=${localVersion}`, {
-        headers: { Authorization: `Bearer ${auth.loginToken}` },
-        signal: controller.signal,
-      });
-
-      if (response.status === 404) {
-        if (localVersion > 0) {
-          window.localStorage.removeItem('active_custom_theme_json');
-          window.localStorage.removeItem('cloud_theme_version');
-          window.localStorage.removeItem('cloud_theme_hash');
-          clearCustomTheme();
-          setThemeMode('dark');
-        }
-        return;
-      }
-
-      if (!response.ok) {
-        console.error('Failed to fetch cloud theme state', response.status);
-        return;
-      }
-
-      const data: CloudThemeStateResponse = await response.json();
-      if (!data.changed || !data.themeData || !data.version || !data.themeHash) return;
+      const stateController = new AbortController();
+      mountedAbort.current = stateController;
 
       try {
-        window.localStorage.setItem('active_custom_theme_json', data.themeData);
-        window.localStorage.setItem('theme', 'custom');
-        window.localStorage.setItem('cloud_theme_version', data.version.toString());
-        window.localStorage.setItem('cloud_theme_hash', data.themeHash);
+        const auth = await invoke<StoredDiscordAuth | null>('load_discord_report_auth', {});
+        if (!auth?.loginToken || stateController.signal.aborted) return;
 
-        loadThemeFromJson(data.themeData);
-        await sendThemeReceipt(
-          auth.loginToken,
-          data.version,
-          data.themeHash,
-          'applied',
-          null,
-          controller.signal,
+        const localVersion = Number.parseInt(
+          window.localStorage.getItem('cloud_theme_version') || '0',
+          10,
         );
-      } catch (applyError) {
-        console.error('Failed to apply theme', applyError);
-        await sendThemeReceipt(
-          auth.loginToken,
-          data.version,
-          data.themeHash,
-          'failed',
-          errorMessage(applyError),
-          controller.signal,
-        );
+
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://ispoofermotion.com';
+        const response = await tauriFetch(`${baseUrl}/api/cloud-theme/state?since=${localVersion}`, {
+          headers: { Authorization: `Bearer ${auth.loginToken}` },
+          signal: stateController.signal,
+        });
+
+        if (stateController.signal.aborted) return;
+
+        if (response.status === 404) {
+          if (localVersion > 0) {
+            window.localStorage.removeItem('active_custom_theme_json');
+            window.localStorage.removeItem('cloud_theme_version');
+            window.localStorage.removeItem('cloud_theme_hash');
+            themeOps.current.clearCustomTheme();
+            themeOps.current.setThemeMode('dark');
+          }
+          return;
+        }
+
+        if (!response.ok) return;
+
+        const data: CloudThemeStateResponse = await response.json();
+        if (!data.changed || !data.themeData || !data.version || !data.themeHash) return;
+
+        try {
+          window.localStorage.setItem('active_custom_theme_json', data.themeData);
+          window.localStorage.setItem('theme', 'custom');
+          window.localStorage.setItem('cloud_theme_version', data.version.toString());
+          window.localStorage.setItem('cloud_theme_hash', data.themeHash);
+
+          themeOps.current.loadThemeFromJson(data.themeData);
+
+          await sendThemeReceipt(auth.loginToken, data.version, data.themeHash, 'applied', null);
+        } catch (applyError) {
+          console.error('Failed to apply theme', applyError);
+          await sendThemeReceipt(
+            auth.loginToken,
+            data.version,
+            data.themeHash,
+            'failed',
+            errorMessage(applyError),
+          );
+        }
+      } catch (error) {
+        if (!stateController.signal.aborted) {
+          console.error('Cloud theme sync error:', error);
+        }
+      } finally {
+        if (mountedAbort.current === stateController) {
+          mountedAbort.current = null;
+        }
+        syncInProgress.current = false;
       }
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        console.error('Cloud theme sync error:', error);
-      }
-    } finally {
-      if (activeAbort.current === controller) {
-        activeAbort.current = null;
-      }
-      syncInProgress.current = false;
-    }
-  }, [clearCustomTheme, loadThemeFromJson, setThemeMode]);
+    };
+  });
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
 
     const unlisteners: Array<() => void> = [];
-    let disposed = false;
+    const performSync = () => performSyncRef.current();
 
-    const trackUnlistener = (promise: Promise<() => void>) => {
-      promise
-        .then((unlisten) => {
-          if (disposed) {
-            unlisten();
-          } else {
-            unlisteners.push(unlisten);
-          }
-        })
-        .catch((error) => {
-          console.error('Cloud theme listener setup failed:', error);
-        });
-    };
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen('cloud-theme-sync-now', performSync).then((unlisten) => {
+        unlisteners.push(unlisten);
+      });
+    });
 
-    void performSync();
-    const interval = window.setInterval(() => void performSync(), 30000);
-
-    trackUnlistener(listen('cloud-theme-sync-now', () => void performSync()));
-    trackUnlistener(listen('discord-login-success', () => void performSync()));
+    const intervalId = window.setInterval(performSync, 5 * 60 * 1000);
+    performSync();
 
     return () => {
-      disposed = true;
-      window.clearInterval(interval);
-      activeAbort.current?.abort();
-      unlisteners.forEach((unlisten) => unlisten());
+      window.clearInterval(intervalId);
+      for (const unlisten of unlisteners) unlisten();
+      if (mountedAbort.current) {
+        mountedAbort.current.abort();
+      }
     };
-  }, [performSync]);
+  }, []);
 }

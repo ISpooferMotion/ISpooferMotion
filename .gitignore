@@ -89,3 +89,6 @@ desktop.ini
 # Allow env files
 !.env.development
 !.env.production
+
+# Some other junk
+*.log

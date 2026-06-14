@@ -162,7 +162,7 @@ export default function SettingsView() {
           <Accordion
             selectionMode="multiple"
             expandedKeys={config.ui.settingsSections}
-            onExpandedChange={(keys) => updateConfig('ui', 'settingsSections', keys)}
+            onExpandedChange={(keys: any) => updateConfig('ui', 'settingsSections', keys)}
             className="flex flex-col gap-6"
           >
             <AccordionItem
@@ -283,7 +283,7 @@ export default function SettingsView() {
                   label="Hide to Tray"
                   description="When closing the app, it will minimize to the system tray instead of quitting."
                   checked={config.general.hideToTrayOnClose}
-                  onChange={(v) => updateConfig('general', 'hideToTrayOnClose', v)}
+                  onChange={(v: any) => updateConfig('general', 'hideToTrayOnClose', v)}
                 />
 
                 <FormDropdown
@@ -319,7 +319,7 @@ export default function SettingsView() {
                   <FormColorPickerRow
                     label={t('settings.accentColor')}
                     color={accentColor}
-                    onClick={(e) => {
+                    onClick={(e: any) => {
                       e.stopPropagation();
                       const rect = e.currentTarget.getBoundingClientRect();
                       setPickerCoords({ top: rect.bottom + 8, left: rect.right - 200 });
@@ -333,7 +333,7 @@ export default function SettingsView() {
                         <div className="fixed inset-0 z-[9999] pointer-events-none">
                           <div
                             className="absolute inset-0 z-[490] pointer-events-auto"
-                            onClick={(e) => {
+                            onClick={(e: any) => {
                               e.stopPropagation();
                               setIsColorPickerOpen(false);
                             }}
@@ -344,8 +344,8 @@ export default function SettingsView() {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: -10 }}
                             className="absolute z-[500] p-0 border border-border-subtle rounded-xl overflow-hidden shadow-floating bg-bg-surface flex flex-col pointer-events-auto"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => e.stopPropagation()}
+                            onPointerDown={(e: any) => e.stopPropagation()}
+                            onClick={(e: any) => e.stopPropagation()}
                             style={{
                               top: pickerCoords.top,
                               left: pickerCoords.left,
@@ -357,7 +357,7 @@ export default function SettingsView() {
                               <input
                                 type="text"
                                 value={localAccent.toUpperCase()}
-                                onChange={(e) => handleColorChange(e.target.value)}
+                                onChange={(e: any) => handleColorChange(e.target.value)}
                                 className="bg-bg-base text-text-primary text-xs font-mono px-2 py-1 rounded w-20 text-center border border-border-strong outline-none focus:border-primary transition-colors"
                               />
                             </div>
@@ -428,7 +428,7 @@ export default function SettingsView() {
                             key={setting.id}
                             label={setting.label}
                             checked={config.ui.quickSettings.includes(setting.id)}
-                            onChange={(checked) => {
+                            onChange={(checked: any) => {
                               const newSettings = checked
                                 ? [...config.ui.quickSettings, setting.id]
                                 : config.ui.quickSettings.filter((id) => id !== setting.id);
@@ -457,7 +457,7 @@ export default function SettingsView() {
                   <FormToggle
                     label={t('settings.debugMode')}
                     checked={config.debug.debugMode}
-                    onChange={(v) => updateConfig('debug', 'debugMode', v)}
+                    onChange={(v: any) => updateConfig('debug', 'debugMode', v)}
                   />
 
                   <FormToggle
@@ -470,7 +470,7 @@ export default function SettingsView() {
                   <FormToggle
                     label="Enable Experimental Tab"
                     checked={config.debug.enableExperimentalTab}
-                    onChange={(v) => updateConfig('debug', 'enableExperimentalTab', v)}
+                    onChange={(v: any) => updateConfig('debug', 'enableExperimentalTab', v)}
                   />
                 </Row>
                 <div className="mt-2 w-full flex gap-2">

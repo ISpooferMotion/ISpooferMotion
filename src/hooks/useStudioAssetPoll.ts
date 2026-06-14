@@ -1,7 +1,7 @@
+import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useRef } from 'react';
 
 import type { PluginAssetStore } from '../utils/pluginBridge';
-import { fetchPluginBridge } from '../utils/pluginBridge';
 
 export type StudioScanBundle = {
   anims: PluginAssetStore;
@@ -24,7 +24,6 @@ export function useStudioAssetPoll(
   useEffect(() => {
     if (!studioConnected) return;
 
-    const base = pluginPort || '14285';
     let cancelled = false;
     let idle = false;
     let inFlight = false;
@@ -50,25 +49,10 @@ export function useStudioAssetPoll(
       inFlight = true;
 
       try {
-        const [anims, sounds, images, meshes, scriptRefs] = await Promise.all([
-          fetchPluginBridge('/last-animations', base).then(
-            (r) => r.json() as Promise<PluginAssetStore>,
-          ),
-          fetchPluginBridge('/last-sounds', base).then(
-            (r) => r.json() as Promise<PluginAssetStore>,
-          ),
-          fetchPluginBridge('/last-images', base).then(
-            (r) => r.json() as Promise<PluginAssetStore>,
-          ),
-          fetchPluginBridge('/last-meshes', base).then(
-            (r) => r.json() as Promise<PluginAssetStore>,
-          ),
-          fetchPluginBridge('/last-script-refs', base).then(
-            (r) => r.json() as Promise<PluginAssetStore>,
-          ),
-        ]);
+        const bundle = await invoke<StudioScanBundle>('get_studio_asset_snapshots');
         if (cancelled) return;
 
+        const { anims, sounds, images, meshes, scriptRefs } = bundle;
         const stores = [anims, sounds, images, meshes, scriptRefs];
         const anyScanning = stores.some((store) => store.scanning);
         if (anyScanning && idle) {
@@ -85,7 +69,6 @@ export function useStudioAssetPoll(
           return;
         }
 
-        const bundle = { anims, sounds, images, meshes, scriptRefs };
         const snapshot = bundleSnapshot(bundle);
         if (snapshot === lastSnapshot) {
           if (!idle) {

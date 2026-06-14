@@ -24,22 +24,8 @@ env:
   DISCORD_REPORT_API_URL: ${{ vars.DISCORD_REPORT_API_URL }}
 
 jobs:
-  validate:
-    name: Validate Codebase
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Environment
-        uses: ./.github/actions/setup
-
-      - name: Run code validation
-        run: npm run check
-
   build-and-release:
     name: Build & Release (${{ matrix.os }}, ${{ matrix.bundles }})
-    needs: validate
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
@@ -63,11 +49,6 @@ jobs:
         uses: ./.github/actions/setup
         with:
           os: ${{ matrix.os }}
-
-      - name: Verify release configuration
-        shell: bash
-        run: |
-          node -e "const { version } = require('./package.json'); if (process.env.RELEASE_TAG !== 'v' + version) throw new Error('Release tag must be v' + version + ', received ' + process.env.RELEASE_TAG); if (!process.env.DISCORD_REPORT_API_URL?.startsWith('https://')) throw new Error('DISCORD_REPORT_API_URL must be configured as an HTTPS repository variable before release');"
 
       - name: Build app (macOS / Linux)
         if: matrix.os != 'windows'

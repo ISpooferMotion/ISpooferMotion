@@ -249,6 +249,57 @@ pub async fn get_group_icon(group_id: String) -> crate::error::Result<String> {
 
 #[tauri::command]
 #[specta::specta]
+pub async fn get_group_icons_batch(group_ids: Vec<String>) -> crate::error::Result<std::collections::HashMap<String, String>> {
+    let mut map = std::collections::HashMap::new();
+    if group_ids.is_empty() {
+        return Ok(map);
+    }
+    
+    let valid_ids: Vec<String> = group_ids
+        .into_iter()
+        .map(|id| id.trim().to_string())
+        .filter(|id| !id.is_empty() && id.chars().all(|c| c.is_ascii_digit()))
+        .collect();
+
+    if valid_ids.is_empty() {
+        return Ok(map);
+    }
+
+    let joined_ids = valid_ids.join(",");
+    let url = format!(
+        "https://thumbnails.roblox.com/v1/groups/icons?groupIds={joined_ids}&size=150x150&format=Png&isCircular=true"
+    );
+
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(15)).build()?;
+    let res = client
+        .get(&url)
+        .header("User-Agent", ROBLOX_USER_AGENT)
+        .send()
+        .await
+        .map_err(|e| crate::error::AppError::Custom(format!("Network error: {e}")))?;
+
+    if !res.status().is_success() {
+        return Err(format!("Failed to get group icons batch ({})", res.status()).into());
+    }
+
+    let json: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|e| crate::error::AppError::Custom(format!("Invalid JSON: {e}")))?;
+
+    if let Some(data) = json["data"].as_array() {
+        for item in data {
+            if let (Some(target_id), Some(image_url)) = (item["targetId"].as_i64(), item["imageUrl"].as_str()) {
+                map.insert(target_id.to_string(), image_url.to_string());
+            }
+        }
+    }
+
+    Ok(map)
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn detect_opencloud_api_key_owner(
     key: String,
 ) -> crate::error::Result<ApiKeyOwnerDetectResult> {

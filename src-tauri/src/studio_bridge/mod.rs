@@ -285,3 +285,43 @@ async fn bind_available_listener() -> Option<(tokio::net::TcpListener, SocketAdd
     }
     None
 }
+
+#[tauri::command]
+#[specta::specta]
+#[must_use]
+pub async fn get_studio_health_status() -> AnyValue {
+    let Some(data) = bridge_data() else {
+        return AnyValue(json!({ "synced": false, "protocolVersion": STUDIO_PROTOCOL_VERSION, "scanStatus": null, "studioPlaceId": null }));
+    };
+    let guard = data.read().await;
+    let synced = guard.last_plugin_poll_time.is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(3));
+    AnyValue(json!({
+        "synced": synced,
+        "protocolVersion": STUDIO_PROTOCOL_VERSION,
+        "scanStatus": guard.scan_status,
+        "studioPlaceId": guard.studio_place_id
+    }))
+}
+
+#[tauri::command]
+#[specta::specta]
+#[must_use]
+pub async fn get_studio_asset_snapshots() -> AnyValue {
+    let Some(data) = bridge_data() else {
+        return AnyValue(json!({
+            "anims": { "assets": [], "scanning": false, "complete": false },
+            "sounds": { "assets": [], "scanning": false, "complete": false },
+            "images": { "assets": [], "scanning": false, "complete": false },
+            "meshes": { "assets": [], "scanning": false, "complete": false },
+            "scriptRefs": { "assets": [], "scanning": false, "complete": false }
+        }));
+    };
+    let guard = data.read().await;
+    AnyValue(json!({
+        "anims": guard.last_animations,
+        "sounds": guard.last_sounds,
+        "images": guard.last_images,
+        "meshes": guard.last_meshes,
+        "scriptRefs": guard.last_script_refs
+    }))
+}

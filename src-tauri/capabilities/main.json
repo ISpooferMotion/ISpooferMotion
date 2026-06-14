@@ -32,7 +32,16 @@
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     "global-shortcut:allow-unregister-all",
-    "http:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://localhost:3000/**" },
+        { "url": "http://127.0.0.1:3000/**" },
+        { "url": "https://ispoofermotion.com/**" },
+        { "url": "https://api.github.com/**" },
+        { "url": "https://www.incredidev.com/**" }
+      ]
+    },
     "process:default",
     "process:allow-restart"
   ]

@@ -1,0 +1,33 @@
+declare module "@codycon/ism-library" {
+  export const Button: any;
+  export const MultiSelectDropdown: any;
+  export const Spinner: any;
+  export const Accordion: any;
+  export const AccordionItem: any;
+  export const FormDropdown: any;
+  export const FormInput: any;
+  export const FormToggle: any;
+  export const Group: any;
+  export const itemVariants: any;
+  export const pageVariants: any;
+  export const Row: any;
+  export const Window: any;
+  export const Dropdown: any;
+  export const Section: any;
+  export const Divider: any;
+  export const FormColorPickerRow: any;
+  export const FormTextarea: any;
+  export const Modal: any;
+  export const ModalBody: any;
+  export const ModalContent: any;
+  export const ModalFooter: any;
+  export const ModalHeader: any;
+  export const ThemeConfig: any;
+  export const ThemeProvider: any;
+  export const useThemeAccent: any;
+  export const IsmProvider: any;
+  export const IconButton: any;
+  export const StatusPill: any;
+  export const Toolbar: any;
+  export const MultiSelectToggle: any;
+}

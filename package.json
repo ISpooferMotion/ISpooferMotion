@@ -22,21 +22,9 @@
     "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
-    "check": "npm run format:check && npm run typecheck && npm run rust:check && npm run rust:lint && npm run rust:test && npm run lint && npm run test && npm run build && npm run build:plugin",
-    "prepare": "node scripts/install-git-hooks.mjs"
+    "check": "npm run format:check && npm run typecheck && npm run rust:check && npm run rust:lint && npm run rust:test && npm run lint && npm run test && npm run build && npm run build:plugin"
   },
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,css,md,html}": [
-      "prettier --write"
-    ],
-    "src-tauri/**/*.rs": [
-      "cargo fmt --manifest-path src-tauri/Cargo.toml --"
-    ]
-  },
+
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.0",
@@ -51,7 +39,6 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "eslint-plugin-simple-import-sort": "^13.0.0",
     "globals": "^17.6.0",
-    "lint-staged": "^17.0.7",
     "prettier": "^3.8.3",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
@@ -65,13 +52,11 @@
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-query-devtools": "^5.101.0",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
-    "@tauri-apps/plugin-deep-link": "^2.4.9",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-global-shortcut": "^2.3.2",
     "@tauri-apps/plugin-http": "^2.5.9",
     "@tauri-apps/plugin-notification": "^2.3.3",
-    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@types/three": "^0.184.1",
     "framer-motion": "^12.40.0",

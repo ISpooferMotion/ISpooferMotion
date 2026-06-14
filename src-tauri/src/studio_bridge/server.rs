@@ -45,7 +45,7 @@ pub async fn handle_scan_start(
 ) -> &'static str {
     let mut guard = state.data.write().await;
     guard.last_plugin_poll_time = Some(Instant::now());
-    guard.studio_records.clear();
+    guard.studio_records = std::sync::Arc::new(Vec::new());
     let incoming_place_id = payload
         .get("placeId")
         .and_then(|value| {
@@ -103,7 +103,7 @@ pub async fn handle_scan_records(
         }
         if let Ok(record) = serde_json::from_value::<StudioRecord>(record.clone()) {
             if record.property != "Source" || record.value.len() <= super::MAX_SCRIPT_SOURCE_BYTES {
-                guard.studio_records.push(record);
+                std::sync::Arc::make_mut(&mut guard.studio_records).push(record);
             }
         }
     }
@@ -118,7 +118,7 @@ pub async fn handle_scan_complete(State(state): State<AppState>) -> Json<Value> 
         let mut guard = state.data.write().await;
         guard.last_plugin_poll_time = Some(Instant::now());
         guard.scan_status = None;
-        guard.studio_records.clone()
+        std::sync::Arc::clone(&guard.studio_records)
     };
     let stores =
         tokio::task::spawn_blocking(move || analyze_records(&records)).await.unwrap_or_else(|e| {
@@ -158,6 +158,7 @@ pub async fn handle_scan_complete(State(state): State<AppState>) -> Json<Value> 
 pub async fn handle_scan_abort(State(state): State<AppState>) -> &'static str {
     let mut guard = state.data.write().await;
     guard.scan_status = None;
+    guard.studio_records = std::sync::Arc::new(Vec::new());
     guard.last_sounds.scanning = false;
     guard.last_animations.scanning = false;
     guard.last_images.scanning = false;
@@ -222,7 +223,7 @@ pub async fn handle_replace_ids(
         payload.get("mappings").and_then(Value::as_array).cloned().unwrap_or_default();
     let over_limit = mappings_raw.len() > 5_000;
     let mappings = mappings_raw.into_iter().take(5_000).collect::<Vec<_>>();
-    let records = state.data.read().await.studio_records.clone();
+    let records = std::sync::Arc::clone(&state.data.read().await.studio_records);
     let plan_mappings = mappings.clone();
     let patches = tokio::task::spawn_blocking(move || plan_patches(&records, &plan_mappings))
         .await

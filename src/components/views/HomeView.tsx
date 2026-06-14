@@ -367,7 +367,9 @@ export default function HomeView() {
                       <Accordion
                         className="flex flex-col gap-2"
                         expandedKeys={config.ui.homeUpdateSections}
-                        onExpandedChange={(keys) => updateConfig('ui', 'homeUpdateSections', keys)}
+                        onExpandedChange={(keys: any) =>
+                          updateConfig('ui', 'homeUpdateSections', keys)
+                        }
                       >
                         {releases.map((release, index) => (
                           <AccordionItem

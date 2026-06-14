@@ -189,7 +189,7 @@ export default function ConfigView() {
           <Accordion
             selectionMode="multiple"
             expandedKeys={config.ui.configSections}
-            onExpandedChange={(keys) => updateConfig('ui', 'configSections', keys)}
+            onExpandedChange={(keys: any) => updateConfig('ui', 'configSections', keys)}
             className="flex flex-col gap-6"
           >
             <AccordionItem
@@ -328,21 +328,23 @@ export default function ConfigView() {
                   label={t('settings.skipOwned')}
                   description={t('settings.skipOwnedDescription')}
                   checked={config.advanced.skipOwned}
-                  onChange={(value) => updateConfig('advanced', 'skipOwned', value)}
+                  onChange={(value: any) => updateConfig('advanced', 'skipOwned', value)}
                 />
 
                 <FormToggle
                   label="Preserve Original Metadata"
                   description="When uploading, duplicate the Name and Description of the original asset so it looks 1:1 on the Roblox catalog."
                   checked={config.spoofing.preserveMetadata}
-                  onChange={(value) => updateConfig('spoofing', 'preserveMetadata', value)}
+                  onChange={(value: any) => updateConfig('spoofing', 'preserveMetadata', value)}
                 />
 
                 <FormToggle
                   label="Enable Archive Recovery (Slow)"
                   description="Automatically scrape the Wayback Machine to find Place IDs for deleted/private animations. Can add 10-30 seconds per failed asset."
                   checked={config.advanced.enableArchiveRecovery}
-                  onChange={(value) => updateConfig('advanced', 'enableArchiveRecovery', value)}
+                  onChange={(value: any) =>
+                    updateConfig('advanced', 'enableArchiveRecovery', value)
+                  }
                 />
 
                 <div className="flex flex-col gap-1.5 pt-2">
@@ -356,7 +358,7 @@ export default function ConfigView() {
                   <MultiSelectDropdown
                     options={uploadOptions}
                     values={config.spoofing.uploadTypes}
-                    onChange={(values) => updateConfig('spoofing', 'uploadTypes', values)}
+                    onChange={(values: any) => updateConfig('spoofing', 'uploadTypes', values)}
                     placeholder="Select asset types to upload..."
                   />
                 </div>
@@ -438,7 +440,9 @@ export default function ConfigView() {
                       label="Enable Concurrent Spoofing"
                       description="Process multiple assets simultaneously to drastically speed up large spoof jobs."
                       checked={config.advanced.concurrentSpoofing}
-                      onChange={(value) => updateConfig('advanced', 'concurrentSpoofing', value)}
+                      onChange={(value: any) =>
+                        updateConfig('advanced', 'concurrentSpoofing', value)
+                      }
                     />
                   </Row>
                   <motion.div

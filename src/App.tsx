@@ -122,6 +122,8 @@ export default function App() {
     return () => {
       isCancelled = true;
       document.removeEventListener('open-credits', handleCredits);
+      window.removeEventListener('dragover', preventDrag);
+      window.removeEventListener('drop', preventDrag);
       if (!didRegisterShortcut) return;
       unregister(shortcut).catch((error) => {
         if (!String(error).toLowerCase().includes('not registered')) {

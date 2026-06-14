@@ -343,16 +343,16 @@ export default function AssetExplorer({ isOpen, setIsOpen }: AssetExplorerProps)
     processStudioData(bundle.anims, bundle.sounds, bundle.images, bundle.meshes, bundle.scriptRefs);
   });
 
-  const toggleAsset = (assetId: string, checked: boolean) => {
+  const toggleAsset = useCallback((assetId: string, checked: boolean) => {
     setSelectedAssetIds((prev) => {
       const next = new Set(prev);
       if (checked) next.add(assetId);
       else next.delete(assetId);
       return next;
     });
-  };
+  }, [setSelectedAssetIds]);
 
-  const getAllAssetIds = (node: RbxInstance): string[] => {
+  const getAllAssetIds = useCallback((node: RbxInstance): string[] => {
     let ids: string[] = node.assets
       .filter((a) => activeAssetFilters.length === 0 || activeAssetFilters.includes(a.type))
       .map((a) => getAssetId(a))
@@ -361,20 +361,19 @@ export default function AssetExplorer({ isOpen, setIsOpen }: AssetExplorerProps)
       ids = ids.concat(getAllAssetIds(child));
     }
     return ids;
-  };
+  }, [activeAssetFilters]);
 
-  const toggleNode = (node: RbxInstance, checked: boolean) => {
-    const allIds = getAllAssetIds(node);
+  const toggleNode = useCallback((node: RbxInstance, checked: boolean) => {
+    const ids = getAllAssetIds(node);
     setSelectedAssetIds((prev) => {
       const next = new Set(prev);
-      if (checked) {
-        allIds.forEach((id) => next.add(id));
-      } else {
-        allIds.forEach((id) => next.delete(id));
+      for (const id of ids) {
+        if (checked) next.add(id);
+        else next.delete(id);
       }
       return next;
     });
-  };
+  }, [getAllAssetIds, setSelectedAssetIds]);
 
   const unlistenRef = useRef<(() => void) | null>(null);
 

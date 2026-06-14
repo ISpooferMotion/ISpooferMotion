@@ -21,6 +21,7 @@ macro_rules! specta_commands {
             crate::commands::auth::get_roblox_user_avatar,
             crate::commands::auth::get_manageable_groups,
             crate::commands::auth::get_group_icon,
+            crate::commands::auth::get_group_icons_batch,
             crate::commands::auth::detect_opencloud_api_key_owner,
             crate::commands::auth::validate_opencloud_api_key,
             crate::commands::auth::get_auth_metadata,
@@ -97,7 +98,9 @@ macro_rules! specta_commands {
             crate::studio_bridge::confirm_key_pairing,
             crate::studio_bridge::set_bridge_skip_owned_check,
             crate::studio_bridge::get_pairing_status,
-            crate::studio_bridge::get_plugin_bridge_port
+            crate::studio_bridge::get_plugin_bridge_port,
+            crate::studio_bridge::get_studio_health_status,
+            crate::studio_bridge::get_studio_asset_snapshots
         ]
     };
 }

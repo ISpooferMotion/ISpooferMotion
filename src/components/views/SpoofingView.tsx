@@ -257,14 +257,15 @@ export default function SpoofingView() {
         const rawGroups = await invoke<RobloxGroup[]>('get_manageable_groups', {
           cookie: config.spoofing.cookie,
         });
-        const withIcons = await Promise.all(
-          rawGroups.map(async (group) => {
-            const iconUrl = await invoke<string>('get_group_icon', {
-              groupId: String(group.id),
-            }).catch(() => '');
-            return { ...group, iconUrl: iconUrl || undefined };
-          }),
-        );
+        const groupIds = rawGroups.map(g => String(g.id));
+        const iconMap = await invoke<Record<string, string>>('get_group_icons_batch', {
+          groupIds
+        }).catch(() => ({}) as Record<string, string>);
+        
+        const withIcons = rawGroups.map(group => ({
+          ...group,
+          iconUrl: iconMap[String(group.id)] || undefined
+        }));
         if (!cancelled) {
           setGroups(withIcons);
           saveCachedGroups(userId, withIcons);
@@ -799,7 +800,7 @@ export default function SpoofingView() {
           <Accordion
             selectionMode="multiple"
             expandedKeys={config.ui.spoofingSections}
-            onExpandedChange={(keys) => updateConfig('ui', 'spoofingSections', keys)}
+            onExpandedChange={(keys: any) => updateConfig('ui', 'spoofingSections', keys)}
             className="flex flex-col gap-6"
           >
             <AccordionItem
@@ -988,7 +989,7 @@ export default function SpoofingView() {
 
       <Modal
         isOpen={Boolean(pendingQuotaRun)}
-        onOpenChange={(open) => !open && setPendingQuotaRun(null)}
+        onOpenChange={(open: any) => !open && setPendingQuotaRun(null)}
         size="sm"
       >
         <ModalContent>

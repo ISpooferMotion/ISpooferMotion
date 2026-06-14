@@ -1,7 +1,6 @@
 import { Button, MultiSelectToggle } from '@codycon/ism-library';
-import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronRight, Copy, Image as ImageIcon, Play, Square, ZoomIn } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 import type { AppConfig } from '../../../contexts/ConfigContext';
 import { playRobloxAudio, stopRobloxAudio } from '../../../utils/robloxAudio';
@@ -13,7 +12,7 @@ export const getAssetId = (asset: ParsedAssetRef | { id: string; name: string })
   return asset.id ?? '';
 };
 
-export function ExplorerTreeNode({
+export const ExplorerTreeNode = memo(function ExplorerTreeNode({
   node,
   level,
   config,
@@ -89,7 +88,7 @@ export function ExplorerTreeNode({
     return name || `${asset.type} ${asset.assetId}`;
   };
 
-  const AssetRow = ({ asset, index }: { asset: ParsedAssetRef; index: number }) => {
+  const renderAssetRow = (asset: ParsedAssetRef, index: number) => {
     const assetId = getAssetId(asset);
     const isSound = asset.type === 'audio';
     const isAnimation = asset.type === 'animation';
@@ -110,7 +109,7 @@ export function ExplorerTreeNode({
         >
           <div
             className="mr-2 cursor-pointer flex items-center justify-center shrink-0"
-            onClick={(event) => {
+            onClick={(event: any) => {
               event.stopPropagation();
               toggleAsset(assetId, !selectedAssetIds.has(assetId));
             }}
@@ -127,7 +126,7 @@ export function ExplorerTreeNode({
               src={getTypeIconSrc(asset)}
               alt=""
               className="w-full h-full object-contain"
-              onError={(event) => {
+              onError={(event: any) => {
                 event.currentTarget.style.display = 'none';
               }}
             />
@@ -153,7 +152,7 @@ export function ExplorerTreeNode({
                 size="sm"
                 className="h-6 w-6 min-w-6"
                 title={playingAudioId === assetId ? 'Stop audio' : 'Play audio'}
-                onClick={(event) => {
+                onClick={(event: any) => {
                   event.stopPropagation();
                   void playAsset(asset);
                 }}
@@ -172,7 +171,7 @@ export function ExplorerTreeNode({
                 size="sm"
                 className="h-6 w-6 min-w-6 text-primary"
                 title="Preview animation"
-                onClick={(event) => {
+                onClick={(event: any) => {
                   event.stopPropagation();
                   setPreviewingAnimation({ id: assetId, name: asset.instanceName });
                 }}
@@ -187,7 +186,7 @@ export function ExplorerTreeNode({
                 size="sm"
                 className="h-6 w-6 min-w-6"
                 title={isMesh ? 'Preview mesh thumbnail' : 'Preview image'}
-                onClick={(event) => {
+                onClick={(event: any) => {
                   event.stopPropagation();
                   setEnlargedImage({ id: assetId, name: asset.instanceName });
                 }}
@@ -201,7 +200,7 @@ export function ExplorerTreeNode({
               size="sm"
               className="h-6 w-6 min-w-6"
               title="Copy asset id"
-              onClick={(event) => {
+              onClick={(event: any) => {
                 event.stopPropagation();
                 void copyAssetId(asset);
               }}
@@ -211,24 +210,16 @@ export function ExplorerTreeNode({
           </div>
         </div>
 
-        <AnimatePresence initial={false}>
-          {isOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.16, ease: 'easeInOut' }}
-              className="overflow-hidden"
-            >
-              <div className="mx-2 mb-2 rounded border border-border-subtle bg-bg-base/80 px-2.5 py-2 text-[9px] text-text-muted">
-                <DetailLine label="Path" value={asset.path} />
-                <DetailLine label="ID" value={assetId} />
-                <DetailLine label="Property" value={asset.propertyName || 'Unknown'} />
-                <DetailLine label="Class" value={asset.className || 'Unknown'} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {isOpen && (
+          <div className="overflow-hidden">
+            <div className="mx-2 mb-2 rounded border border-border-subtle bg-bg-base/80 px-2.5 py-2 text-[9px] text-text-muted">
+              <DetailLine label="Path" value={asset.path} />
+              <DetailLine label="ID" value={assetId} />
+              <DetailLine label="Property" value={asset.propertyName || 'Unknown'} />
+              <DetailLine label="Class" value={asset.className || 'Unknown'} />
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -242,7 +233,7 @@ export function ExplorerTreeNode({
       >
         <div
           className="mr-2 cursor-pointer flex items-center justify-center shrink-0"
-          onClick={(event) => {
+          onClick={(event: any) => {
             event.stopPropagation();
             toggleNode(node, !isChecked);
           }}
@@ -262,7 +253,7 @@ export function ExplorerTreeNode({
             src={`/icons/${node.className}.png`}
             alt=""
             className="w-full h-full object-contain"
-            onError={(event) => {
+            onError={(event: any) => {
               const target = event.target as HTMLImageElement;
               if (!target.src.endsWith('Object.png')) {
                 target.src = '/icons/Object.png';
@@ -277,23 +268,14 @@ export function ExplorerTreeNode({
         </span>
       </div>
 
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className="flex flex-col overflow-hidden"
-          >
+      {expanded && (
+        <div className="flex flex-col overflow-hidden">
             {filteredAssets.length > 0 && (
               <div className="flex flex-col">
                 {filteredAssets.map((asset, index) => (
-                  <AssetRow
-                    key={`${asset.type}:${asset.path}:${asset.propertyName}:${asset.assetId}:${index}`}
-                    asset={asset}
-                    index={index}
-                  />
+                  <div key={`${asset.type}:${asset.path}:${asset.propertyName}:${getAssetId(asset)}:${index}`}>
+                    {renderAssetRow(asset, index)}
+                  </div>
                 ))}
               </div>
             )}
@@ -314,12 +296,11 @@ export function ExplorerTreeNode({
                 playingAudioId={playingAudioId}
               />
             ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
     </div>
   );
-}
+});
 
 function DetailLine({ label, value }: { label: string; value: string }) {
   return (

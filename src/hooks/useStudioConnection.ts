@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useState } from 'react';
 
 import { findPluginBridgePort } from '../utils/pluginBridge';
@@ -39,16 +40,9 @@ export function useStudioConnection(port: string, onPortDiscovered?: (port: stri
         }
         if (activePort !== port) onPortDiscovered?.(activePort);
 
-        const response = await fetch(
-          `http://localhost:${activePort}/studio-health?t=${Date.now()}`,
-          {
-            signal: AbortSignal.timeout(800),
-            cache: 'no-store',
-          },
-        );
-        const result = await response.json();
+        const result = await invoke<{ synced: boolean; scanStatus: any; studioPlaceId: string | null }>('get_studio_health_status');
         if (!cancelled) {
-          setStudioConnected(response.ok && result.synced === true);
+          setStudioConnected(result.synced === true);
           setScanStatus(result.scanStatus || null);
           const placeId = String(result.studioPlaceId || '').trim();
           if (/^\d+$/.test(placeId) && placeId !== '0') {

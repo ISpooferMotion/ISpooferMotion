@@ -38,7 +38,7 @@ pub struct AssetServerStateData {
     pub last_script_refs: AssetStore,
     pub stored_mappings: Vec<Value>,
     pub stored_patches: Vec<Value>,
-    pub studio_records: Vec<StudioRecord>,
+    pub studio_records: std::sync::Arc<Vec<StudioRecord>>,
     pub last_plugin_poll_time: Option<Instant>,
     pub skip_owned_check: bool,
     pub scan_status: Option<Value>,
