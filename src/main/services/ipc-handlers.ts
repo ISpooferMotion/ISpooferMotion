@@ -26,6 +26,8 @@ const {
 const { loadJobs, saveJobRecord, deleteJobRecord } = require('./jobs');
 const { saveSession, loadSession, clearSession } = require('./session');
 const { createRobloxSession } = require('./roblox-session');
+const {
+  loadPlaceIdCache,
   savePlaceIdCache,
   pruneExpiredEntries,
   getCachedPlaceIds,
@@ -1817,6 +1819,8 @@ async function handleSpooferAction(
   const userDataPath = app.getPath('userData');
   let placeIdCacheEntries = {};
   try {
+    const rawCache = await loadPlaceIdCache(userDataPath);
+    placeIdCacheEntries = pruneExpiredEntries(rawCache);
     const cachedCreatorCount = Object.keys(placeIdCacheEntries).length;
     if (DEVELOPER_MODE && cachedCreatorCount > 0)
       console.log(`(Dev) Loaded placeId cache with ${cachedCreatorCount} creator(s)`);
@@ -2453,9 +2457,10 @@ async function handleSpooferAction(
 
       if (!result || !result.success) {
         const directError = result?.error || 'Direct download fallback failed';
-        const accessDenied = /403|forbidden|not authorized|unauthorized|permission/i.test(
         const batchIsAccessDenied = /403|forbidden|not authorized|unauthorized|permission/i.test(
           String(batchErrorMessage || ''),
+        );
+        const directIsAccessDenied = /403|forbidden|not authorized|unauthorized|permission/i.test(
           directError,
         );
         const accessDenied = batchIsAccessDenied || directIsAccessDenied;
