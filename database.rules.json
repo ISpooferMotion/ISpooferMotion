@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "ids": {
+      ".read": false,
+      ".write": true
+    }
+  }
+}

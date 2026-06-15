@@ -1662,7 +1662,7 @@ async function handleSpooferAction(
 
   const robloxSession = createRobloxSession(robloxCookie);
 
-  let preflightAuthUserId = null;
+  let preflightAuthUserId;
   sendStatusMessage('Validating Roblox session...');
   try {
     preflightAuthUserId = await getAuthenticatedUserId(robloxCookie);
@@ -2212,7 +2212,7 @@ async function handleSpooferAction(
                       place_id: String(placeId),
                     }),
                   }).catch(() => {});
-                } catch (e) {}
+                } catch {}
               }
             }
           }
@@ -2880,7 +2880,9 @@ async function handleSpooferAction(
     jobStatus = isFullySuccessful ? 'success' : 'partial';
   }
 
-  const { robloxCookie: _rc, apiKey: _ak, ...safePayload } = data;
+  const safePayload = { ...data };
+  delete safePayload.robloxCookie;
+  delete safePayload.apiKey;
   const jobRecord = {
     id: crypto.randomUUID(),
     timestamp: Date.now(),

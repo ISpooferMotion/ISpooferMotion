@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { spawn } = require('child_process');
-const { getMainWindow } = require('../window');
+
 
 const USER_AGENT = `ISpooferMotion-Electron-App/${app.getVersion()} (+https://github.com/IncrediDev/ISpooferMotion)`;
 const REPO_OWNER = 'IncrediDev';

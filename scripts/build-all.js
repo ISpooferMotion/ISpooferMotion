@@ -30,7 +30,7 @@ function run(command, args, cwd = root) {
   }
 }
 
-run('npm', ['run', 'clean']);
+
 run('npm', ['run', 'build:plugin']);
 run('npm', ['run', 'build']);
 
