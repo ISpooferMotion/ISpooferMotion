@@ -4,14 +4,15 @@ import { useEffect, useRef } from 'react';
 
 import { isTauriRuntime } from '@/utils/tauriRuntime';
 
+import { useThemeAccent } from '../contexts/ThemeContext';
+import type { StoredDiscordAuth } from '../types/discordAuth';
+
 interface CloudThemeStateResponse {
   changed: boolean;
   version?: number;
   themeData?: string;
   themeHash?: string;
 }
-import { useThemeAccent } from '../contexts/ThemeContext';
-import type { StoredDiscordAuth } from '../types/discordAuth';
 
 const CLOUD_THEME_APP_VERSION = '2.0.0';
 

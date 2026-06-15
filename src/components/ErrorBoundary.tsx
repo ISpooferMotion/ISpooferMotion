@@ -2,6 +2,8 @@ import { getVersion } from '@tauri-apps/api/app';
 import { type as getOsType, version as getOsVersion } from '@tauri-apps/plugin-os';
 import { Component, ErrorInfo, ReactNode } from 'react';
 
+import { useConfigStore } from '../stores/configStore';
+
 interface Props {
   children?: ReactNode;
 }
@@ -21,28 +23,35 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  public async componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    try {
-      const appVersion = await getVersion();
-      const osName = await getOsType();
-      const osVersion = await getOsVersion();
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    void (async () => {
+      try {
+        const { telemetryEnabled } = useConfigStore.getState().config.general;
+        if (!telemetryEnabled) {
+          return;
+        }
 
-      const baseUrl = import.meta.env.VITE_API_BASE_URL === undefined ? 'https://ispoofermotion.com' : import.meta.env.VITE_API_BASE_URL;
-      await fetch(`${baseUrl}/api/app-errors`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          errorName: error.name,
-          errorMessage: error.message,
-          stackTrace: errorInfo.componentStack + '\n\n' + (error.stack || ''),
-          appVersion,
-          appType: 'V2',
-          osInfo: `${osName} ${osVersion}`,
-        }),
-      });
-    } catch (e) {
-      console.error('Failed to submit crash report:', e);
-    }
+        const appVersion = await getVersion();
+        const osName = await getOsType();
+        const osVersion = await getOsVersion();
+
+        const baseUrl = import.meta.env.VITE_API_BASE_URL === undefined ? 'https://ispoofermotion.com' : import.meta.env.VITE_API_BASE_URL;
+        await fetch(`${baseUrl}/api/app-errors`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            errorName: error.name,
+            errorMessage: error.message,
+            stackTrace: errorInfo.componentStack + '\n\n' + (error.stack || ''),
+            appVersion,
+            appType: 'V2',
+            osInfo: `${osName} ${osVersion}`,
+          }),
+        });
+      } catch (e) {
+        console.error('Failed to submit crash report:', e);
+      }
+    })();
   }
 
   public render() {
@@ -68,8 +77,10 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           <h1 className="text-3xl font-bold tracking-tight">Oops, something broke.</h1>
           <p className="text-text-muted max-w-md">
-            ISpooferMotion encountered a fatal error and could not continue. A crash report has been
-            silently sent to the developers.
+            ISpooferMotion encountered a fatal error and could not continue.{' '}
+            {useConfigStore.getState().config.general.telemetryEnabled
+              ? 'A crash report has been silently sent to the developers.'
+              : 'Crash reporting is disabled.'}
           </p>
           <div className="bg-bg-card border border-border p-4 rounded-xl mt-4 max-w-2xl text-left overflow-auto max-h-48 text-sm w-full font-mono shadow-inner">
             <div className="text-red-400 font-semibold mb-2">

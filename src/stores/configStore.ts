@@ -6,6 +6,7 @@ export interface AppConfig {
   general: {
     desktopNotifications: boolean;
     hideToTrayOnClose: boolean;
+    telemetryEnabled: boolean;
   };
   advanced: {
     autoCookieStudio: boolean;
@@ -62,6 +63,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   general: {
     desktopNotifications: true,
     hideToTrayOnClose: false,
+    telemetryEnabled: true,
   },
   advanced: {
     autoCookieStudio: true,
@@ -106,7 +108,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     activeTab: 'home',
     assetExplorerOpen: false,
     homeUpdateSections: ['changelog'],
-    settingsSections: ['general', 'debug'],
+    settingsSections: ['account', 'general', 'quickSettings', 'debug'],
     configSections: ['credentials', 'assetProcessing', 'routing', 'exclusions'],
     spoofingSections: ['targets', 'execution'],
     autoScrollSections: false,

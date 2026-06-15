@@ -293,6 +293,13 @@ export default function SettingsView() {
                   onChange={(v: any) => updateConfig('general', 'hideToTrayOnClose', v)}
                 />
 
+                <FormToggle
+                  label="Telemetry & Error Reporting"
+                  description="Allow ISpooferMotion to automatically send anonymous crash reports and telemetry to the developers."
+                  checked={config.general.telemetryEnabled}
+                  onChange={(v: any) => updateConfig('general', 'telemetryEnabled', v)}
+                />
+
                 <FormDropdown
                   label={t('settings.language')}
                   options={langDropdownOptions}
