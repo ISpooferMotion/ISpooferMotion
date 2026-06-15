@@ -66,6 +66,16 @@ function bootstrap() {
   if (process.platform === 'win32') {
     app.setAppUserModelId('com.github.IncrediDev.ISpooferMotion');
   }
+
+  process.on('uncaughtException', (error) => {
+    console.error('UNCAUGHT EXCEPTION:', error);
+    try {
+      app.quit();
+    } catch {
+      process.exit(1);
+    }
+  });
+
   initializeFileLogging(getLogsDir());
   registerIpcHandlers(
     getMainWindow,

@@ -26,6 +26,14 @@ const {
 const { loadJobs, saveJobRecord, deleteJobRecord } = require('./jobs');
 const { saveSession, loadSession, clearSession } = require('./session');
 const { createRobloxSession } = require('./roblox-session');
+const {
+  loadPlaceIdCache,
+  savePlaceIdCache,
+  pruneExpiredEntries,
+  getCachedPlaceIds,
+  recordSuccessfulPlaceId,
+  evictPlaceId,
+} = require('./place-id-cache');
 const { inspectTransferPayload } = require('./payload-inspector');
 const {
   pauseSpoofer,
@@ -368,9 +376,11 @@ function getAssetCreatorFromDetails(data) {
 
 function getAssetMetadataFromDetails(data) {
   const creator = getAssetCreatorFromDetails(data);
+  const assetTypeId = data?.AssetTypeId || data?.assetTypeId || data?.asset?.AssetTypeId || null;
   return {
     name: getAssetNameFromDetails(data),
-    assetTypeId: data?.AssetTypeId || data?.assetTypeId || data?.asset?.AssetTypeId || null,
+    assetTypeId,
+    assetTypeName: normalizeAssetTypeName(assetTypeId),
     ...(creator || {}),
   };
 }
@@ -394,6 +404,12 @@ function applyResolvedAssetMetadata(entry, metadata, options = {}) {
       entry.creatorId = creatorId;
       changed = true;
     }
+  }
+
+  const assetTypeName = getAssetTypeNameFromMetadata(metadata);
+  if (assetTypeName && entry.assetTypeName !== assetTypeName) {
+    entry.assetTypeName = assetTypeName;
+    changed = true;
   }
 
   return changed;
@@ -428,7 +444,7 @@ async function fetchAssetMetadata(assetId, robloxSession) {
 }
 
 async function resolveAssetEntryMetadata(entries, robloxSession, options = {}) {
-  const { force = false, isSoundMode = false } = options;
+  const { force = false } = options;
   const entriesToResolve = entries.filter((entry) => entry?.id);
   if (entriesToResolve.length === 0) return 0;
 
@@ -453,12 +469,12 @@ async function resolveAssetEntryMetadata(entries, robloxSession, options = {}) {
         const newCreator = `${entry.creatorType}:${entry.creatorId}`;
         if (oldName !== entry.name) {
           console.log(
-            `(Dev) Resolved ${isSoundMode ? 'sound' : 'animation'} name for ${entry.id}: "${entry.name}"`,
+            `(Dev) Resolved ${getAssetKindLabel(entry.assetTypeName).toLowerCase()} name for ${entry.id}: "${entry.name}"`,
           );
         }
         if (oldCreator !== newCreator) {
           console.log(
-            `(Dev) Resolved ${isSoundMode ? 'sound' : 'animation'} creator for ${entry.id}: ${oldCreator} -> ${newCreator}`,
+            `(Dev) Resolved ${getAssetKindLabel(entry.assetTypeName).toLowerCase()} creator for ${entry.id}: ${oldCreator} -> ${newCreator}`,
           );
         }
       }
@@ -631,29 +647,9 @@ function saveProfileSecrets(data) {
 }
 
 async function fetchJson(url, options = {}) {
-  return new Promise((resolve, reject) => {
-    const { net } = require('electron');
-    const req = net.request({ url, ...options });
-    req.on('response', (response) => {
-      let data = '';
-      response.on('data', (chunk) => {
-        data += chunk;
-      });
-      response.on('end', () => {
-        if (response.statusCode >= 200 && response.statusCode < 300) {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            reject(e);
-          }
-        } else {
-          reject(new Error(`HTTP ${response.statusCode}`));
-        }
-      });
-    });
-    req.on('error', reject);
-    req.end();
-  });
+  const response = await fetch(url, options);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
 }
 
 async function getRobloxProfile(context) {
@@ -691,8 +687,7 @@ async function getRobloxProfile(context) {
           name: gResp.name,
           iconUrl: gAvatarResp?.data?.[0]?.imageUrl || '',
         };
-      } catch {
-      }
+      } catch {}
     }
 
     return {
@@ -860,22 +855,20 @@ async function validateOpenCloudApiKey(apiKey) {
     };
   } catch (err) {
     return {
-      ok: true,
+      ok: false,
       code: 'network',
-      message: `Could not reach Roblox to validate the API key: ${err.message}. The key was saved and will be checked during upload.`,
+      message: `Could not reach Roblox to validate the API key: ${err.message}. Check your internet connection and try again, or skip validation by saving the key directly in Profiles.`,
     };
   }
 }
 
 function normalizeSpooferInputLine(line) {
-  return (
-    String(line || '')
-      .replace(/^\uFEFF/, '')
-      .replace(/[\u200B-\u200D\u2060]/g, '')
-      .replace(/\u00A0/g, ' ')
-      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
-      .trim()
-  );
+  return String(line || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/[\u200B-\u200D\u2060]/g, '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim();
 }
 
 function isSpooferOutputMetadataLine(line) {
@@ -888,12 +881,52 @@ function isSpooferOutputMetadataLine(line) {
   const withoutKnownMarkers = trimmed
     .replace(/--\[\[/g, '')
     .replace(/--\]\]/g, '')
-    .replace(/\bTYPE\s*:\s*(SOUND|ANIMATION)\b/gi, '')
+    .replace(/\bTYPE\s*:\s*(SOUND|ANIMATION|MIXED)\b/gi, '')
     .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
     .replace(/[\s,\u00A0]+/g, '')
     .replace(/[-_[\]{}()*=;:|/\\]+/g, '');
 
   return withoutKnownMarkers === '';
+}
+
+function getSpooferInputTypeMarker(text) {
+  const source = String(text || '');
+  const hasSoundMarker = /\bTYPE\s*:\s*SOUND\b/i.test(source);
+  const hasAnimationMarker = /\bTYPE\s*:\s*ANIMATION\b/i.test(source);
+  if (/\bTYPE\s*:\s*(MIXED|BOTH)\b/i.test(source)) return null;
+  if (hasSoundMarker && !hasAnimationMarker) return 'sound';
+  if (hasAnimationMarker && !hasSoundMarker) return 'animation';
+  return null;
+}
+
+function normalizeAssetTypeName(value) {
+  const text = String(value || '').toLowerCase();
+  if (text.includes('sound') || text.includes('audio') || text === '3') return 'Audio';
+  if (text.includes('anim') || text === '24') return 'Animation';
+  return '';
+}
+
+function getAssetTypeNameFromMetadata(metadata) {
+  return (
+    normalizeAssetTypeName(metadata?.assetTypeName || metadata?.assetType) ||
+    normalizeAssetTypeName(metadata?.assetTypeId)
+  );
+}
+
+function getEntryAssetTypeName(entry, fallback = 'Animation') {
+  return normalizeAssetTypeName(entry?.assetTypeName || entry?.assetType) || fallback;
+}
+
+function getAssetKindLabel(assetTypeName) {
+  return getEntryAssetTypeName({ assetTypeName }) === 'Audio' ? 'Sound' : 'Animation';
+}
+
+function summarizeAssetTypes(entries) {
+  const audio = entries.filter((entry) => getEntryAssetTypeName(entry) === 'Audio').length;
+  const animations = entries.length - audio;
+  if (audio > 0 && animations > 0) return `${animations} animation(s), ${audio} sound(s)`;
+  if (audio > 0) return `${audio} sound(s)`;
+  return `${animations} animation(s)`;
 }
 
 function normalizePlaceContextId(value) {
@@ -919,20 +952,21 @@ function uniquePlaceIds(...groups) {
 }
 
 function parseSpooferAssetLine(trimmedLine) {
-  const match = trimmedLine.match(
-    /^\[([^\]]+)\]\s*\[([^\]]+)\]\s*\[([^\]]+)\](?:\s*\[([^\]]+)\])?,?$/,
-  );
-  if (!match) {
+  const line = String(trimmedLine || '').replace(/,?\s*$/, '');
+  const tokens = [...line.matchAll(/\[([^\]]+)\]/g)].map((match) => match[1].trim());
+  const tokenText = [...line.matchAll(/\[([^\]]+)\]/g)].map((match) => match[0]).join('');
+  const leftovers = line.replace(/\[([^\]]+)\]/g, '').trim();
+
+  if (tokens.length < 3 || leftovers || tokenText.length === 0) {
     return {
       error:
-        'Expected [assetId] [name] [User:123] or [Group:123], optionally followed by [Place:123].',
+        'Expected [assetId] [name] [User:123] or [Group:123], optionally followed by [Type:Sound] and [Place:123].',
     };
   }
 
-  const id = match[1].trim();
-  const name = match[2].trim();
-  const third = match[3].trim();
-  const placeToken = match[4]?.trim() || '';
+  const id = tokens[0];
+  const name = tokens[1];
+  const third = tokens[2];
   let creatorType;
   let creatorId;
 
@@ -956,13 +990,20 @@ function parseSpooferAssetLine(trimmedLine) {
   }
 
   let placeId = '';
-  if (placeToken) {
-    if (!/^place/i.test(placeToken)) {
-      return { error: 'Fourth field must be Place:123.' };
-    }
-    placeId = normalizePlaceContextId(placeToken);
-    if (!placeId) {
-      return { error: 'Place ID must be numeric.' };
+  let assetTypeName = '';
+  for (const extraToken of tokens.slice(3)) {
+    if (/^place/i.test(extraToken)) {
+      placeId = normalizePlaceContextId(extraToken);
+      if (!placeId) {
+        return { error: 'Place ID must be numeric.' };
+      }
+    } else if (/^(type|assettype|kind)/i.test(extraToken)) {
+      assetTypeName = normalizeAssetTypeName(extraToken);
+      if (!assetTypeName) {
+        return { error: 'Type must be Sound, Audio, or Animation.' };
+      }
+    } else {
+      return { error: 'Extra fields must be Type:Sound, Type:Animation, or Place:123.' };
     }
   }
 
@@ -972,6 +1013,7 @@ function parseSpooferAssetLine(trimmedLine) {
       name,
       creatorType,
       creatorId,
+      ...(assetTypeName ? { assetTypeName } : {}),
       ...(placeId ? { placeId } : {}),
     },
   };
@@ -1224,16 +1266,27 @@ function registerIpcHandlers(
       if (logFiles.length === 0) return false;
       const latestLog = path.join(logsDir, logFiles[logFiles.length - 1]);
 
-      const { exec } = require('node:child_process');
+      let child;
       if (process.platform === 'win32') {
-        exec(`start powershell -NoExit -Command "Get-Content -Path '${latestLog}' -Wait"`);
+        child = spawn(
+          'powershell.exe',
+          ['-NoExit', '-Command', `Get-Content -Path '${latestLog}' -Wait`],
+          { detached: true, stdio: 'ignore' },
+        );
       } else if (process.platform === 'darwin') {
-        exec(
-          `osascript -e 'tell application "Terminal" to do script "tail -f \\"${latestLog}\\""'`,
+        child = spawn(
+          'osascript',
+          ['-e', `tell application "Terminal" to do script "tail -f '${latestLog}'"`],
+          { detached: true, stdio: 'ignore' },
         );
       } else {
-        exec(`x-terminal-emulator -e "tail -f '${latestLog}'"`);
+        child = spawn(
+          'x-terminal-emulator',
+          ['-e', 'tail', '-f', latestLog],
+          { detached: true, stdio: 'ignore' },
+        );
       }
+      child.unref();
       return true;
     } catch (e) {
       if (DEVELOPER_MODE) console.warn('Failed to open dev console', e);
@@ -1526,12 +1579,17 @@ async function handleSpooferAction(
     console.log(`[API KEY] ${apiKeyValidation.message}`);
   }
 
-  const isSoundMode = data.spoofSounds === true;
-  const assetTypeName = isSoundMode ? 'Audio' : 'Animation';
+  const inputText = String(data.animationId || '');
+  const inputTypeMarker = getSpooferInputTypeMarker(inputText);
+  const defaultInputAssetTypeName = inputTypeMarker
+    ? inputTypeMarker === 'sound'
+      ? 'Audio'
+      : 'Animation'
+    : '';
   const invalidAssetLines = [];
   const duplicateAssetLines = [];
   const seenAssetIds = new Set();
-  const assetEntries = (data.animationId || '')
+  const assetEntries = inputText
     .split('\n')
     .map((line, index) => {
       const trimmedLine = normalizeSpooferInputLine(line);
@@ -1549,6 +1607,9 @@ async function handleSpooferAction(
         return null;
       }
       seenAssetIds.add(parsed.entry.id);
+      if (!parsed.entry.assetTypeName && defaultInputAssetTypeName) {
+        parsed.entry.assetTypeName = defaultInputAssetTypeName;
+      }
       return parsed.entry;
     })
     .filter((entry) => entry && entry.id && entry.creatorId);
@@ -1558,7 +1619,7 @@ async function handleSpooferAction(
       ? `\n\nInvalid line(s):\n${invalidAssetLines.map((item) => `Line ${item.line}: ${item.reason}`).join('\n')}`
       : '';
     sendSpooferResultToRenderer({
-      output: `No valid ${isSoundMode ? 'sound' : 'animation'} entries were found. Paste entries like:\n[12345678] [ExampleAsset] [User:12345]\n[23456789] [ExampleGroupAsset] [Group:67890]${details}`,
+      output: `No valid asset entries were found. Paste entries like:\n[12345678] [ExampleAsset] [User:12345]\n[23456789] [ExampleGroupAsset] [Group:67890]\n[34567890] [ExampleSound] [User:12345] [Type:Sound]${details}`,
       success: false,
     });
     return;
@@ -1566,7 +1627,7 @@ async function handleSpooferAction(
 
   if (invalidAssetLines.length || duplicateAssetLines.length) {
     console.warn(
-      `[INPUT] Processing ${assetEntries.length} valid ${isSoundMode ? 'sound' : 'animation'} entr${assetEntries.length === 1 ? 'y' : 'ies'}; skipped ${invalidAssetLines.length} invalid and ${duplicateAssetLines.length} duplicate line(s).`,
+      `[INPUT] Processing ${assetEntries.length} valid asset entr${assetEntries.length === 1 ? 'y' : 'ies'}; skipped ${invalidAssetLines.length} invalid and ${duplicateAssetLines.length} duplicate line(s).`,
     );
   }
 
@@ -1601,6 +1662,21 @@ async function handleSpooferAction(
 
   const robloxSession = createRobloxSession(robloxCookie);
 
+  let preflightAuthUserId = null;
+  sendStatusMessage('Validating Roblox session...');
+  try {
+    preflightAuthUserId = await getAuthenticatedUserId(robloxCookie);
+    if (DEVELOPER_MODE)
+      console.log(`(Dev) Cookie pre-flight OK — authenticated as user ${preflightAuthUserId}`);
+  } catch (preflightErr) {
+    sendSpooferResultToRenderer({
+      output: `Cookie validation failed: ${preflightErr.message}\n\nMake sure your ROBLOSECURITY cookie is current and not expired. You can re-copy it from your browser.`,
+      success: false,
+    });
+    sendStatusMessage('Cookie validation failed');
+    return;
+  }
+
   try {
     if (!(await fs.stat(downloadsDir).catch(() => null))) {
       await fs.mkdir(downloadsDir, { recursive: true });
@@ -1617,18 +1693,25 @@ async function handleSpooferAction(
   try {
     const resolvedMetadataCount = await resolveAssetEntryMetadata(animationEntries, robloxSession, {
       force: data.downloadOnly,
-      isSoundMode,
     });
+    for (const entry of animationEntries) {
+      if (!entry.assetTypeName) entry.assetTypeName = 'Animation';
+    }
     if (resolvedMetadataCount > 0) {
       console.log(
-        `[METADATA] Resolved ${resolvedMetadataCount}/${animationEntries.length} ${isSoundMode ? 'sound' : 'animation'} metadata entr${resolvedMetadataCount === 1 ? 'y' : 'ies'} from Roblox.`,
+        `[METADATA] Resolved ${resolvedMetadataCount}/${animationEntries.length} asset metadata entr${resolvedMetadataCount === 1 ? 'y' : 'ies'} from Roblox.`,
       );
     }
   } catch (err) {
+    for (const entry of animationEntries) {
+      if (!entry.assetTypeName) entry.assetTypeName = 'Animation';
+    }
     if (DEVELOPER_MODE) {
       console.warn(`(Dev) Failed to refresh asset names: ${err.message}`);
     }
   }
+
+  const assetTypeSummary = summarizeAssetTypes(animationEntries);
 
   const isResume = data.resumeSession === true;
   let session = isResume ? await loadSession() : null;
@@ -1661,7 +1744,7 @@ async function handleSpooferAction(
     session = {
       sessionId: crypto.randomUUID(),
       startedAt: new Date().toISOString(),
-      mode: isSoundMode ? 'Audio' : 'Animation',
+      mode: 'Mixed',
       animationIdInput: data.animationId,
       totalCount: animationEntries.length,
       completedMappings: [],
@@ -1669,7 +1752,7 @@ async function handleSpooferAction(
     await saveSession(session);
   }
 
-  let verboseOutputMessage = `Downloading ${animationEntries.length} ${isSoundMode ? 'sound' : 'animation'}(s)...\n`;
+  let verboseOutputMessage = `Downloading ${assetTypeSummary}...\n`;
   let successfulUploadCount = 0;
   let downloadedSuccessfullyCount = 0;
 
@@ -1695,7 +1778,7 @@ async function handleSpooferAction(
 
   const totalAnimations = animationEntries.length;
   try {
-    sendStatusMessage(`Preparing ${totalAnimations} ${isSoundMode ? 'sounds' : 'animations'}...`);
+    sendStatusMessage(`Preparing ${assetTypeSummary}...`);
     sendSpooferProgress({
       phase: 'preparing',
       current: 0,
@@ -1709,7 +1792,8 @@ async function handleSpooferAction(
 
   const maxPlaceIds = data.maxPlaceIds || 200;
   const maxPlaceIdRetries = data.maxPlaceIdRetries || 3;
-  const overridePlaceId = data.overridePlaceId ? parseInt(data.overridePlaceId) : null;
+  const _parsedOverridePlaceId = data.overridePlaceId ? Number.parseInt(data.overridePlaceId, 10) : NaN;
+  const overridePlaceId = Number.isFinite(_parsedOverridePlaceId) ? _parsedOverridePlaceId : null;
   const uniqueCreators = [
     ...new Set(animationEntries.map((e) => `${e.creatorType}:${e.creatorId}`)),
   ];
@@ -1720,6 +1804,18 @@ async function handleSpooferAction(
         .filter((entry) => `${entry.creatorType}:${entry.creatorId}` === creatorKey)
         .map((entry) => entry.placeId),
     );
+  }
+
+  const userDataPath = app.getPath('userData');
+  let placeIdCacheEntries = {};
+  try {
+    const rawCache = await loadPlaceIdCache(userDataPath);
+    placeIdCacheEntries = pruneExpiredEntries(rawCache);
+    const cachedCreatorCount = Object.keys(placeIdCacheEntries).length;
+    if (DEVELOPER_MODE && cachedCreatorCount > 0)
+      console.log(`(Dev) Loaded placeId cache with ${cachedCreatorCount} creator(s)`);
+  } catch (cacheErr) {
+    if (DEVELOPER_MODE) console.warn('(Dev) Failed to load placeId cache:', cacheErr.message);
   }
 
   const placeIdMap = {};
@@ -1735,6 +1831,10 @@ async function handleSpooferAction(
 
     await runWithConcurrency(uniqueCreators, 5, async (creatorKey) => {
       const [creatorType, creatorId] = creatorKey.split(':');
+      // Prepend cached (proven) placeIds so they are tried before fresh discovery.
+      const cachedIds = getCachedPlaceIds(placeIdCacheEntries, creatorKey);
+      if (cachedIds.length > 0 && DEVELOPER_MODE)
+        console.log(`(Dev) Cache hit for ${creatorKey}: ${cachedIds.length} cached placeId(s)`);
       try {
         const placeIds = await retryAsync(
           () => getPlaceIdFromCreator(creatorType, creatorId, robloxCookie, maxPlaceIds),
@@ -1745,13 +1845,19 @@ async function handleSpooferAction(
               console.warn(`(Dev) Attempt ${attempt}/${max} for ${creatorKey}: ${err.message}`);
           },
         );
-        placeIdMap[creatorKey] = uniquePlaceIds(entryPlaceIdsByCreator[creatorKey], placeIds);
+        placeIdMap[creatorKey] = uniquePlaceIds(
+          entryPlaceIdsByCreator[creatorKey],
+          cachedIds,
+          placeIds,
+        );
         if (DEVELOPER_MODE)
-          console.log(`(Dev) Got ${placeIdMap[creatorKey].length} placeIds for ${creatorKey}`);
+          console.log(
+            `(Dev) Got ${placeIdMap[creatorKey].length} placeIds for ${creatorKey} (${cachedIds.length} cached)`,
+          );
       } catch (error) {
         if (DEVELOPER_MODE)
           console.warn(`(Dev) Could not get placeIds for ${creatorKey}: ${error.message}`);
-        placeIdMap[creatorKey] = entryPlaceIdsByCreator[creatorKey] || [];
+        placeIdMap[creatorKey] = uniquePlaceIds(entryPlaceIdsByCreator[creatorKey], cachedIds);
       }
     });
 
@@ -1765,13 +1871,7 @@ async function handleSpooferAction(
           `(Dev) ${creatorsNeedingFallback.length} creator(s) have no places. Building fallback pools...`,
         );
 
-      let fallbackAuthUserId = null;
-      try {
-        fallbackAuthUserId = await getAuthenticatedUserId(robloxCookie);
-      } catch (e) {
-        if (DEVELOPER_MODE)
-          console.warn('(Dev) Could not resolve auth user ID for fallback:', e.message);
-      }
+      const fallbackAuthUserId = preflightAuthUserId;
 
       const fallbackPools = new Map();
       const getFallbackPool = async (creatorKey, creatorType, creatorId) => {
@@ -1810,6 +1910,21 @@ async function handleSpooferAction(
     }
 
     if (DEVELOPER_MODE) console.log('(Dev) Resolved placeIdMap:', placeIdMap);
+
+    const creatorsWithNoPlaces = uniqueCreators.filter((k) => !placeIdMap[k]?.length);
+    if (creatorsWithNoPlaces.length > 0) {
+      const affectedCount = animationEntries.filter((e) =>
+        creatorsWithNoPlaces.includes(`${e.creatorType}:${e.creatorId}`),
+      ).length;
+      const warnMsg =
+        `⚠️ No Roblox place context found for ${creatorsWithNoPlaces.length} creator(s) ` +
+        `(affects ${affectedCount} asset${affectedCount !== 1 ? 's' : ''}). ` +
+        `Private assets from these creators may fail with 403. ` +
+        `Consider adding an Override Place ID or re-importing from the Studio plugin scan.`;
+      console.warn(`[PLACE CONTEXT] ${warnMsg}`);
+      sendStatusMessage(warnMsg);
+      sendSpooferLog?.(warnMsg);
+    }
   }
 
   const locationsMap = {};
@@ -1833,7 +1948,7 @@ async function handleSpooferAction(
   });
   if (DEVELOPER_MODE)
     console.log(
-      `(Dev) Fetching batch locations for ${batchItems.length} ${isSoundMode ? 'sounds' : 'animations'} with creator-specific placeIds`,
+      `(Dev) Fetching batch locations for ${batchItems.length} assets with creator-specific placeIds`,
     );
   const batchTasks = [];
   const creatorGroups = {};
@@ -2054,6 +2169,14 @@ async function handleSpooferAction(
                 for (const loc of locations) {
                   setBatchLocation(locationsMap, loc);
                 }
+                if (
+                  locations.every(
+                    (loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc),
+                  )
+                ) {
+                  hasAuthError = true;
+                }
+                evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
                 break;
               }
             } else {
@@ -2062,6 +2185,14 @@ async function handleSpooferAction(
               for (const loc of locations) {
                 setBatchLocation(locationsMap, loc);
               }
+              if (
+                locations.every(
+                  (loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc),
+                )
+              ) {
+                hasAuthError = true;
+              }
+              evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
               break;
             }
           }
@@ -2070,7 +2201,22 @@ async function handleSpooferAction(
             console.log(`(Dev) Batch request successful for ${creatorKey} with placeId ${placeId}`);
           for (const loc of locations) {
             setBatchLocation(locationsMap, loc);
+            if (hasBatchLocationSuccess(loc) && loc.requestId && placeId) {
+              if (data.shareCacheData !== false && typeof fetch === 'function') {
+                try {
+                  fetch('https://ispoofermotion.com/api/cache', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      asset_id: String(loc.requestId),
+                      place_id: String(placeId),
+                    }),
+                  }).catch(() => {});
+                } catch (e) {}
+              }
+            }
           }
+          recordSuccessfulPlaceId(placeIdCacheEntries, creatorKey, placeId);
           break;
         }
       }
@@ -2108,6 +2254,14 @@ async function handleSpooferAction(
     sendStatusMessage(`Resolved download locations ${resolvedLocationsCount}/${batchItems.length}`);
   });
 
+  // Save the updated placeId success cache to disk.
+  try {
+    await savePlaceIdCache(userDataPath, placeIdCacheEntries);
+    if (DEVELOPER_MODE) console.log('(Dev) Saved placeId cache');
+  } catch (cacheErr) {
+    if (DEVELOPER_MODE) console.warn('(Dev) Failed to save placeId cache:', cacheErr.message);
+  }
+
   const UPLOAD_RETRIES = parseInt(data.uploadRetries, 10) || 3;
   const UPLOAD_RETRY_DELAY_MS = parseInt(data.uploadRetryDelay, 10) || 5000;
 
@@ -2115,7 +2269,7 @@ async function handleSpooferAction(
   const DOWNLOAD_RETRY_DELAY_MS = parseInt(data.downloadRetryDelayMs, 10) || 2000;
   const DOWNLOAD_TIMEOUT_MS = parseInt(data.downloadTimeoutMs, 10) || 15000;
 
-  sendStatusMessage(`Downloading ${isSoundMode ? 'sounds' : 'animations'}...`);
+  sendStatusMessage(`Downloading ${assetTypeSummary}...`);
   const defaultDownloadLimit = 20;
   let userDownloadLimit = data.concurrentUploads
     ? data.maxConcurrentDownloads
@@ -2128,7 +2282,6 @@ async function handleSpooferAction(
   const downloadStartTime = Date.now();
 
   const getScrapedAssetCdnUrl = async (assetId) => {
-    if (!isSoundMode) return null;
     try {
       const htmlResponse = await robloxSession.fetch(`https://www.roblox.com/library/${assetId}/`, {
         headers: {
@@ -2170,12 +2323,18 @@ async function handleSpooferAction(
   const downloadOne = async (entry) => {
     checkCancelled();
     await checkPaused();
+    const entryAssetTypeName = getEntryAssetTypeName(entry);
+    const entryIsSound = entryAssetTypeName === 'Audio';
     const loc = locationsMap[entry.id];
     const sanitizedName = sanitizeFilename(entry.name);
-    const fileExtension = isSoundMode ? '.ogg' : '.rbxm';
+    const fileExtension = entryIsSound ? '.ogg' : '.rbxm';
     const fileName = `${sanitizedName}_${entry.id}${fileExtension}`;
     let filePath = path.join(downloadsDir, fileName);
     const downloadTransfer = initialTransferStates.find((t) => t.originalAssetId === entry.id);
+    if (!downloadTransfer) {
+      console.error(`[DOWNLOAD] No transfer state found for entry id=${entry.id}, skipping.`);
+      return;
+    }
     const downloadTransferId = downloadTransfer.id;
     const creatorKey = `${entry.creatorType}:${entry.creatorId}`;
     const entryPlaceIds = placeIdMap[creatorKey] || [];
@@ -2221,7 +2380,7 @@ async function handleSpooferAction(
       if (!downloadResult?.success) return downloadResult;
 
       try {
-        const validation = await validateDownloadedAssetFile(filePath, assetTypeName);
+        const validation = await validateDownloadedAssetFile(filePath, entryAssetTypeName);
         filePath = validation.filePath;
         return {
           ...downloadResult,
@@ -2232,7 +2391,9 @@ async function handleSpooferAction(
         const errorMessage =
           error instanceof Error
             ? error.message
-            : String(error || `Downloaded ${assetTypeName.toLowerCase()} file is not uploadable.`);
+            : String(
+                error || `Downloaded ${entryAssetTypeName.toLowerCase()} file is not uploadable.`,
+              );
         await fs.rm(filePath, { force: true }).catch(() => {});
         sendTransferUpdate({
           id: downloadTransferId,
@@ -2274,7 +2435,7 @@ async function handleSpooferAction(
       }
 
       let scraperSuccess = false;
-      if (isSoundMode) {
+      if (entryIsSound) {
         const scrapedUrl = await getScrapedAssetCdnUrl(entry.id);
         if (scrapedUrl) {
           result = await tryDownloadUrl(
@@ -2293,7 +2454,7 @@ async function handleSpooferAction(
         const directAttempts = buildDirectAssetDownloadAttempts(
           entry.id,
           normalizedEntryPlaceIds,
-          isSoundMode,
+          entryIsSound,
         );
         for (let index = 0; index < directAttempts.length; index += 1) {
           checkCancelled();
@@ -2311,17 +2472,27 @@ async function handleSpooferAction(
 
       if (!result || !result.success) {
         const directError = result?.error || 'Direct download fallback failed';
-        const accessDenied = /403|forbidden|not authorized|unauthorized|permission/i.test(
-          `${batchErrorMessage} ${directError}`,
+        const batchIsAccessDenied = /403|forbidden|not authorized|unauthorized|permission/i.test(
+          String(batchErrorMessage || ''),
         );
-        const missingExplicitPlace = !overridePlaceId && !entry.placeId;
-        const placeContextHint =
-          accessDenied && missingExplicitPlace
-            ? ' Missing Studio place context for this private asset; re-import from the current Studio plugin scan or add [Place:<placeId>] / Override place ID for a game that can load it.'
-            : '';
+        const directIsAccessDenied = /403|forbidden|not authorized|unauthorized|permission/i.test(
+          directError,
+        );
+        const accessDenied = batchIsAccessDenied || directIsAccessDenied;
+        // Always show the place-context hint on any 403 — even if a placeId was supplied,
+        // it may be wrong or stale for this private asset.
+        const placeContextHint = accessDenied
+          ? ' Asset is private or restricted — re-import from the Studio plugin scan, or add [Place:<placeId>] / Override place ID for a game that has access to it.'
+          : '';
+        // Collapse both errors into one clean message when both are access-denied,
+        // otherwise keep the full dual-error message for debugging.
+        const combinedError =
+          batchIsAccessDenied && directIsAccessDenied
+            ? `Failed to download asset: Access denied (403).${placeContextHint}`
+            : `Batch error: ${batchErrorMessage}. Direct fallback: ${directError}.${placeContextHint}`;
         result = {
           success: false,
-          error: `Batch error: ${batchErrorMessage}. Direct fallback: ${directError}.${placeContextHint}`,
+          error: combinedError,
         };
         sendTransferUpdate({
           id: downloadTransferId,
@@ -2344,9 +2515,7 @@ async function handleSpooferAction(
     const etaMin = Math.floor(etaSeconds / 60);
     const etaSec = etaSeconds % 60;
     const etaStr = remaining > 0 ? ` (ETA: ${etaMin}:${String(etaSec).padStart(2, '0')})` : '';
-    sendStatusMessage(
-      `Downloaded ${downloadCompleted}/${animationEntries.length} ${isSoundMode ? 'sounds' : 'animations'}${etaStr}`,
-    );
+    sendStatusMessage(`Downloaded ${downloadCompleted}/${animationEntries.length} assets${etaStr}`);
     return {
       entry,
       filePath: result.success ? filePath : null,
@@ -2392,7 +2561,9 @@ async function handleSpooferAction(
   } else {
     const successfulDownloads = downloadResults.filter((r) => r.success);
 
-    sendStatusMessage(`Uploading ${isSoundMode ? 'sounds' : 'animations'}...`);
+    sendStatusMessage(
+      `Uploading ${summarizeAssetTypes(successfulDownloads.map((r) => r.entry))}...`,
+    );
 
     let uploadCompleted = 0;
     const uploadStartTime = Date.now();
@@ -2410,6 +2581,7 @@ async function handleSpooferAction(
 
     const uploadOne = async (downloadResult) => {
       const entry = downloadResult.entry;
+      const entryAssetTypeName = getEntryAssetTypeName(entry);
       const filePath = downloadResult.filePath;
       const uploadTransferId = crypto.randomUUID();
       const fileSize = (await fs.stat(filePath).catch(() => ({ size: 0 }))).size;
@@ -2453,7 +2625,7 @@ async function handleSpooferAction(
           data.groupId && String(data.groupId).trim() ? data.groupId : null,
           uploadTransferId,
           sendTransferUpdate,
-          assetTypeName,
+          entryAssetTypeName,
           data.apiKey || null,
           authenticatedUserId || null,
           { abortSignal: getAbortSignal() },
@@ -2494,7 +2666,7 @@ async function handleSpooferAction(
         const etaStr = remaining > 0 ? ` (ETA: ${etaMin}:${String(etaSec).padStart(2, '0')})` : '';
         const actionText = 'Uploaded';
         sendStatusMessage(
-          `${actionText} ${uploadCompleted}/${successfulDownloads.length} ${isSoundMode ? 'sounds' : 'animations'}${etaStr}`,
+          `${actionText} ${uploadCompleted}/${successfulDownloads.length} assets${etaStr}`,
         );
         return {
           entry,
@@ -2522,7 +2694,7 @@ async function handleSpooferAction(
         const etaSec = etaSeconds % 60;
         const etaStr = remaining > 0 ? ` (ETA: ${etaMin}:${String(etaSec).padStart(2, '0')})` : '';
         sendStatusMessage(
-          `Uploaded ${uploadCompleted}/${successfulDownloads.length} ${isSoundMode ? 'sounds' : 'animations'}${etaStr}`,
+          `Uploaded ${uploadCompleted}/${successfulDownloads.length} assets${etaStr}`,
         );
         return { entry, success: false, error: finalRetryError.message };
       }
@@ -2532,7 +2704,8 @@ async function handleSpooferAction(
 
   for (const downloadResult of downloadResults) {
     const entry = downloadResult.entry;
-    verboseOutputMessage += `\n--- Asset: ${entry.name} (ID: ${entry.id}) ---\n`;
+    const entryLabel = getAssetKindLabel(entry.assetTypeName);
+    verboseOutputMessage += `\n--- ${entryLabel}: ${entry.name} (ID: ${entry.id}) ---\n`;
     if (downloadResult.success) {
       downloadedSuccessfullyCount++;
 
@@ -2542,12 +2715,12 @@ async function handleSpooferAction(
           if (uploadResult.success) {
             successfulUploadCount++;
             uploadMappingOutput += `${entry.id} = ${uploadResult.assetId},\n`;
-            verboseOutputMessage += `Uploaded ${isSoundMode ? 'Sound' : 'Animation'}: ${entry.name} (Original ID: ${entry.id}) -> New Asset ID: ${uploadResult.assetId}\n`;
+            verboseOutputMessage += `Uploaded ${entryLabel}: ${entry.name} (Original ID: ${entry.id}) -> New Asset ID: ${uploadResult.assetId}\n`;
           } else {
             console.error(
-              `[${isSoundMode ? 'SOUND' : 'ANIMATION'} UPLOAD FAILED] ${entry.name} (ID: ${entry.id}): ${uploadResult.error || 'Unknown upload error'}`,
+              `[${entryLabel.toUpperCase()} UPLOAD FAILED] ${entry.name} (ID: ${entry.id}): ${uploadResult.error || 'Unknown upload error'}`,
             );
-            verboseOutputMessage += `✗ ${isSoundMode ? 'Sound' : 'Animation'} Upload Failed: ${entry.name} (ID: ${entry.id}): ${uploadResult.error || 'Unknown upload error'}\n`;
+            verboseOutputMessage += `X ${entryLabel} Upload Failed: ${entry.name} (ID: ${entry.id}): ${uploadResult.error || 'Unknown upload error'}\n`;
           }
         } else {
           console.error(`[UPLOAD SKIPPED] ${entry.name} (ID: ${entry.id}): Download failed.`);
@@ -2562,7 +2735,7 @@ async function handleSpooferAction(
     }
   }
 
-  verboseOutputMessage += `\n--- Summary ---\nTotal ${isSoundMode ? 'sounds' : 'animations'}: ${animationEntries.length}\nDownloaded: ${downloadedSuccessfullyCount}\n`;
+  verboseOutputMessage += `\n--- Summary ---\nTotal assets: ${animationEntries.length} (${assetTypeSummary})\nDownloaded: ${downloadedSuccessfullyCount}\n`;
   if (!data.downloadOnly) {
     verboseOutputMessage += `Uploaded: ${successfulUploadCount}\n\n--- Output Mapping ---\n${uploadMappingOutput}`;
   } else {
@@ -2621,7 +2794,7 @@ async function handleSpooferAction(
   let runSummary =
     `\n--- Summary ---\n` +
     `Mode: ${data.downloadOnly ? 'Download-Only' : 'Download + Upload'}\n` +
-    `Total ${isSoundMode ? 'sounds' : 'animations'}: ${animationEntries.length}\n` +
+    `Total assets: ${animationEntries.length} (${assetTypeSummary})\n` +
     `Downloaded: ${downloadedSuccessfullyCount}/${animationEntries.length}${downloadFailures.length ? ` (Failed: ${downloadFailures.length})` : ''}\n` +
     (!data.downloadOnly
       ? `Uploaded: ${successfulUploadCount}/${downloadResults.filter((r) => r.success).length}${uploadFailures.length ? ` (Failed: ${uploadFailures.length}, Skipped: ${skippedUploadsCount})` : skippedUploadsCount ? ` (Skipped: ${skippedUploadsCount})` : ''}\n`
@@ -2657,13 +2830,15 @@ async function handleSpooferAction(
   if (data.downloadOnly) {
     const successfulDownloadsList = downloadResults
       .filter((r) => r.success)
-      .map((r) => `${r.entry.name} (ID: ${r.entry.id})`)
+      .map(
+        (r) => `${getAssetKindLabel(r.entry.assetTypeName)}: ${r.entry.name} (ID: ${r.entry.id})`,
+      )
       .join('\n');
 
     if (successfulDownloadsList) {
-      finalOutput = `Downloaded ${downloadedSuccessfullyCount}/${animationEntries.length} ${isSoundMode ? 'sounds' : 'animations'} to:\n${downloadsDir}\n\nFiles:\n${successfulDownloadsList}`;
+      finalOutput = `Downloaded ${downloadedSuccessfullyCount}/${animationEntries.length} assets to:\n${downloadsDir}\n\nFiles:\n${successfulDownloadsList}`;
     } else {
-      finalOutput = `No ${isSoundMode ? 'sounds' : 'animations'} were successfully downloaded.`;
+      finalOutput = 'No assets were successfully downloaded.';
     }
   } else if (uploadMappingOutput.trim()) {
     finalOutput = uploadMappingOutput.trim().replace(/,$/, '');
@@ -2677,11 +2852,11 @@ async function handleSpooferAction(
     }
   } else {
     if (downloadedSuccessfullyCount > 0 && successfulUploadCount === 0) {
-      finalOutput = `Downloads successful (${downloadedSuccessfullyCount}/${animationEntries.length}), but no ${isSoundMode ? 'sounds' : 'animations'} were successfully uploaded.\n${runSummary}`;
+      finalOutput = `Downloads successful (${downloadedSuccessfullyCount}/${animationEntries.length}), but no assets were successfully uploaded.\n${runSummary}`;
     } else if (animationEntries.length > 0) {
       finalOutput = hasAuthError
         ? 'Authentication failed. Please check your Roblox cookie.'
-        : `No ${isSoundMode ? 'sounds' : 'animations'} were successfully processed to provide mappings. Valid entries were parsed, but every download or upload failed.\n${runSummary}`;
+        : `No assets were successfully processed to provide mappings. Valid entries were parsed, but every download or upload failed.\n${runSummary}`;
     } else {
       finalOutput = 'No operations performed.';
     }
@@ -2705,12 +2880,13 @@ async function handleSpooferAction(
     jobStatus = isFullySuccessful ? 'success' : 'partial';
   }
 
+  const { robloxCookie: _rc, apiKey: _ak, ...safePayload } = data;
   const jobRecord = {
     id: crypto.randomUUID(),
     timestamp: Date.now(),
     status: jobStatus,
     output: finalOutput,
-    payload: data,
+    payload: safePayload,
   };
   await saveJobRecord(jobRecord);
 
@@ -2724,7 +2900,7 @@ async function handleSpooferAction(
     const action = data.downloadOnly ? 'downloaded' : 'uploaded';
     showDesktopNotification(
       'ISpooferMotion Complete',
-      `${isSoundMode ? 'Sounds' : 'Animations'} ${action}: ${data.downloadOnly ? downloadedSuccessfullyCount : successfulUploadCount}/${animationEntries.length}.`,
+      `Assets ${action}: ${data.downloadOnly ? downloadedSuccessfullyCount : successfulUploadCount}/${animationEntries.length}.`,
     );
   }
 
@@ -2755,6 +2931,7 @@ module.exports = {
     hasBatchAccessDeniedErrors,
     hasBatchLocationSuccess,
     applyResolvedAssetMetadata,
+    getSpooferInputTypeMarker,
     parseSpooferAssetLine,
     setBatchLocation,
     uniquePlaceIds,

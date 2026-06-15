@@ -40,11 +40,13 @@ function resolveIconPath() {
 
 function normalizeScanKind(value, fallback = 'animation') {
   const text = String(value || fallback).toLowerCase();
+  if (text.includes('both') || text.includes('mixed') || text.includes('all')) return 'mixed';
   if (text.includes('sound') || text.includes('audio')) return 'sound';
   return 'animation';
 }
 
 function scanLabel(kind) {
+  if (kind === 'mixed') return 'Animations + Sounds';
   return kind === 'sound' ? 'Sounds' : 'Animations';
 }
 
@@ -69,6 +71,13 @@ function cleanText(value, fallback = 'Unknown') {
 function normalizeCreatorType(value) {
   const text = String(value || '').toLowerCase();
   return text.includes('group') ? 'Group' : 'User';
+}
+
+function normalizeAssetTypeName(value) {
+  const text = String(value || '').toLowerCase();
+  if (text.includes('sound') || text.includes('audio') || text === '3') return 'Audio';
+  if (text.includes('anim') || text === '24') return 'Animation';
+  return '';
 }
 
 function normalizePlaceId(value) {
@@ -114,11 +123,16 @@ function normalizeAssetEntry(entry, defaultPlaceId = '') {
 
   if (creatorType === 'User' && creatorId === '1') return null;
 
+  const assetTypeName = normalizeAssetTypeName(
+    entry.assetTypeName || entry.assetType || entry.type || entry.kind || entry.AssetTypeId,
+  );
+
   return {
     assetId,
     name: cleanText(entry.name || entry.assetName || entry.Name, assetId),
     creatorType,
     creatorId,
+    ...(assetTypeName ? { assetTypeName } : {}),
     placeId: normalizePlaceId(entry.placeId || entry.PlaceId || entry.place?.id || defaultPlaceId),
   };
 }
@@ -151,14 +165,28 @@ function appendPlaceContextToLine(line) {
   return trimmed ? `${trimmed.replace(/,?\s*$/, '')},` : trimmed;
 }
 
-function formatAssetsForInput(assets) {
-  return assets
+function formatAssetsForInput(assets, kind = '') {
+  const rawKind = String(kind || '').trim();
+  const normalizedKind = rawKind ? normalizeScanKind(rawKind) : '';
+  const body = assets
     .filter((asset) => asset.assetId && asset.creatorId)
     .map((asset) => {
-      const base = `[${asset.assetId}] [${cleanText(asset.name, asset.assetId)}] [${asset.creatorType}:${asset.creatorId}]`;
+      const assetTypeName =
+        normalizeAssetTypeName(asset.assetTypeName || asset.assetType) ||
+        (normalizedKind === 'sound'
+          ? 'Audio'
+          : normalizedKind === 'animation'
+            ? 'Animation'
+            : '');
+      const typeToken = assetTypeName
+        ? ` [Type:${assetTypeName === 'Audio' ? 'Sound' : 'Animation'}]`
+        : '';
+      const base = `[${asset.assetId}] [${cleanText(asset.name, asset.assetId)}] [${asset.creatorType}:${asset.creatorId}]${typeToken}`;
       return appendPlaceContextToLine(base);
     })
     .join('\n');
+  if (!body || !normalizedKind) return body;
+  return `--[[ TYPE: ${normalizedKind === 'sound' ? 'SOUND' : normalizedKind === 'mixed' ? 'MIXED' : 'ANIMATION'} ]]\n${body}`;
 }
 
 function sendJson(res, statusCode, value) {
@@ -263,6 +291,7 @@ async function batchResolveMetadata(
   placeId,
   fallbackCreator,
   names = {},
+  assetTypes = {},
   onProgress,
   confirmedIds = new Set(),
 ) {
@@ -300,6 +329,8 @@ async function batchResolveMetadata(
 
       const expectedTypeId = ASSET_TYPE_IDS[kind];
       if (expectedTypeId && item.AssetTypeId !== expectedTypeId) continue;
+      const assetTypeName = normalizeAssetTypeName(item.AssetTypeId);
+      if (!assetTypeName) continue;
 
       const creatorType = normalizeCreatorType(
         item.Creator?.CreatorType || item.creator?.CreatorType || item.creatorType,
@@ -321,6 +352,7 @@ async function batchResolveMetadata(
         name: cleanText(item.Name || item.name, id),
         creatorType,
         creatorId: strCreatorId,
+        assetTypeName,
         placeId: normalizePlaceId(placeId),
       });
     }
@@ -364,6 +396,7 @@ async function batchResolveMetadata(
       name: cleanText(contextualName, id),
       creatorType: fallbackCreator?.creatorType || 'User',
       creatorId: fallbackCreator?.creatorId || 'Unknown',
+      assetTypeName: normalizeAssetTypeName(assetTypes[id] || assetTypes[String(id)]),
       placeId: normalizePlaceId(placeId),
     });
   }
@@ -375,6 +408,8 @@ async function handleScanPayload(payload, callbacks) {
   const kind = normalizeScanKind(payload?.kind || payload?.type || payload?.scanType);
   const placeId = normalizePlaceId(payload?.placeId || payload?.PlaceId || payload?.game?.placeId);
   const names = payload?.names && typeof payload.names === 'object' ? payload.names : {};
+  const assetTypes =
+    payload?.assetTypes && typeof payload.assetTypes === 'object' ? payload.assetTypes : {};
 
   const rawIds = Array.isArray(payload?.ids) ? payload.ids.map(String) : [];
   const confirmedIdsSet = new Set(
@@ -426,6 +461,7 @@ async function handleScanPayload(payload, callbacks) {
             placeId,
             fallbackCreator,
             names,
+            assetTypes,
             (processed, total) => {
               callbacks.sendStatusMessage(`Resolving metadata... (${processed}/${total})`);
             },
@@ -449,6 +485,7 @@ async function handleScanPayload(payload, callbacks) {
                 name: names[s] || 'Unknown',
                 creatorType: fallbackCreator?.creatorType || 'User',
                 creatorId: fallbackCreator?.creatorId || 'Unknown',
+                assetTypeName: normalizeAssetTypeName(assetTypes[s]),
                 placeId,
               });
             }
@@ -462,8 +499,12 @@ async function handleScanPayload(payload, callbacks) {
       assets = normalizeAssets(payload);
     }
 
-    const text = assets.length > 0 ? formatAssetsForInput(assets) : '';
-    const lines = text ? text.split(/\r?\n/).filter(Boolean) : [];
+    const text = assets.length > 0 ? formatAssetsForInput(assets, kind) : '';
+    const lines = text
+      ? text
+          .split(/\r?\n/)
+          .filter((line) => line && !/^--\s*\[\[\s*TYPE\s*:/i.test(line.trim()))
+      : [];
     const count = lines.length;
 
     const scanResult = {

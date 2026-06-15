@@ -61,7 +61,7 @@ function sanitizeExternalUrl(value) {
 
   try {
     const url = new URL(rawUrl);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
+    return url.protocol === 'https:' ? url.toString() : null;
   } catch {
     return null;
   }

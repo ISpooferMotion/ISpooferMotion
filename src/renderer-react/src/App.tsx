@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Flex, Box } from '@chakra-ui/react';
+import { useState, useEffect } from 'react';
+import { Flex, Box, Text } from '@chakra-ui/react';
 import DevConsoleGate from './components/DevConsoleGate';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
@@ -10,6 +10,35 @@ import SpooferView from './views/SpooferView';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('spoofer');
+  const [maintenance, setMaintenance] = useState({ mode: false, message: '' });
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch('https://ispoofermotion.com/api/config');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.maintenanceMode) {
+            setMaintenance({ mode: true, message: data.maintenanceMessage });
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch config:', e);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  if (maintenance.mode) {
+    return (
+      <Flex direction="column" align="center" justify="center" h="100vh" w="100vw" bg="discord.background" color="discord.text" p={8} textAlign="center">
+        <Text fontSize="3xl" fontWeight="bold" mb={4}>Maintenance Break</Text>
+        <Text color="discord.muted" maxW="md">
+          {maintenance.message || "ISpooferMotion is currently down for maintenance. Please check back later!"}
+        </Text>
+      </Flex>
+    );
+  }
 
   return (
     <Flex h="100vh" w="100vw" overflow="hidden">

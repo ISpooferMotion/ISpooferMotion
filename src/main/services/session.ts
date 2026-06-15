@@ -18,10 +18,12 @@ function queueSessionWrite(operation) {
 }
 
 function saveSession(session) {
-  const text = JSON.stringify(session, null, 2);
+  // Capture a snapshot reference; stringify is deferred until the write actually
+  // executes so that any intermediate queued writes see the freshest data.
+  const sessionSnapshot = session;
   return queueSessionWrite(async () => {
     try {
-      await fs.writeFile(getSessionPath(), text, 'utf8');
+      await fs.writeFile(getSessionPath(), JSON.stringify(sessionSnapshot, null, 2), 'utf8');
     } catch (err) {
       if (DEVELOPER_MODE) console.warn('(Dev) Failed to save session:', err);
     }

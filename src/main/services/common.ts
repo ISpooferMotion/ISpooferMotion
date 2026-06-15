@@ -80,6 +80,14 @@ async function initializeFileLogging(logsDir) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const logFilePath = path.join(logsDirectory, `debug-${stamp}.txt`);
 
+    try {
+      const allLogs = (await fs.readdir(logsDirectory))
+        .filter((f) => f.startsWith('debug-') && f.endsWith('.txt'))
+        .sort();
+      const toDelete = allLogs.slice(0, Math.max(0, allLogs.length - 5));
+      await Promise.all(toDelete.map((f) => fs.rm(path.join(logsDirectory, f), { force: true })));
+    } catch {}
+
     const originals = {
       log: console.log.bind(console),
       warn: console.warn.bind(console),

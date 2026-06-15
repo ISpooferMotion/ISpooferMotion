@@ -66,8 +66,9 @@ function compareVersions(a, b) {
   return 0;
 }
 
-function requestJson(url) {
+function requestJson(url, depth = 0) {
   return new Promise((resolve, reject) => {
+    if (depth > 5) return reject(new Error('Too many redirects'));
     const req = https.get(
       url,
       {
@@ -78,7 +79,7 @@ function requestJson(url) {
       },
       (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return resolve(requestJson(res.headers.location));
+          return resolve(requestJson(res.headers.location, depth + 1));
         }
         if (res.statusCode !== 200) {
           return reject(new Error(`GitHub request failed: HTTP ${res.statusCode}`));
@@ -102,8 +103,9 @@ function requestJson(url) {
   });
 }
 
-function downloadFile(url, destination) {
+function downloadFile(url, destination, depth = 0) {
   return new Promise((resolve, reject) => {
+    if (depth > 5) return reject(new Error('Too many redirects'));
     const req = https.get(
       url,
       {
@@ -111,7 +113,7 @@ function downloadFile(url, destination) {
       },
       (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return resolve(downloadFile(res.headers.location, destination));
+          return resolve(downloadFile(res.headers.location, destination, depth + 1));
         }
         if (res.statusCode !== 200) {
           return reject(new Error(`Download failed: HTTP ${res.statusCode}`));
@@ -172,7 +174,8 @@ async function applyUpdate(downloadPath) {
   if (process.platform === 'linux') {
     if (downloadPath.endsWith('.AppImage')) {
       try {
-        fs.chmodSync(downloadPath, '755');
+        const fsSync = require('fs');
+        fsSync.chmodSync(downloadPath, '755');
       } catch {}
     }
     shell.showItemInFolder(downloadPath);
@@ -180,15 +183,21 @@ async function applyUpdate(downloadPath) {
     return;
   }
 
+  // Windows: write a detached BAT that runs the installer after the app quits.
+  // Escape the path for use inside a batch double-quoted string by doubling any
+  // embedded double-quotes (paths from os.tmpdir() typically won't have them,
+  // but parentheses and spaces are safe inside double-quoted start arguments).
+  const safePath = downloadPath.replace(/"/g, '""');
   const scriptPath = path.join(os.tmpdir(), `ispoofer_update_${Date.now()}.bat`);
-  const scriptContent = `
-@echo off
-timeout /t 2 /nobreak > nul
-start "" "${downloadPath}" /S /UPDATE=true
-del "%~f0"
-`;
+  const scriptContent = [
+    '@echo off',
+    'timeout /t 2 /nobreak > nul',
+    `start "ISpooferMotion Updater" "${safePath}" /S /UPDATE=true`,
+    'del "%~f0"',
+  ].join('\r\n') + '\r\n';
 
-  fs.writeFileSync(scriptPath, scriptContent, 'utf8');
+  const fsPromises = require('fs/promises');
+  await fsPromises.writeFile(scriptPath, scriptContent, 'utf8');
 
   const child = spawn('cmd.exe', ['/c', scriptPath], {
     detached: true,
@@ -246,7 +255,8 @@ async function checkForUpdates(force = false) {
       try {
         const pluginsDir = getRobloxPluginsDir();
         if (pluginsDir) {
-          fs.mkdirSync(pluginsDir, { recursive: true });
+          const fsPromises = require('fs/promises');
+          await fsPromises.mkdir(pluginsDir, { recursive: true });
           const pluginPath = path.join(pluginsDir, pluginAsset.name);
           await downloadFile(pluginAsset.browser_download_url, pluginPath);
         }

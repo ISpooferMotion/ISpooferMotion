@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.3.18
+
+- **Proactive 403 Error Prevention**: The spoofer now validates your Roblox cookie immediately upon starting, aborting with a clear error if it's expired, rather than wasting time attempting downloads.
+- **Asset and Place ID Cache**: Successfully verified asset and place IDs are now saved to our cache. Future runs will try these proven IDs first, completely skipping the slow "Discovering compatible places" phase and avoiding bad place IDs that cause 403s (You can opt out of this in settings).
+- **Pre-Flight Place Context Warning**: If the spoofer cannot find any accessible places for a creator, it will now warn you _before_ downloading starts, giving you a chance to add an Override Place ID for private assets.
+- **Smarter Auth Error Messaging**: JSON-level access-denied errors from Roblox are now properly detected, resulting in clean "Authentication failed" or "Access denied (403)" messages instead of generic "No assets processed" errors.
+- **Plugin Server & Local Features**: Fixed issues with the Localhost Plugin Server and finalized local features to improve stability and workflow testing.
+- **Fixed "Select Download Folder" Bug**: Resolved an issue where selecting a custom download directory in the UI would fail to apply the chosen folder properly due to an IPC data parsing mismatch.
+- **Fixed Studio Plugin Scan Mismatches (403 Errors)**: Fixed a critical bug where the Studio plugin incorrectly captured audio IDs during an Animation scan (and vice versa).
+
 ## v1.3.17
 
 - **Full React UI Migration**: Completely rebuilt the application's user interface from the ground up using React, Chakra UI, and Vite.

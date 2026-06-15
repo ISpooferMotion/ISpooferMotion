@@ -141,7 +141,10 @@ export default function ProfilesView({ isActive }: { isActive: boolean }) {
     });
     const updatedProfiles = { ...profiles, [newId]: newProfile };
     setProfiles(updatedProfiles);
-    await (window as any).electronAPI?.saveProfileSecrets?.({ action: 'setActive', profileId: newId });
+    // Set active immediately after saving the profile so both writes are grouped
+    // as close together as possible. If the app crashes between them, the worst
+    // outcome is a saved but non-active profile (recoverable from ProfilesView).
+    await (window as any).electronAPI?.saveProfileSecrets?.({ action: 'setActive', profileId: newId }).catch(() => {});
     setActiveId(newId);
     applyProfileToState(newId, updatedProfiles);
     window.dispatchEvent(new Event('profile-changed'));
