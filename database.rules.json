@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "assetCache": {
+      ".read": false,
+      ".write": true
+    }
+  }
+}
