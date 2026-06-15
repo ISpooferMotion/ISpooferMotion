@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /ids/{document=**} {
+    match /assetCache/{document=**} {
       allow read: if false;
       allow write: if true;
     }

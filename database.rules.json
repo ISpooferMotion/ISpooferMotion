@@ -1,6 +1,6 @@
 {
   "rules": {
-    "ids": {
+    "assetCache": {
       ".read": false,
       ".write": true
     }
