@@ -7,6 +7,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 
 import App from './App.tsx';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ConfigProvider } from './contexts/ConfigContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { StudioConnectionProvider } from './contexts/StudioConnectionContext';
@@ -72,7 +73,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <TitleAttributeGuard>
               <main className="text-text-primary bg-bg-base min-h-screen h-full font-sans transition-colors duration-300">
                 <QueryClientProvider client={queryClient}>
-                  <App />
+                  <ErrorBoundary>
+                    <App />
+                  </ErrorBoundary>
                   {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
                 </QueryClientProvider>
               </main>

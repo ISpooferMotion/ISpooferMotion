@@ -51,8 +51,27 @@ export default function App() {
   const isExplorerOpen = config.ui.assetExplorerOpen;
   const [showRat, setShowRat] = useState(false);
   const [isRobloxApiDown, setIsRobloxApiDown] = useState(false);
+  const [maintenance, setMaintenance] = useState<{ mode: boolean; message: string }>({ mode: false, message: '' });
 
   useCloudThemeSync();
+
+  useEffect(() => {
+    // Check if we need to lock the app via live config
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch('https://ispoofermotion.com/api/config');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.maintenanceMode) {
+            setMaintenance({ mode: true, message: data.maintenanceMessage });
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch app config', e);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -166,6 +185,33 @@ export default function App() {
       if (unlisten) unlisten();
     };
   }, []);
+
+  if (maintenance.mode) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen w-screen bg-bg-base text-text-primary p-8 text-center space-y-4 font-sans antialiased">
+        <div className="text-yellow-500 mb-4">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="64"
+            height="64"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+          </svg>
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight">Maintenance Break</h1>
+        <p className="text-text-muted max-w-md">
+          {maintenance.message || "ISpooferMotion is currently down for maintenance. Please check back later!"}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <IsmProvider config={{ autoScrollAccordions: config.ui.autoScrollSections }}>
       <div
