@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 import App from './App';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './styles/app.css';
 
 // Discord Onyx Theme Settings for Chakra UI
@@ -135,7 +136,9 @@ function DynamicThemeProvider({ children }: { children: React.ReactNode }) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <DynamicThemeProvider>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </DynamicThemeProvider>
   </React.StrictMode>
 );
