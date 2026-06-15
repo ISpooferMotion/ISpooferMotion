@@ -647,29 +647,9 @@ function saveProfileSecrets(data) {
 }
 
 async function fetchJson(url, options = {}) {
-  return new Promise((resolve, reject) => {
-    const { net } = require('electron');
-    const req = net.request({ url, ...options });
-    req.on('response', (response) => {
-      let data = '';
-      response.on('data', (chunk) => {
-        data += chunk;
-      });
-      response.on('end', () => {
-        if (response.statusCode >= 200 && response.statusCode < 300) {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            reject(e);
-          }
-        } else {
-          reject(new Error(`HTTP ${response.statusCode}`));
-        }
-      });
-    });
-    req.on('error', reject);
-    req.end();
-  });
+  const response = await fetch(url, options);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
 }
 
 async function getRobloxProfile(context) {
@@ -875,9 +855,9 @@ async function validateOpenCloudApiKey(apiKey) {
     };
   } catch (err) {
     return {
-      ok: true,
+      ok: false,
       code: 'network',
-      message: `Could not reach Roblox to validate the API key: ${err.message}. The key was saved and will be checked during upload.`,
+      message: `Could not reach Roblox to validate the API key: ${err.message}. Check your internet connection and try again, or skip validation by saving the key directly in Profiles.`,
     };
   }
 }
@@ -1286,16 +1266,27 @@ function registerIpcHandlers(
       if (logFiles.length === 0) return false;
       const latestLog = path.join(logsDir, logFiles[logFiles.length - 1]);
 
-      const { exec } = require('node:child_process');
+      let child;
       if (process.platform === 'win32') {
-        exec(`start powershell -NoExit -Command "Get-Content -Path '${latestLog}' -Wait"`);
+        child = spawn(
+          'powershell.exe',
+          ['-NoExit', '-Command', `Get-Content -Path '${latestLog}' -Wait`],
+          { detached: true, stdio: 'ignore' },
+        );
       } else if (process.platform === 'darwin') {
-        exec(
-          `osascript -e 'tell application "Terminal" to do script "tail -f \\"${latestLog}\\""'`,
+        child = spawn(
+          'osascript',
+          ['-e', `tell application "Terminal" to do script "tail -f '${latestLog}'"`],
+          { detached: true, stdio: 'ignore' },
         );
       } else {
-        exec(`x-terminal-emulator -e "tail -f '${latestLog}'"`);
+        child = spawn(
+          'x-terminal-emulator',
+          ['-e', 'tail', '-f', latestLog],
+          { detached: true, stdio: 'ignore' },
+        );
       }
+      child.unref();
       return true;
     } catch (e) {
       if (DEVELOPER_MODE) console.warn('Failed to open dev console', e);
@@ -1801,7 +1792,8 @@ async function handleSpooferAction(
 
   const maxPlaceIds = data.maxPlaceIds || 200;
   const maxPlaceIdRetries = data.maxPlaceIdRetries || 3;
-  const overridePlaceId = data.overridePlaceId ? parseInt(data.overridePlaceId) : null;
+  const _parsedOverridePlaceId = data.overridePlaceId ? Number.parseInt(data.overridePlaceId, 10) : NaN;
+  const overridePlaceId = Number.isFinite(_parsedOverridePlaceId) ? _parsedOverridePlaceId : null;
   const uniqueCreators = [
     ...new Set(animationEntries.map((e) => `${e.creatorType}:${e.creatorId}`)),
   ];
@@ -2210,8 +2202,8 @@ async function handleSpooferAction(
           for (const loc of locations) {
             setBatchLocation(locationsMap, loc);
             if (hasBatchLocationSuccess(loc) && loc.requestId && placeId) {
-              try {
-                if (typeof fetch === 'function') {
+              if (data.shareCacheData !== false && typeof fetch === 'function') {
+                try {
                   fetch('https://ispoofermotion.com/api/cache', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2220,8 +2212,8 @@ async function handleSpooferAction(
                       place_id: String(placeId),
                     }),
                   }).catch(() => {});
-                }
-              } catch (e) {}
+                } catch (e) {}
+              }
             }
           }
           recordSuccessfulPlaceId(placeIdCacheEntries, creatorKey, placeId);
@@ -2339,6 +2331,10 @@ async function handleSpooferAction(
     const fileName = `${sanitizedName}_${entry.id}${fileExtension}`;
     let filePath = path.join(downloadsDir, fileName);
     const downloadTransfer = initialTransferStates.find((t) => t.originalAssetId === entry.id);
+    if (!downloadTransfer) {
+      console.error(`[DOWNLOAD] No transfer state found for entry id=${entry.id}, skipping.`);
+      return;
+    }
     const downloadTransferId = downloadTransfer.id;
     const creatorKey = `${entry.creatorType}:${entry.creatorId}`;
     const entryPlaceIds = placeIdMap[creatorKey] || [];
@@ -2884,12 +2880,13 @@ async function handleSpooferAction(
     jobStatus = isFullySuccessful ? 'success' : 'partial';
   }
 
+  const { robloxCookie: _rc, apiKey: _ak, ...safePayload } = data;
   const jobRecord = {
     id: crypto.randomUUID(),
     timestamp: Date.now(),
     status: jobStatus,
     output: finalOutput,
-    payload: data,
+    payload: safePayload,
   };
   await saveJobRecord(jobRecord);
 

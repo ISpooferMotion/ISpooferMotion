@@ -70,22 +70,9 @@ function bootstrap() {
   process.on('uncaughtException', (error) => {
     console.error('UNCAUGHT EXCEPTION:', error);
     try {
-      fetch('https://ispoofermotion.com/api/crash-reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          errorName: error.name,
-          errorMessage: error.message,
-          stackTrace: error.stack,
-          appVersion: app.getVersion(),
-          appType: 'V1',
-          osInfo: `${process.platform} ${process.arch}`,
-        }),
-      }).catch(() => {}).finally(() => {
-        app.quit();
-      });
-    } catch {
       app.quit();
+    } catch {
+      process.exit(1);
     }
   });
 

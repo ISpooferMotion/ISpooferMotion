@@ -39,7 +39,7 @@ function saveJobRecord(job) {
       jobs.unshift(job);
     }
 
-    if (jobs.length > 50) jobs.length = 50;
+    if (jobs.length > 50) jobs.splice(50);
     await fs.writeFile(getJobsPath(), JSON.stringify(jobs, null, 2), 'utf8').catch(() => {});
   });
 }

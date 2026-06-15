@@ -1,5 +1,6 @@
 local HttpService = game:GetService("HttpService")
 local CollectionService = game:GetService("CollectionService")
+local ChangeHistoryService = game:GetService("ChangeHistoryService")
 
 local PLUGIN_VERSION = "__ISPOOFERMOTION_VERSION__"
 if PLUGIN_VERSION:match("^__") then
@@ -620,8 +621,7 @@ local function collectIdsFromObject(obj, ids, checkYield, kind)
 		return obj:GetAttributes()
 	end)
 	if okA and attrs then
-		for attrName, attrVal in pairs(attrs) do
-			addId(ids, attrName, objName, false)
+		for _, attrVal in pairs(attrs) do
 			addNestedIds(ids, attrVal, nil, objName, false)
 		end
 	end
@@ -1096,9 +1096,8 @@ local function collectIdsFromObject(obj, ids)
 		return obj:GetAttributes()
 	end)
 	if okAttributes and attributes then
-		for attrName, attributeValue in pairs(attributes) do
-			addId(ids, attrName, objName)
-			addId(ids, attributeValue, objName)
+		for _, attributeValue in pairs(attributes) do
+			addNestedIds(ids, attributeValue, nil, objName)
 		end
 	end
 
@@ -1205,6 +1204,7 @@ local function postScanResults(payload)
 end
 
 local pollingActive = false
+local pollingEnabled = true
 local function runReplacementWithText(text)
 	if replaceInProgress then
 		warn("[ISpooferMotion] Replacement is already running.")
@@ -1260,6 +1260,7 @@ local function runReplacementWithText(text)
 	end
 
 	task.spawn(function()
+		ChangeHistoryService:SetWaypoint("ISpooferMotion: Before Replacement")
 		local ok, success, statsOrMessage = pcall(function()
 			return replaceOpenGame(text, updateGui)
 		end)
@@ -1284,6 +1285,7 @@ local function runReplacementWithText(text)
 			end
 			task.wait(1.5)
 		else
+			ChangeHistoryService:SetWaypoint("ISpooferMotion: After Replacement")
 			local stats = statsOrMessage
 			updateGui(stats, true)
 			local message = string.format(
@@ -1325,11 +1327,15 @@ local function pollForPendingReplacement()
 	end
 	pollingActive = true
 	task.spawn(function()
-		while true do
-			task.wait(3)
+		local waitInterval = 3
+		local MAX_WAIT_INTERVAL = 30
+		while pollingEnabled do
+			task.wait(waitInterval)
+			if not pollingEnabled then break end
 			if not replaceInProgress and not scanInProgress then
 				local baseUrl = findAppBaseUrl()
 				if baseUrl then
+					waitInterval = 3  -- reset backoff on successful connection
 					local ok, response = pcall(function()
 						return requestJson("GET", baseUrl .. "/pending-replacement")
 					end)
@@ -1350,6 +1356,9 @@ local function pollForPendingReplacement()
 							end
 						end
 					end
+				else
+					-- Exponential backoff when app is not found
+					waitInterval = math.min(waitInterval * 2, MAX_WAIT_INTERVAL)
 				end
 			end
 		end
@@ -1496,3 +1505,4 @@ print(
 		.. "). Open the desktop app, then click Animations, Sounds, or Both."
 )
 pollForPendingReplacement()
+

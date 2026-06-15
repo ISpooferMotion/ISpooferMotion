@@ -29,6 +29,7 @@ export default function SettingsView({ isActive }: { isActive: boolean }) {
   const [maxConcurrent, setMaxConcurrent] = useState(12);
   const [uploadRetries, setUploadRetries] = useState(3);
   const [uploadRetryDelay, setUploadRetryDelay] = useState(2000);
+  const [shareCacheData, setShareCacheData] = useState(true);
 
   const [colorHex, setColorHex] = useState('#10b981');
   const [uninstallStatus, setUninstallStatus] = useState('');
@@ -51,6 +52,7 @@ export default function SettingsView({ isActive }: { isActive: boolean }) {
       setMaxConcurrent(profile.maxConcurrentUploads ?? 12);
       setUploadRetries(profile.uploadRetries ?? 3);
       setUploadRetryDelay(profile.uploadRetryDelay ?? 2000);
+      setShareCacheData(profile.shareCacheData ?? true);
 
       if (profile.colorR !== undefined) {
         const hex = rgbToHex(profile.colorR, profile.colorG, profile.colorB);
@@ -230,6 +232,21 @@ export default function SettingsView({ isActive }: { isActive: boolean }) {
                 </Box>
               </HStack>
             </Collapse>
+
+            <HStack justify="space-between" align="center" bg="discord.card" p="16px" borderRadius="8px" border="1px solid" borderColor="discord.border">
+              <Box>
+                <Text fontSize="14px" color="discord.text" fontWeight={500}>Share Cache Data</Text>
+                <Text fontSize="12px" color="discord.muted" mt="2px">Help improve asset discovery by sharing resolved asset/place ID pairs with ISpooferMotion servers.</Text>
+              </Box>
+              <Switch
+                colorScheme="brand"
+                isChecked={shareCacheData}
+                onChange={(e) => {
+                  setShareCacheData(e.target.checked);
+                  updateSetting('shareCacheData', e.target.checked);
+                }}
+              />
+            </HStack>
           </VStack>
 
           <VStack spacing="20px" align="stretch" mt="16px">

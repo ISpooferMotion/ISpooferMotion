@@ -176,15 +176,7 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
 
     const normalizedApiKey = openCloudApiKey.trim();
     if (!downloadOnly) {
-      setStatusText('Checking API key...');
-      const apiKeyValidation = await (window as any).electronAPI?.validateOpenCloudApiKey?.(normalizedApiKey);
-      if (!apiKeyValidation?.ok) {
-        setApiKeyStatus(apiKeyValidation?.message || 'API key is invalid.');
-        setStatusText('API key validation failed.');
-        return;
-      }
       setOpenCloudApiKey(normalizedApiKey);
-      setApiKeyStatus(apiKeyValidation.message || 'API key saved.');
       await updateProfileValue('apiKey', normalizedApiKey);
     }
 
@@ -205,6 +197,7 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
       renameReplace: profile.renameToggle ? (profile.renameReplace ?? '') : '',
       maxConcurrentDownloads: profile.maxConcurrentDownloads ?? 20,
       desktopNotifications: profile.notifications ?? true,
+      shareCacheData: profile.shareCacheData ?? true,
     };
     (window as any).electronAPI?.runSpooferAction?.(payload);
   };

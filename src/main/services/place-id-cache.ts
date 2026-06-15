@@ -36,8 +36,11 @@ async function savePlaceIdCache(userDataPath, entries) {
     try {
       await fs.rename(tmpPath, filePath);
     } catch {
-      await fs.copyFile(tmpPath, filePath);
-      await fs.rm(tmpPath, { force: true }).catch(() => {});
+      try {
+        await fs.copyFile(tmpPath, filePath);
+      } finally {
+        await fs.rm(tmpPath, { force: true }).catch(() => {});
+      }
     }
   } catch (err) {
     await fs.rm(tmpPath, { force: true }).catch(() => {});

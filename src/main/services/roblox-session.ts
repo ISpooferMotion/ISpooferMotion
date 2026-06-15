@@ -46,6 +46,8 @@ class RobloxSession {
     const normalized = normalizeRobloxCookie(cookie);
     if (!normalized || normalized === this.cookie) return false;
 
+    // Evict the old cookie entry to prevent the Map from leaking rotated cookies.
+    if (this.cookie) sessionsByCookie.delete(this.cookie);
     this.cookie = normalized;
     sessionsByCookie.set(normalized, this);
     return true;
