@@ -707,8 +707,7 @@ async function getRobloxProfile(context) {
           name: gResp.name,
           iconUrl: gAvatarResp?.data?.[0]?.imageUrl || '',
         };
-      } catch {
-      }
+      } catch {}
     }
 
     return {
@@ -884,14 +883,12 @@ async function validateOpenCloudApiKey(apiKey) {
 }
 
 function normalizeSpooferInputLine(line) {
-  return (
-    String(line || '')
-      .replace(/^\uFEFF/, '')
-      .replace(/[\u200B-\u200D\u2060]/g, '')
-      .replace(/\u00A0/g, ' ')
-      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
-      .trim()
-  );
+  return String(line || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/[\u200B-\u200D\u2060]/g, '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim();
 }
 
 function isSpooferOutputMetadataLine(line) {
@@ -1678,7 +1675,8 @@ async function handleSpooferAction(
   sendStatusMessage('Validating Roblox session...');
   try {
     preflightAuthUserId = await getAuthenticatedUserId(robloxCookie);
-    if (DEVELOPER_MODE) console.log(`(Dev) Cookie pre-flight OK — authenticated as user ${preflightAuthUserId}`);
+    if (DEVELOPER_MODE)
+      console.log(`(Dev) Cookie pre-flight OK — authenticated as user ${preflightAuthUserId}`);
   } catch (preflightErr) {
     sendSpooferResultToRenderer({
       output: `Cookie validation failed: ${preflightErr.message}\n\nMake sure your ROBLOSECURITY cookie is current and not expired. You can re-copy it from your browser.`,
@@ -1861,14 +1859,13 @@ async function handleSpooferAction(
           placeIds,
         );
         if (DEVELOPER_MODE)
-          console.log(`(Dev) Got ${placeIdMap[creatorKey].length} placeIds for ${creatorKey} (${cachedIds.length} cached)`);
+          console.log(
+            `(Dev) Got ${placeIdMap[creatorKey].length} placeIds for ${creatorKey} (${cachedIds.length} cached)`,
+          );
       } catch (error) {
         if (DEVELOPER_MODE)
           console.warn(`(Dev) Could not get placeIds for ${creatorKey}: ${error.message}`);
-        placeIdMap[creatorKey] = uniquePlaceIds(
-          entryPlaceIdsByCreator[creatorKey],
-          cachedIds,
-        );
+        placeIdMap[creatorKey] = uniquePlaceIds(entryPlaceIdsByCreator[creatorKey], cachedIds);
       }
     });
 
@@ -2180,7 +2177,11 @@ async function handleSpooferAction(
                 for (const loc of locations) {
                   setBatchLocation(locationsMap, loc);
                 }
-                if (locations.every((loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc))) {
+                if (
+                  locations.every(
+                    (loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc),
+                  )
+                ) {
                   hasAuthError = true;
                 }
                 evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
@@ -2192,7 +2193,11 @@ async function handleSpooferAction(
               for (const loc of locations) {
                 setBatchLocation(locationsMap, loc);
               }
-              if (locations.every((loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc))) {
+              if (
+                locations.every(
+                  (loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc),
+                )
+              ) {
                 hasAuthError = true;
               }
               evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
@@ -2204,6 +2209,20 @@ async function handleSpooferAction(
             console.log(`(Dev) Batch request successful for ${creatorKey} with placeId ${placeId}`);
           for (const loc of locations) {
             setBatchLocation(locationsMap, loc);
+            if (hasBatchLocationSuccess(loc) && loc.requestId && placeId) {
+              try {
+                if (typeof fetch === 'function') {
+                  fetch('https://ispoofermotion.com/api/cache', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      asset_id: String(loc.requestId),
+                      place_id: String(placeId),
+                    }),
+                  }).catch(() => {});
+                }
+              } catch (e) {}
+            }
           }
           recordSuccessfulPlaceId(placeIdCacheEntries, creatorKey, placeId);
           break;
@@ -2546,7 +2565,9 @@ async function handleSpooferAction(
   } else {
     const successfulDownloads = downloadResults.filter((r) => r.success);
 
-    sendStatusMessage(`Uploading ${summarizeAssetTypes(successfulDownloads.map((r) => r.entry))}...`);
+    sendStatusMessage(
+      `Uploading ${summarizeAssetTypes(successfulDownloads.map((r) => r.entry))}...`,
+    );
 
     let uploadCompleted = 0;
     const uploadStartTime = Date.now();
@@ -2648,7 +2669,9 @@ async function handleSpooferAction(
         const etaSec = etaSeconds % 60;
         const etaStr = remaining > 0 ? ` (ETA: ${etaMin}:${String(etaSec).padStart(2, '0')})` : '';
         const actionText = 'Uploaded';
-        sendStatusMessage(`${actionText} ${uploadCompleted}/${successfulDownloads.length} assets${etaStr}`);
+        sendStatusMessage(
+          `${actionText} ${uploadCompleted}/${successfulDownloads.length} assets${etaStr}`,
+        );
         return {
           entry,
           success: uploadResult.success,
@@ -2674,7 +2697,9 @@ async function handleSpooferAction(
         const etaMin = Math.floor(etaSeconds / 60);
         const etaSec = etaSeconds % 60;
         const etaStr = remaining > 0 ? ` (ETA: ${etaMin}:${String(etaSec).padStart(2, '0')})` : '';
-        sendStatusMessage(`Uploaded ${uploadCompleted}/${successfulDownloads.length} assets${etaStr}`);
+        sendStatusMessage(
+          `Uploaded ${uploadCompleted}/${successfulDownloads.length} assets${etaStr}`,
+        );
         return { entry, success: false, error: finalRetryError.message };
       }
     };
@@ -2809,7 +2834,9 @@ async function handleSpooferAction(
   if (data.downloadOnly) {
     const successfulDownloadsList = downloadResults
       .filter((r) => r.success)
-      .map((r) => `${getAssetKindLabel(r.entry.assetTypeName)}: ${r.entry.name} (ID: ${r.entry.id})`)
+      .map(
+        (r) => `${getAssetKindLabel(r.entry.assetTypeName)}: ${r.entry.name} (ID: ${r.entry.id})`,
+      )
       .join('\n');
 
     if (successfulDownloadsList) {

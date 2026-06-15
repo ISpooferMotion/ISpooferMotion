@@ -137,8 +137,6 @@ local function getWritableProperties(className)
 							and member.ValueType
 							and (
 								member.ValueType.Name == "Content"
-								or member.ValueType.Name == "string"
-								or member.ValueType.Category == "Primitive"
 							)
 						then
 							table.insert(apiProps, member.Name)
