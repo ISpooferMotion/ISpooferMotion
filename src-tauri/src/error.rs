@@ -74,7 +74,13 @@ impl Serialize for AppError {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&redact_user_paths(&self.to_string()))
+        let display = redact_user_paths(&self.to_string());
+        let debug = redact_user_paths(&format!("{:#?}", self));
+        let json = serde_json::json!({
+            "message": display,
+            "debug": debug
+        });
+        serializer.serialize_str(&json.to_string())
     }
 }
 

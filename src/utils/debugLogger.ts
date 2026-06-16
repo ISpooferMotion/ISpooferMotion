@@ -10,6 +10,7 @@ export interface LogEntry {
   level: LogLevel;
   source: LogSource;
   message: string;
+  payload?: unknown[];
   timestamp: string;
 }
 
@@ -60,7 +61,7 @@ function formatArg(arg: unknown): string {
     return arg;
   }
   try {
-    return typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg);
+    return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
   } catch {
     return String(arg);
   }
@@ -74,13 +75,22 @@ export function addDebugLog(
   notify: boolean = false,
 ) {
   const state = getState();
+  const messageArgs = args.filter((arg) => typeof arg === 'string' || arg instanceof Error);
+  const payloadArgs = args.filter((arg) => typeof arg !== 'string' && !(arg instanceof Error));
+
   const entry: LogEntry = {
     id: state.counter++,
     level,
     source,
-    message: args.map(formatArg).join(' '),
+    message: messageArgs.length > 0 ? messageArgs.map(formatArg).join(' ') : '',
+    payload: payloadArgs.length > 0 ? payloadArgs : undefined,
     timestamp: new Date().toLocaleTimeString([], { hour12: false }),
   };
+
+  // If there's no string message but there is a payload, set a default message
+  if (!entry.message && entry.payload) {
+    entry.message = 'Object logged';
+  }
 
   state.logs = [...state.logs, entry].slice(-MAX_LOGS);
   state.listeners.forEach((listener) => listener(state.logs));

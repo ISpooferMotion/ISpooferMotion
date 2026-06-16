@@ -10,6 +10,7 @@ import {
   LogEntry,
   subscribeDebugLogs,
 } from '../../utils/debugLogger';
+import { JsonViewer } from '../ui/JsonViewer';
 
 export function useLogs() {
   const [logs, setLogs] = useState<LogEntry[]>(getDebugLogs());
@@ -234,7 +235,35 @@ export default function DebugConsole({ isOpen, onClose }: DebugConsoleProps) {
                   <span className="text-text-muted shrink-0 min-w-[50px] font-bold select-none opacity-40">
                     [{log.source === 'ism' ? 'ISM' : 'DEV'}]
                   </span>
-                  <span className="break-words whitespace-pre-wrap flex-1">{log.message}</span>
+                  <div className="flex-1 min-w-0 flex flex-col gap-1">
+                    {log.message && (
+                      <span className="break-words whitespace-pre-wrap leading-relaxed">
+                        {log.message.split('\n').map((line, i) => {
+                          const isTrace = /^\s*at\s+/.test(line);
+                          if (isTrace) {
+                            return (
+                              <div key={i} className="text-text-muted opacity-80 pl-4">
+                                {line.replace(/^\s*at\s+/, '↳ at ')}
+                              </div>
+                            );
+                          }
+                          return <div key={i}>{line}</div>;
+                        })}
+                      </span>
+                    )}
+                    {log.payload && log.payload.length > 0 && (
+                      <div className="flex flex-col gap-2 mt-1">
+                        {log.payload.map((p, i) => (
+                          <div
+                            key={i}
+                            className="bg-bg-base/50 rounded-md p-1.5 border border-border-subtle/30 overflow-x-auto"
+                          >
+                            <JsonViewer data={p} defaultExpanded={log.level === 'error'} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))
             )}
