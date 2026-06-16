@@ -250,7 +250,7 @@ test('localhost scan formatting includes an import type marker when kind is know
       ],
       'sound',
     ),
-    '--[[ TYPE: SOUND ]]\n[123456789] [Doorbell] [User:42000] [Type:Sound],',
+    '--[[ TYPE: SOUND ]]\n[123456789] [Doorbell] [User:42000],',
   );
   assert.equal(
     formatAssetsForInput(
@@ -272,7 +272,7 @@ test('localhost scan formatting includes an import type marker when kind is know
       ],
       'mixed',
     ),
-    '--[[ TYPE: MIXED ]]\n[123456789] [Run] [User:42000] [Type:Animation],\n[987654321] [Doorbell] [User:42000] [Type:Sound],',
+    '--[[ TYPE: MIXED ]]\n[123456789] [Run] [User:42000],\n[987654321] [Doorbell] [User:42000],',
   );
 });
 
