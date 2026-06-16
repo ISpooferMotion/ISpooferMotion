@@ -1626,9 +1626,9 @@ async function handleSpooferAction(
   }
 
   if (invalidAssetLines.length || duplicateAssetLines.length) {
-    console.warn(
-      `[INPUT] Processing ${assetEntries.length} valid asset entr${assetEntries.length === 1 ? 'y' : 'ies'}; skipped ${invalidAssetLines.length} invalid and ${duplicateAssetLines.length} duplicate line(s).`,
-    );
+    const msg = `Smart Dedup: ${assetEntries.length} valid entries. Skipped ${duplicateAssetLines.length} duplicates and ${invalidAssetLines.length} invalid lines.`;
+    console.warn(`[INPUT] Processing ${assetEntries.length} valid entries; skipped ${invalidAssetLines.length} invalid and ${duplicateAssetLines.length} duplicate line(s).`);
+    sendStatusMessage(msg);
   }
 
   const animationEntries = assetEntries;

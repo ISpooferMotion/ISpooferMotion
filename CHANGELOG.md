@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.3.2
+
+- **Fixed False Positives in Studio Plugin**: Fixed an issue where numeric variables in scripts (like `1000000`) were incorrectly captured as assets due to substring matches (e.g., "Whitelist" matching "hit").
+- **Improved Invalid ID Handling**: The Desktop App now correctly identifies and discards 404 and 400 errors from the Roblox API, preventing invalid IDs from being mistakenly flagged and outputted as private assets.
+- **Variable Name Blacklist**: Added a blacklist to the Studio plugin to completely ignore common non-asset variables (like "Whitelist", "Hitbox", "Pitch", "Volume") during scans.
 ## v1.3.18
 
 - **Proactive 403 Error Prevention**: The spoofer now validates your Roblox cookie immediately upon starting, aborting with a clear error if it's expired, rather than wasting time attempting downloads.

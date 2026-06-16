@@ -443,11 +443,22 @@ local function collectIdsFromSource(source, ids, defaultObjName, checkYield, kin
 		end
 	end
 
+	local blacklist = {
+		"whitelist", "hitbox", "white", "pitch", "volume", 
+		"color", "size", "position", "cframe", "offset", 
+		"multiplier", "velocity", "force", "damage", "health"
+	}
+
 	local function hasActionKeyword(text)
 		if not text then
 			return false
 		end
 		local t = text:lower()
+		for _, bw in ipairs(blacklist) do
+			if t:find(bw, 1, true) then
+				return false
+			end
+		end
 		for _, kw in ipairs(actionKeywords) do
 			if t:find(kw, 1, true) then
 				return true
