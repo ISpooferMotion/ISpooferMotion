@@ -1,12 +1,10 @@
 import { IsmProvider } from '@codycon/ism-library';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { isRegistered, register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
-
 
 import Sidebar from './components/layout/Sidebar';
 import StatusBar from './components/layout/StatusBar';
@@ -172,8 +170,6 @@ export default function App() {
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
-
-
   }, []);
 
   if (maintenance.mode) {
@@ -308,8 +304,6 @@ export default function App() {
         </motion.div>
 
         <CreditsModal isOpen={isCreditsOpen} onClose={() => setCreditsOpen(false)} />
-
-
       </div>
     </IsmProvider>
   );

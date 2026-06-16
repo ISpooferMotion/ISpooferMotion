@@ -372,6 +372,7 @@ pub async fn process_spoofer_action(
             let fail_count = Arc::clone(&fail_count);
             let interrupted = Arc::clone(&interrupted);
             let safe_place_name = safe_place_name.clone();
+            let place_name_raw = place_name_raw.clone();
             let base_downloads_dir = base_downloads_dir.clone();
             let universe_id = universe_id.clone();
             let csrf_token = Arc::clone(&csrf_token);
@@ -486,6 +487,7 @@ pub async fn process_spoofer_action(
                                     creator_id.clone(),
                                     cookie.clone(),
                                     Some(place_id_search_limit),
+                                    Some(place_name_raw.clone()),
                                 )
                                 .await
                                 {

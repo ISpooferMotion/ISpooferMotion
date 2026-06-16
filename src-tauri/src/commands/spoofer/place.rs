@@ -62,11 +62,13 @@ pub async fn get_place_ids_for_asset_creator(
     asset_id: String,
     cookie: String,
     max_place_ids: Option<u32>,
+    place_name: Option<String>,
 ) -> crate::error::Result<Vec<String>> {
     let (creator_type, creator_id) =
         get_asset_creator_for_asset(app.clone(), asset_id, cookie.clone()).await?;
 
-    get_place_id_from_creator(app, creator_type, creator_id, cookie, max_place_ids).await
+    get_place_id_from_creator(app, creator_type, creator_id, cookie, max_place_ids, place_name)
+        .await
 }
 
 // hits the open cloud api to find out who actually made the asset so we know if we need to spoof it
@@ -182,6 +184,7 @@ pub async fn get_place_id_from_creator(
     creator_id: String,
     cookie: String,
     max_place_ids: Option<u32>,
+    place_name: Option<String>,
 ) -> crate::error::Result<Vec<String>> {
     if !is_valid_numeric_id(&creator_id) {
         return Err("Invalid Roblox creator id.".into());
@@ -197,11 +200,12 @@ pub async fn get_place_id_from_creator(
     let max_results = max_place_ids.unwrap_or(10).min(100);
 
     let is_group = creator_type.eq_ignore_ascii_case("group");
-    let mut root_places_set: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut root_places: Vec<(String, String)> = Vec::new();
+    let mut seen_places = std::collections::HashSet::new();
     let mut cursor = String::new();
     let client = crate::utils::get_http_client();
 
-    while root_places_set.len() < max_results as usize {
+    while root_places.len() < max_results as usize {
         let mut url = if is_group {
             format!("https://games.roblox.com/v2/groups/{creator_id}/games?limit={limit}")
         } else {
@@ -260,10 +264,14 @@ pub async fn get_place_id_from_creator(
                         .or_else(|| id.as_str().map(std::string::ToString::to_string))
                 });
 
+            let game_name = game.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+
             if let Some(pid) = place_id {
-                root_places_set.insert(pid);
+                if seen_places.insert(pid.clone()) {
+                    root_places.push((pid, game_name));
+                }
             }
-            if root_places_set.len() >= max_results as usize {
+            if root_places.len() >= max_results as usize {
                 break;
             }
         }
@@ -275,11 +283,38 @@ pub async fn get_place_id_from_creator(
         }
     }
 
-    if root_places_set.is_empty() {
+    if root_places.is_empty() {
         return Err(crate::error::AppError::Custom("No root places found in games".into()));
     }
 
-    Ok(root_places_set.into_iter().collect())
+    if let Some(ref target_name) = place_name {
+        let lower_target = target_name.to_lowercase();
+        root_places.sort_by(|(_, name_a), (_, name_b)| {
+            let a_lower = name_a.to_lowercase();
+            let b_lower = name_b.to_lowercase();
+            let a_exact = a_lower == lower_target;
+            let b_exact = b_lower == lower_target;
+            if a_exact && !b_exact {
+                return std::cmp::Ordering::Less;
+            }
+            if !a_exact && b_exact {
+                return std::cmp::Ordering::Greater;
+            }
+
+            let a_contains = a_lower.contains(&lower_target);
+            let b_contains = b_lower.contains(&lower_target);
+            if a_contains && !b_contains {
+                return std::cmp::Ordering::Less;
+            }
+            if !a_contains && b_contains {
+                return std::cmp::Ordering::Greater;
+            }
+
+            std::cmp::Ordering::Equal
+        });
+    }
+
+    Ok(root_places.into_iter().map(|(id, _)| id).collect())
 }
 
 #[tauri::command]
@@ -290,8 +325,10 @@ pub async fn get_multiple_place_ids(
     creator_id: String,
     cookie: String,
     max_place_ids: Option<u32>,
+    place_name: Option<String>,
 ) -> crate::error::Result<Vec<String>> {
-    get_place_id_from_creator(app, creator_type, creator_id, cookie, max_place_ids).await
+    get_place_id_from_creator(app, creator_type, creator_id, cookie, max_place_ids, place_name)
+        .await
 }
 
 #[tauri::command]
