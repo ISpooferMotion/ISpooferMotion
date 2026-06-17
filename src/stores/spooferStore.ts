@@ -21,8 +21,8 @@ interface SpooferState {
   selectedAssetIds: Set<string>;
   setSelectedAssetIds: (val: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
 
-  spoofingLogs: string;
-  setSpoofingLogs: (val: string | ((prev: string) => string)) => void;
+  spoofingLogs: string[];
+  setSpoofingLogs: (val: string[] | ((prev: string[]) => string[])) => void;
 
   isSpoofing: boolean;
   setIsSpoofing: (val: boolean) => void;
@@ -77,11 +77,15 @@ export const useSpooferStore = create<SpooferState>((set) => ({
       selectedAssetIds: typeof val === 'function' ? val(state.selectedAssetIds) : val,
     })),
 
-  spoofingLogs: '',
+  spoofingLogs: [],
   setSpoofingLogs: (val) =>
-    set((state) => ({
-      spoofingLogs: typeof val === 'function' ? val(state.spoofingLogs) : val,
-    })),
+    set((state) => {
+      const nextVal = typeof val === 'function' ? val(state.spoofingLogs) : val;
+      if (nextVal.length > 500) {
+        return { spoofingLogs: nextVal.slice(nextVal.length - 500) };
+      }
+      return { spoofingLogs: nextVal };
+    }),
 
   isSpoofing: false,
   setIsSpoofing: (val) => set({ isSpoofing: val }),

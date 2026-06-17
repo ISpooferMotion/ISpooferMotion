@@ -16,7 +16,6 @@ pub struct SpooferActionRequest {
     #[serde(rename = "uploadTypes")]
     pub upload_types: Option<Vec<String>>,
     #[serde(rename = "downloadPath")]
-    #[validate(length(min = 1))]
     pub download_path: Option<String>,
     #[serde(rename = "forcePlaceIds")]
     pub force_place_ids: Option<String>,

@@ -14,10 +14,24 @@ local STRING_SCAN_PROPERTIES: { [string]: { string } } = {}
 --#include "src/bridge/discovery.luau"
 --#include "src/bridge/polling.luau"
 
+local toolbar = plugin:CreateToolbar("ISpooferMotion")
+local syncButton = toolbar:CreateButton("Sync to Desktop", "Toggle connection to the ISpooferMotion Desktop App", "rbxassetid://16447285698")
+
+syncButton.Click:Connect(function()
+	if polling then
+		polling = false
+		BASE_URL = nil
+		clearPairingState()
+		syncButton.Text = "Sync to Desktop"
+		print("[ISpooferMotion] Disconnected from Desktop App")
+	else
+		print("[ISpooferMotion] Starting connection to Desktop App...")
+		syncButton.Text = "Unsync from Desktop"
+		startPolling()
+	end
+end)
+
 plugin.Unloading:Connect(function()
 	polling = false
 	BASE_URL = nil
 end)
-
-print("[ISpooferMotion] Auto-starting Studio bridge...")
-startPolling()

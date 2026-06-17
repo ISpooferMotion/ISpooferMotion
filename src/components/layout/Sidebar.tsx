@@ -104,7 +104,6 @@ export default function Sidebar({
   const { t } = useLanguage();
 
   const tabs = [
-    { id: 'home', label: t('nav.home'), icon: <Home size={18} /> },
     { id: 'spoofing', label: t('nav.spoofing'), icon: <ScanLine size={18} /> },
     { id: 'config', label: t('nav.config'), icon: <FileCog size={18} /> },
     { id: 'settings', label: t('nav.settings'), icon: <Settings size={18} /> },

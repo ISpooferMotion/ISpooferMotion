@@ -18,12 +18,13 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { readText as readClipboardText } from '@tauri-apps/plugin-clipboard-manager';
 import { motion } from 'framer-motion';
-import { Ban, Play, RotateCcw, ScanSearch, UserSquare2, Wand2 } from 'lucide-react';
+import { Ban, ListChecks, Play, RotateCcw, ScanSearch, UserSquare2, Wand2, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import AnimationIcon from '../../assets/roblox_icons/Animation.png';
 import DecalIcon from '../../assets/roblox_icons/Decal.png';
 import MeshIcon from '../../assets/roblox_icons/MeshPart.png';
+import ResultsModal from '../modals/ResultsModal';
 import SoundIcon from '../../assets/roblox_icons/Sound.png';
 import VideoIcon from '../../assets/roblox_icons/VideoFrame.png';
 import { useConfig } from '../../contexts/ConfigContext';
@@ -128,6 +129,8 @@ export default function SpoofingView() {
     loadCachedGroups(config.spoofing.selectedUser),
   );
   const [loadingGroups, setLoadingGroups] = useState(false);
+  const [resultsModalOpen, setResultsModalOpen] = useState(false);
+  const initialMount = useRef(true);
   const [audioQuota, setAudioQuota] = useState<AudioQuotaDisplay>({
     status: 'idle',
   });
@@ -154,6 +157,16 @@ export default function SpoofingView() {
         .filter((id) => id.length > 0),
     ),
   );
+
+  useEffect(() => {
+    if (initialMount.current) {
+      initialMount.current = false;
+      return;
+    }
+    if (Object.keys(lastReplacements).length > 0) {
+      setResultsModalOpen(true);
+    }
+  }, [spoofCompletionVersion, lastReplacements]);
 
   useEffect(() => {
     if (outputRef.current) {
@@ -653,7 +666,7 @@ export default function SpoofingView() {
       return;
     }
 
-    setLogs('');
+    setLogs([]);
     const apiKeyReady = await validateApiKeyForRun(apiKey, selectedUser);
     if (!apiKeyReady) return;
 
@@ -793,7 +806,7 @@ export default function SpoofingView() {
       }
       updateCategory('spoofing', spoofingUpdates);
       setSelectedAssetIds(new Set(retry.assetIds));
-      setLogs(`Retrying ${retry.assetIds.length} failed asset(s)...\n`);
+      setLogs([`Retrying ${retry.assetIds.length} failed asset(s)...`]);
 
       timeout = window.setTimeout(() => {
         void handleRunSpooferRef.current(retry.assetIds, false, retryContext);
@@ -895,17 +908,37 @@ export default function SpoofingView() {
                 )}
 
                 <div className="flex flex-col gap-2">
-                  <span className="text-sm font-semibold text-text-primary">
-                    {t('spoof.output')}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-text-primary">
+                      {t('spoof.output')}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      {Object.keys(lastReplacements).length > 0 && (
+                        <button
+                          onClick={() => setResultsModalOpen(true)}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+                        >
+                          <ListChecks size={14} /> View Results
+                        </button>
+                      )}
+                      {logs && logs.length > 0 && (
+                        <button
+                          onClick={() => setLogs([])}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary hover:text-danger transition-colors"
+                        >
+                          <Trash2 size={14} /> Clear Logs
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <div
                     ref={outputRef as React.RefObject<HTMLDivElement>}
                     className="w-full rounded-[var(--radius-md)] border border-border-strong bg-bg-surface p-3 font-mono text-[13px] font-medium text-text-primary shadow-inner overflow-y-auto whitespace-pre-wrap break-words"
                     style={{ height: '13rem' }}
                   >
-                    {logs ? (
+                    {logs && logs.length > 0 ? (
                       <div className="flex flex-col">
-                        {logs.split('\n').map((line, idx) => {
+                        {logs.map((line, idx) => {
                           if (!line) return null;
                           const colorClass = line.includes('[SUCCESS]')
                             ? 'text-success'
@@ -914,7 +947,7 @@ export default function SpoofingView() {
                               : line.includes('[ERROR]')
                                 ? 'text-danger'
                                 : line.includes('[INFO]')
-                                  ? 'text-white'
+                                  ? 'text-[#87ceeb]' // nice blue for INFO
                                   : 'text-text-primary';
                           return (
                             <div key={idx} className={colorClass}>
@@ -1006,6 +1039,7 @@ export default function SpoofingView() {
           </Accordion>
         </motion.div>
       </Window>
+      <ResultsModal isOpen={resultsModalOpen} onClose={() => setResultsModalOpen(false)} />
 
       <Modal
         isOpen={Boolean(pendingQuotaRun)}

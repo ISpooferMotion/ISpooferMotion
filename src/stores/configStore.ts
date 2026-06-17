@@ -23,7 +23,7 @@ export const AppConfigSchema = z.object({
     excludedUserIds: z.string().default(''),
     excludedGroupIds: z.string().default(''),
     concurrentSpoofing: z.boolean().default(true),
-    maxConcurrency: z.number().default(100),
+    maxConcurrency: z.number().default(50),
     enableArchiveRecovery: z.boolean().default(false),
     proxyUrl: z.string().default(''),
   }),
@@ -114,7 +114,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     preserveMetadata: true,
   },
   ui: {
-    activeTab: 'home',
+    activeTab: 'spoofing',
     assetExplorerOpen: false,
     homeUpdateSections: ['changelog'],
     settingsSections: ['account', 'general', 'quickSettings', 'debug'],

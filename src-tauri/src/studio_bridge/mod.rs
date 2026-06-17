@@ -64,7 +64,7 @@ pub(crate) fn active_bridge_port() -> &'static RwLock<Option<u16>> {
 }
 
 pub(crate) fn allow_key_discovery() -> &'static RwLock<bool> {
-    ALLOW_KEY_DISCOVERY.get_or_init(|| RwLock::new(false))
+    ALLOW_KEY_DISCOVERY.get_or_init(|| RwLock::new(true))
 }
 
 pub(crate) fn pairing_confirmed() -> &'static RwLock<bool> {

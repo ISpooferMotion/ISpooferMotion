@@ -54,17 +54,30 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       const un1 = await listen<SpooferStartedPayload>('spoofer-started', (e) => {
         setIsSpoofing(true);
-        setSpoofingLogs('');
+        setSpoofingLogs([]);
         setSpoofProgress(0);
         setActiveSpooferJobId(e.payload.job_id ?? e.payload.jobId);
       });
 
       const un2 = await listen<SpooferLogPayload>('spoofer-log', (e) => {
-        setSpoofingLogs((prev) => appendSpoofingLog(prev, e.payload.message ?? ''));
+        let msg = e.payload.message ?? '';
+        const rawLevel = (e.payload.level || 'info').toUpperCase();
+        
+        // If the message doesn't already have a level prefix like [INFO], [SUCCESS], etc.
+        // we'll inject it so the SpoofingView can colorize it properly.
+        if (!msg.startsWith('[')) {
+          msg = `[${rawLevel}] ${msg}`;
+        }
+        
+        setSpoofingLogs((prev) => appendSpoofingLog(prev, msg));
       });
 
       const un3 = await listen<SpooferProgressPayload>('spoofer-progress', (e) => {
-        setSpoofProgress(e.payload.progress);
+        if (e.payload.progress !== undefined) {
+          setSpoofProgress(e.payload.progress);
+        } else if (e.payload.current !== undefined && e.payload.total !== undefined && e.payload.total > 0) {
+          setSpoofProgress((e.payload.current / e.payload.total) * 100);
+        }
       });
 
       const un4 = await listen<SpooferResultPayload>('spoofer-result', (e) => {
@@ -75,7 +88,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         incrementSpoofCompletionVersion();
 
         if (e.payload.error) {
-          setSpoofingLogs((prev) => appendSpoofingLog(prev, `\n[ERROR]: ${e.payload.error}`));
+          setSpoofingLogs((prev) => appendSpoofingLog(prev, `[ERROR]: ${e.payload.error}`));
         } else if (e.payload.replacements) {
           applyReplacements(e.payload.replacements);
         }

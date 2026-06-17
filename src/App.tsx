@@ -15,7 +15,6 @@ import AssetExplorer from './components/views/AssetExplorer';
 import ConfigView from './components/views/ConfigView';
 import DebugConsole from './components/views/DebugConsole';
 import ExperimentalView from './components/views/ExperimentalView';
-import HomeView from './components/views/HomeView';
 import SettingsView from './components/views/SettingsView';
 import SpoofingView from './components/views/SpoofingView';
 import { useConfig } from './contexts/ConfigContext';
@@ -64,7 +63,13 @@ export default function App() {
           import.meta.env.VITE_API_BASE_URL === undefined
             ? 'https://ispoofermotion.com'
             : import.meta.env.VITE_API_BASE_URL;
-        const res = await fetch(`${baseUrl}/api/config`);
+        let res;
+        if (isTauriRuntime()) {
+          const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+          res = await tauriFetch(`${baseUrl}/api/config`);
+        } else {
+          res = await fetch(`${baseUrl}/api/config`);
+        }
         if (res.ok) {
           const data = await res.json();
           if (data.maintenanceMode) {
@@ -72,7 +77,8 @@ export default function App() {
           }
         }
       } catch (e) {
-        console.error('Failed to fetch app config', e);
+        // use warn instead of error so it doesn't look like a critical bug during local dev
+        console.warn('Could not connect to app config server:', e);
       }
     };
     fetchConfig();
@@ -92,6 +98,38 @@ export default function App() {
     };
     checkStatus();
     const interval = setInterval(checkStatus, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    // Send a heartbeat every 60 seconds to track active spoofer users
+    const sendHeartbeat = async () => {
+      try {
+        const baseUrl =
+          import.meta.env.VITE_API_BASE_URL === undefined
+            ? 'https://ispoofermotion.com'
+            : import.meta.env.VITE_API_BASE_URL;
+        if (isTauriRuntime()) {
+          const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+          await tauriFetch(`${baseUrl}/api/dev/heartbeat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source: 'spoofer' }),
+          });
+        } else {
+          await fetch(`${baseUrl}/api/dev/heartbeat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source: 'spoofer' }),
+          });
+        }
+      } catch (e) {
+        // ignore network errors for heartbeat
+      }
+    };
+
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -251,7 +289,6 @@ export default function App() {
 
               <div className="flex-1 relative overflow-hidden">
                 <AnimatePresence mode="wait" initial={false}>
-                  {activeTab === 'home' && <HomeView key="home" />}
                   {activeTab === 'spoofing' && <SpoofingView key="spoofing" />}
                   {activeTab === 'settings' && <SettingsView key="settings" />}
                   {activeTab === 'config' && <ConfigView key="config" />}

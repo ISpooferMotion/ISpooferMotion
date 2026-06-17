@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "ISpooferMotion",
-  "version": "2.0.0-beta.1",
+  "version": "2.0.0",
   "identifier": "com.github.IncrediDev.ISpooferMotion",
   "build": {
     "frontendDist": "../dist",
@@ -41,7 +41,7 @@
           "$TEMP/**"
         ]
       },
-      "csp": "default-src 'self' ipc: http://ipc.localhost; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https: http: blob: data:; connect-src 'self' http://localhost:* http://127.0.0.1:* https: ipc: http://ipc.localhost tauri: asset:; media-src 'self' asset: https: blob: data:; font-src 'self' data:"
+      "csp": "default-src 'self' ipc: http://ipc.localhost; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * 'self' asset: https: http: blob: data:; connect-src * 'self' http://localhost:* http://127.0.0.1:* https: ipc: http://ipc.localhost tauri: asset:; media-src * 'self' asset: https: blob: data:; font-src 'self' data:"
     }
   },
   "bundle": {

@@ -14,14 +14,14 @@ async fn report_api_url() -> crate::error::Result<String> {
         return Ok(url.clone());
     }
 
-    let dev_url = "http://127.0.0.1:3000";
-    let fallback_url = "http://localhost:3000";
     let prod_url = "https://ispoofermotion.com";
-
+    
     let mut configured = prod_url.to_string();
 
     #[cfg(debug_assertions)]
     {
+        let dev_url = "http://localhost:3000";
+        let fallback_url = "http://127.0.0.1:3000";
         // if we're in debug mode, try hitting the dev server first, then fallback to local or prod
         if crate::utils::get_http_client().get(format!("{dev_url}/api/cache")).send().await.is_ok()
         {

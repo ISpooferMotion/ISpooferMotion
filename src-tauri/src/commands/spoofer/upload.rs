@@ -40,6 +40,8 @@ struct UploadMetadataCreator {
 #[derive(Serialize, specta::Type)]
 struct UploadMetadataCreationContext {
     pub creator: UploadMetadataCreator,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "expectedPrice")]
+    pub expected_price: Option<i64>,
 }
 
 #[derive(Serialize, specta::Type)]
@@ -352,11 +354,17 @@ pub async fn publish_asset_with_progress(
             });
         };
 
+        let expected_price = if asset_type == "Audio" || asset_type == "Video" {
+            Some(0)
+        } else {
+            None
+        };
+
         let mut request_metadata = UploadMetadata {
             asset_type: Some(asset_type.to_string()),
             display_name: name.clone(),
             description: description.clone(),
-            creation_context: Some(UploadMetadataCreationContext { creator }),
+            creation_context: Some(UploadMetadataCreationContext { creator, expected_price }),
             asset_id: None,
         };
 

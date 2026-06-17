@@ -417,7 +417,12 @@ pub fn get_cookie_from_roblox_studio_inner(
 ) -> crate::error::Result<Option<String>> {
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("cmdkey").arg("/list").output()?;
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let output = Command::new("cmdkey")
+            .arg("/list")
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 

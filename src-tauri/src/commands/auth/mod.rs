@@ -324,15 +324,18 @@ pub async fn detect_opencloud_api_key_owner(
     // kinda hacky way to detect the owner: we intentionally fail an upload and parse the error message
     // since the error usually leaks the user id lol
     let payload = serde_json::json!({
-        "assetType": "Audio",
+        "assetType": "Decal",
         "displayName": "ownership-probe",
         "description": "probe",
         "creationContext": { "creator": { "userId": "1" } }
     });
 
-    let part = reqwest::multipart::Part::bytes(vec![0])
-        .file_name("probe.ogg")
-        .mime_str("audio/ogg")
+    let part = reqwest::multipart::Part::bytes(vec![
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2,
+        0, 0, 0, 144, 119, 83, 222, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+    ])
+    .file_name("probe.png")
+    .mime_str("image/png")
         .map_err(|e| crate::error::AppError::Custom(format!("MIME error: {e}")))?;
 
     let form = reqwest::multipart::Form::new()
