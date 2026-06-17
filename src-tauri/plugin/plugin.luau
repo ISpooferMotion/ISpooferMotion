@@ -22,11 +22,11 @@ syncButton.Click:Connect(function()
 		polling = false
 		BASE_URL = nil
 		clearPairingState()
-		syncButton.Text = "Sync to Desktop"
+		syncButton:SetActive(false)
 		print("[ISpooferMotion] Disconnected from Desktop App")
 	else
 		print("[ISpooferMotion] Starting connection to Desktop App...")
-		syncButton.Text = "Unsync from Desktop"
+		syncButton:SetActive(true)
 		startPolling()
 	end
 end)
