@@ -46,7 +46,7 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@codycon/ism-library": "file:./ism-library",
+    "@codycon/ism-library": "file:./ism-library/packages/ui",
     "@floating-ui/react-dom": "^2.1.8",
     "@tanstack/query-core": "^5.101.0",
     "@tanstack/react-query": "^5.101.0",
