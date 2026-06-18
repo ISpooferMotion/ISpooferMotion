@@ -204,10 +204,12 @@ pub async fn start_server(_app_handle: AppHandle) {
             "/health",
             get(|State(state): State<AppState>| async move {
                 let port = *active_bridge_port().read().await;
+                let open = *allow_key_discovery().read().await;
                 Json(json!({
                     "app": "ISpooferMotion",
                     "port": port.unwrap_or(14285),
-                    "startedAt": state.started_at
+                    "startedAt": state.started_at,
+                    "allowStudioPairing": open
                 }))
             }),
         )

@@ -16,6 +16,10 @@ local function decodeJsonResponseBody(response: any): (boolean, any)
 		return true, nil
 	end
 
+	if body == "ok" then
+		return true, { ok = true }
+	end
+
 	if type(body) ~= "string" then
 		return false, nil
 	end

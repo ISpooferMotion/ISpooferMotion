@@ -248,9 +248,14 @@ pub async fn resolve_script_references(
     let mut tasks = Vec::new();
     let app_arc = Arc::new(app);
 
+    let resolved_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
     for asset_id in asset_ids {
         let sem = Arc::clone(&semaphore);
         let cli = Arc::clone(&client);
+        let app_arc_clone = Arc::clone(&app_arc);
+        let count_clone = Arc::clone(&resolved_count);
+        
         tasks.push(tokio::spawn(async move {
             let Ok(_permit) = sem.acquire().await else {
                 return (asset_id, None, false);
@@ -281,7 +286,6 @@ pub async fn resolve_script_references(
                                     3 => Some("sound".to_string()),
                                     1 | 11 | 13 | 2 | 21 | 22 | 38 => Some("image".to_string()),
                                     40 | 43 | 17 | 12 => Some("mesh".to_string()),
-
                                     0 => {
                                         is_false_positive = true;
                                         None
@@ -295,26 +299,28 @@ pub async fn resolve_script_references(
                 }
             }
 
+            let current_resolved = count_clone.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            emit_script_ref_progress(
+                &app_arc_clone,
+                ScriptRefProgress {
+                    resolved: current_resolved,
+                    total,
+                    asset_id: asset_id.clone(),
+                    resolved_category: if is_false_positive {
+                        Some("false_positive".to_string())
+                    } else {
+                        category.clone()
+                    },
+                },
+            );
+
             (asset_id, category, is_false_positive)
         }));
     }
 
     let results = futures_util::future::join_all(tasks).await;
-    for (index, res) in results.into_iter().flatten().enumerate() {
+    for res in results.into_iter().flatten() {
         let (asset_id, category, is_false_positive) = res;
-        emit_script_ref_progress(
-            &app_arc,
-            ScriptRefProgress {
-                resolved: index + 1,
-                total,
-                asset_id: asset_id.clone(),
-                resolved_category: if is_false_positive {
-                    Some("false_positive".to_string())
-                } else {
-                    category.clone()
-                },
-            },
-        );
         if is_false_positive {
             resolved_map.insert(asset_id, "false_positive".to_string());
         } else if let Some(cat) = category {

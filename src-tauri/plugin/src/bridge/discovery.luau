@@ -77,41 +77,41 @@ local function discoverServer(): (boolean, boolean)
 	local pending = 0
 	local results: { { url: string, startedAt: number, health: any } } = {}
 
-	for port = PORT_START, PORT_END do
-		pending += 1
-		local url = "http://127.0.0.1:" .. port
+	local hosts = { "127.0.0.1", "localhost", "127.0.0.1.nip.io" }
 
-		task.spawn(function()
-			local taskOk = pcall(function()
-				local ok, response = pcall(function()
-					return HttpService:RequestAsync({
-						Url = url .. "/health",
-						Method = "GET",
-					})
+	for port = PORT_START, PORT_END do
+		for _, host in ipairs(hosts) do
+			pending += 1
+			local url = "http://" .. host .. ":" .. port
+
+			task.spawn(function()
+				local taskOk = pcall(function()
+					local ok, response = pcall(function()
+						return HttpService:RequestAsync({
+							Url = url .. "/health",
+							Method = "GET",
+						})
+					end)
+
+					if ok and response and response.Success then
+						local decodedOk, decoded = decodeJsonResponseBody(response)
+						if decodedOk and responseLooksLikeAppHealth(decoded) then
+							local startedAt = tonumber(decoded.startedAt) or 0
+							table.insert(results, {
+								url = url,
+								startedAt = startedAt,
+								health = decoded,
+							})
+						end
+					end
 				end)
 
-				if ok and response and response.Success then
-					local decodedOk, decoded = decodeJsonResponseBody(response)
-					if decodedOk and responseLooksLikeAppHealth(decoded) then
-						local startedAt = tonumber(decoded.startedAt) or 0
-						table.insert(results, {
-							url = url,
-							startedAt = startedAt,
-							health = decoded,
-						})
-					end
-				end
+				pending -= 1
 			end)
-
-			if not taskOk then
-				warn("[ISpooferMotion] Discovery probe failed for " .. url)
-			end
-
-			pending -= 1
-		end)
+		end
 	end
 
-	local timeout = os.clock() + 3
+	local timeout = os.clock() + 5
 	while pending > 0 and os.clock() < timeout do
 		task.wait(0.05)
 	end

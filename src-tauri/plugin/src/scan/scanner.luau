@@ -231,9 +231,7 @@ local function scanAssets(): ()
 	local bundledStringClasses = countBundledClasses(STRING_SCAN_PROPERTIES)
 
 	if bundledAssetClasses == 0 then
-		warn(
-			"[ISpooferMotion] Bundled API property tables are empty. Rebuild the plugin with `bun run build:plugin`."
-		)
+		warn("[ISpooferMotion] Bundled API property tables are empty.")
 	else
 		print(
 			string.format(
