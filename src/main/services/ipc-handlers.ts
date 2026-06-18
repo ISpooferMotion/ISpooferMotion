@@ -1228,14 +1228,10 @@ function registerIpcHandlers(
     try {
       const safeText = String(text || '').trim();
       if (!safeText) return { ok: false, error: 'No output text provided.' };
-      pushReplacement(safeText);
-      const pairPattern = /(\d{5,})\s*=\s*(\d{5,})/g;
-      let count = 0;
-      let m;
-      while ((m = pairPattern.exec(safeText))) {
-        if (m[1] !== m[2]) count++;
-      }
-      if (count === 0) return { ok: false, error: 'No replacement pairs found in output.' };
+      
+      const count = pushReplacement(safeText);
+      if (!count || count === 0) return { ok: false, error: 'No replacement pairs found in output.' };
+      
       return { ok: true, count };
     } catch (err) {
       return { ok: false, error: err.message || 'Unknown error' };

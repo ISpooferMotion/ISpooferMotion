@@ -19,9 +19,9 @@ let pendingReplacement = null;
 
 function pushReplacement(text) {
   const trimmed = String(text || '').trim();
-  if (!trimmed) return;
+  if (!trimmed) return 0;
   const pairs = extractReplacementPairs(trimmed);
-  if (pairs.length === 0) return;
+  if (pairs.length === 0) return 0;
   pendingReplacement = {
     text: trimmed,
     pairs,
@@ -30,6 +30,7 @@ function pushReplacement(text) {
   if (DEVELOPER_MODE) {
     console.log(`[LocalhostPlugin] pushReplacement: ${pairs.length} pair(s) queued for Studio.`);
   }
+  return pairs.length;
 }
 
 function resolveIconPath() {
