@@ -1785,6 +1785,7 @@ async function handleSpooferAction(
   }
 
   let hasAuthError = false;
+  let hasPlaceContextError = false;
 
   const maxPlaceIds = data.maxPlaceIds || 200;
   const maxPlaceIdRetries = data.maxPlaceIdRetries || 3;
@@ -2170,7 +2171,7 @@ async function handleSpooferAction(
                     (loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc),
                   )
                 ) {
-                  hasAuthError = true;
+                  hasPlaceContextError = true;
                 }
                 evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
                 break;
@@ -2186,7 +2187,7 @@ async function handleSpooferAction(
                   (loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc),
                 )
               ) {
-                hasAuthError = true;
+                hasPlaceContextError = true;
               }
               evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
               break;
@@ -2850,9 +2851,29 @@ async function handleSpooferAction(
     if (downloadedSuccessfullyCount > 0 && successfulUploadCount === 0) {
       finalOutput = `Downloads successful (${downloadedSuccessfullyCount}/${animationEntries.length}), but no assets were successfully uploaded.\n${runSummary}`;
     } else if (animationEntries.length > 0) {
-      finalOutput = hasAuthError
-        ? 'Authentication failed. Please check your Roblox cookie.'
-        : `No assets were successfully processed to provide mappings. Valid entries were parsed, but every download or upload failed.\n${runSummary}`;
+      if (hasAuthError) {
+        // Real HTTP-level 401/403 on the batch endpoint — the cookie itself is the problem.
+        finalOutput =
+          'Authentication failed. Your ROBLOSECURITY cookie is invalid or expired.\n\n' +
+          'How to fix:\n' +
+          '  1. Open Roblox in your browser and make sure you are logged in.\n' +
+          '  2. Re-copy your .ROBLOSECURITY cookie and paste it into the Cookie field.\n' +
+          '  3. If "Auto detect cookie" is enabled, try disabling it and pasting the cookie manually.\n' +
+          '  4. Note: Roblox rotates cookies after each login — a cookie copied days ago may be expired.\n' +
+          `\n${runSummary}`;
+      } else if (hasPlaceContextError) {
+        // Assets exist and the cookie is fine, but every download was 403'd because
+        // no compatible place context could be found for private/restricted assets.
+        finalOutput =
+          'All assets failed with access denied (403). Your cookie appears valid, but the assets could not be accessed.\n\n' +
+          'This usually means the assets are private or restricted. To fix:\n' +
+          '  • Add an Override Place ID — use a place ID from a game you own or have access to that uses these assets.\n' +
+          '  • Or re-import asset IDs using the Studio plugin scan, which automatically includes place context.\n' +
+          '  • If the asset creator has no public games, the batch API cannot resolve download URLs for their assets.\n' +
+          `\n${runSummary}`;
+      } else {
+        finalOutput = `No assets were successfully processed to provide mappings. Valid entries were parsed, but every download or upload failed.\n${runSummary}`;
+      }
     } else {
       finalOutput = 'No operations performed.';
     }
