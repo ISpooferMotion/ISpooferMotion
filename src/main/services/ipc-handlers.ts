@@ -1785,6 +1785,9 @@ async function handleSpooferAction(
   }
 
   let hasAuthError = false;
+  // True when all batch locations came back access-denied (403) but the HTTP request
+  // itself succeeded — this means the assets are private/restricted, NOT that the cookie
+  // is bad. Keeping it separate prevents a false "check your cookie" message.
   let hasPlaceContextError = false;
 
   const maxPlaceIds = data.maxPlaceIds || 200;
@@ -2171,6 +2174,8 @@ async function handleSpooferAction(
                     (loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc),
                   )
                 ) {
+                  // All locations denied — private assets with wrong/missing place context,
+                  // NOT a cookie problem.
                   hasPlaceContextError = true;
                 }
                 evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
@@ -2187,6 +2192,8 @@ async function handleSpooferAction(
                   (loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc),
                 )
               ) {
+                // Max retries reached and all still access-denied — place context issue,
+                // NOT a cookie problem.
                 hasPlaceContextError = true;
               }
               evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
