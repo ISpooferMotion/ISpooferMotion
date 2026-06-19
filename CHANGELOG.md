@@ -1,10 +1,11 @@
 # Changelog
 
-## v1.3.2
+## v1.3.20
 
 - **Fixed False Positives in Studio Plugin**: Fixed an issue where numeric variables in scripts (like `1000000`) were incorrectly captured as assets due to substring matches (e.g., "Whitelist" matching "hit").
 - **Improved Invalid ID Handling**: The Desktop App now correctly identifies and discards 404 and 400 errors from the Roblox API, preventing invalid IDs from being mistakenly flagged and outputted as private assets.
 - **Variable Name Blacklist**: Added a blacklist to the Studio plugin to completely ignore common non-asset variables (like "Whitelist", "Hitbox", "Pitch", "Volume") during scans.
+- **Anonymous Usage Telemetry (opt-out)**: The app sends an anonymous heartbeat to ispoofermotion.com once a minute to help us understand how many people are using ISpooferMotion. No personal data, cookies, or asset IDs are sent. Can be disabled in Settings → Privacy.
 
 ## v1.3.18
 
