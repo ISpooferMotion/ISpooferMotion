@@ -1228,14 +1228,10 @@ function registerIpcHandlers(
     try {
       const safeText = String(text || '').trim();
       if (!safeText) return { ok: false, error: 'No output text provided.' };
-      pushReplacement(safeText);
-      const pairPattern = /(\d{5,})\s*=\s*(\d{5,})/g;
-      let count = 0;
-      let m;
-      while ((m = pairPattern.exec(safeText))) {
-        if (m[1] !== m[2]) count++;
-      }
-      if (count === 0) return { ok: false, error: 'No replacement pairs found in output.' };
+      
+      const count = pushReplacement(safeText);
+      if (!count || count === 0) return { ok: false, error: 'No replacement pairs found in output.' };
+      
       return { ok: true, count };
     } catch (err) {
       return { ok: false, error: err.message || 'Unknown error' };
@@ -1626,9 +1622,9 @@ async function handleSpooferAction(
   }
 
   if (invalidAssetLines.length || duplicateAssetLines.length) {
-    console.warn(
-      `[INPUT] Processing ${assetEntries.length} valid asset entr${assetEntries.length === 1 ? 'y' : 'ies'}; skipped ${invalidAssetLines.length} invalid and ${duplicateAssetLines.length} duplicate line(s).`,
-    );
+    const msg = `Smart Dedup: ${assetEntries.length} valid entries. Skipped ${duplicateAssetLines.length} duplicates and ${invalidAssetLines.length} invalid lines.`;
+    console.warn(`[INPUT] Processing ${assetEntries.length} valid entries; skipped ${invalidAssetLines.length} invalid and ${duplicateAssetLines.length} duplicate line(s).`);
+    sendStatusMessage(msg);
   }
 
   const animationEntries = assetEntries;
@@ -1789,6 +1785,10 @@ async function handleSpooferAction(
   }
 
   let hasAuthError = false;
+  // True when all batch locations came back access-denied (403) but the HTTP request
+  // itself succeeded — this means the assets are private/restricted, NOT that the cookie
+  // is bad. Keeping it separate prevents a false "check your cookie" message.
+  let hasPlaceContextError = false;
 
   const maxPlaceIds = data.maxPlaceIds || 200;
   const maxPlaceIdRetries = data.maxPlaceIdRetries || 3;
@@ -2174,7 +2174,9 @@ async function handleSpooferAction(
                     (loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc),
                   )
                 ) {
-                  hasAuthError = true;
+                  // All locations denied — private assets with wrong/missing place context,
+                  // NOT a cookie problem.
+                  hasPlaceContextError = true;
                 }
                 evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
                 break;
@@ -2190,7 +2192,9 @@ async function handleSpooferAction(
                   (loc) => !hasBatchLocationSuccess(loc) && hasBatchAccessDeniedErrors(loc),
                 )
               ) {
-                hasAuthError = true;
+                // Max retries reached and all still access-denied — place context issue,
+                // NOT a cookie problem.
+                hasPlaceContextError = true;
               }
               evictPlaceId(placeIdCacheEntries, creatorKey, placeId);
               break;
@@ -2854,9 +2858,29 @@ async function handleSpooferAction(
     if (downloadedSuccessfullyCount > 0 && successfulUploadCount === 0) {
       finalOutput = `Downloads successful (${downloadedSuccessfullyCount}/${animationEntries.length}), but no assets were successfully uploaded.\n${runSummary}`;
     } else if (animationEntries.length > 0) {
-      finalOutput = hasAuthError
-        ? 'Authentication failed. Please check your Roblox cookie.'
-        : `No assets were successfully processed to provide mappings. Valid entries were parsed, but every download or upload failed.\n${runSummary}`;
+      if (hasAuthError) {
+        // Real HTTP-level 401/403 on the batch endpoint — the cookie itself is the problem.
+        finalOutput =
+          'Authentication failed. Your ROBLOSECURITY cookie is invalid or expired.\n\n' +
+          'How to fix:\n' +
+          '  1. Open Roblox in your browser and make sure you are logged in.\n' +
+          '  2. Re-copy your .ROBLOSECURITY cookie and paste it into the Cookie field.\n' +
+          '  3. If "Auto detect cookie" is enabled, try disabling it and pasting the cookie manually.\n' +
+          '  4. Note: Roblox rotates cookies after each login — a cookie copied days ago may be expired.\n' +
+          `\n${runSummary}`;
+      } else if (hasPlaceContextError) {
+        // Assets exist and the cookie is fine, but every download was 403'd because
+        // no compatible place context could be found for private/restricted assets.
+        finalOutput =
+          'All assets failed with access denied (403). Your cookie appears valid, but the assets could not be accessed.\n\n' +
+          'This usually means the assets are private or restricted. To fix:\n' +
+          '  • Add an Override Place ID — use a place ID from a game you own or have access to that uses these assets.\n' +
+          '  • Or re-import asset IDs using the Studio plugin scan, which automatically includes place context.\n' +
+          '  • If the asset creator has no public games, the batch API cannot resolve download URLs for their assets.\n' +
+          `\n${runSummary}`;
+      } else {
+        finalOutput = `No assets were successfully processed to provide mappings. Valid entries were parsed, but every download or upload failed.\n${runSummary}`;
+      }
     } else {
       finalOutput = 'No operations performed.';
     }

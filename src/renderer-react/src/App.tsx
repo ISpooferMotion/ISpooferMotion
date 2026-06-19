@@ -29,6 +29,24 @@ export default function App() {
     fetchConfig();
   }, []);
 
+  useEffect(() => {
+    const sendHeartbeat = async () => {
+      try {
+        await fetch('https://ispoofermotion.com/api/dev/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: 'spoofer' }),
+        });
+      } catch (e) {
+        // ignore network errors
+      }
+    };
+
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   if (maintenance.mode) {
     return (
       <Flex direction="column" align="center" justify="center" h="100vh" w="100vw" bg="discord.background" color="discord.text" p={8} textAlign="center">

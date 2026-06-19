@@ -341,7 +341,7 @@ async function collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie,
   return { places: state.suggestions, errors, pagesRequested };
 }
 
-async function getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 200) {
+async function getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 1000) {
   const result = await collectPlaceSuggestionsForCreator(
     creatorType,
     creatorId,
@@ -358,7 +358,7 @@ async function getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds
   return rootPlaces;
 }
 
-async function getPlaceSuggestionsFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 200) {
+async function getPlaceSuggestionsFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 1000) {
   return collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie, maxPlaceIds);
 }
 
@@ -535,10 +535,28 @@ async function getPlaceIdsFromAllUserContext(
   return results;
 }
 
+async function getPlaceIdFromUniverseId(universeId, cookie) {
+  const normalizedUniverseId = normalizeNumericId(universeId);
+  if (!normalizedUniverseId) return null;
+
+  const robloxSession = createRobloxSession(cookie);
+  try {
+    const details = await fetchUniverseDetailsByIds([normalizedUniverseId], robloxSession);
+    const detail = details.get(normalizedUniverseId);
+    if (detail && detail.rootPlaceId) {
+      return String(detail.rootPlaceId);
+    }
+  } catch (error) {
+    debugWarn('(Dev) Could not resolve place ID from universe ID:', error.message);
+  }
+  return null;
+}
+
 module.exports = {
   getPlaceIdFromCreator,
   getPlaceSuggestionsFromCreator,
   getPlaceSuggestionByPlaceId,
+  getPlaceIdFromUniverseId,
   getGroupsForUser,
   getFriendsForUser,
   getPlaceIdsFromAllUserContext,

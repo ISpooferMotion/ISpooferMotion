@@ -19,9 +19,9 @@ let pendingReplacement = null;
 
 function pushReplacement(text) {
   const trimmed = String(text || '').trim();
-  if (!trimmed) return;
+  if (!trimmed) return 0;
   const pairs = extractReplacementPairs(trimmed);
-  if (pairs.length === 0) return;
+  if (pairs.length === 0) return 0;
   pendingReplacement = {
     text: trimmed,
     pairs,
@@ -30,6 +30,7 @@ function pushReplacement(text) {
   if (DEVELOPER_MODE) {
     console.log(`[LocalhostPlugin] pushReplacement: ${pairs.length} pair(s) queued for Studio.`);
   }
+  return pairs.length;
 }
 
 function resolveIconPath() {
@@ -169,19 +170,9 @@ function formatAssetsForInput(assets, kind = '') {
   const rawKind = String(kind || '').trim();
   const normalizedKind = rawKind ? normalizeScanKind(rawKind) : '';
   const body = assets
-    .filter((asset) => asset.assetId && asset.creatorId)
+    .filter((asset) => asset.assetId)
     .map((asset) => {
-      const assetTypeName =
-        normalizeAssetTypeName(asset.assetTypeName || asset.assetType) ||
-        (normalizedKind === 'sound'
-          ? 'Audio'
-          : normalizedKind === 'animation'
-            ? 'Animation'
-            : '');
-      const typeToken = assetTypeName
-        ? ` [Type:${assetTypeName === 'Audio' ? 'Sound' : 'Animation'}]`
-        : '';
-      const base = `[${asset.assetId}] [${cleanText(asset.name, asset.assetId)}] [${asset.creatorType}:${asset.creatorId}]${typeToken}`;
+      const base = `[${asset.assetId}] [${cleanText(asset.name || 'Unknown', asset.assetId)}] [${asset.creatorType || 'User'}:${asset.creatorId || '2'}]`;
       return appendPlaceContextToLine(base);
     })
     .join('\n');
@@ -266,21 +257,23 @@ async function fetchSingleAssetDetail(id, placeId, session, attempt = 1) {
     const fetchFn = session ? (u, o) => session.fetch(u, o) : fetch;
     const response = await fetchFn(url, { headers, signal, includeCookie: false });
 
-    if (response.status === 429 && attempt <= 5) {
-      await new Promise((r) => setTimeout(r, 1000 * attempt));
+    if (response.status === 429 && attempt <= 1) {
+      await new Promise((r) => setTimeout(r, 500));
       return fetchSingleAssetDetail(id, placeId, session, attempt + 1);
     }
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      return { error: true, status: response.status, id };
+    }
 
     const json = await response.json();
-    return json && json.AssetId ? json : null;
+    return json && json.AssetId ? json : { error: true, status: 404, id };
   } catch (err) {
-    if (attempt <= 5 && err.name !== 'AbortError') {
-      await new Promise((r) => setTimeout(r, 1000 * attempt));
+    if (attempt <= 1 && err.name !== 'AbortError') {
+      await new Promise((r) => setTimeout(r, 500));
       return fetchSingleAssetDetail(id, placeId, session, attempt + 1);
     }
-    return null;
+    return { error: true, status: 0, id };
   }
 }
 
@@ -305,7 +298,7 @@ async function batchResolveMetadata(
     seen.add(s);
     if (s[0] === '0') return false;
     const len = s.length;
-    return len >= 7 && len <= 15;
+    return len >= 1 && len <= 15;
   });
 
   let processedCount = 0;
@@ -320,7 +313,10 @@ async function batchResolveMetadata(
       processedCount++;
       if (onProgress) onProgress(processedCount, ids.length);
 
-      if (!item) {
+      if (!item || item.error) {
+        if (item && (item.status === 404 || item.status === 400)) {
+          continue;
+        }
         if (confirmedIds.has(String(id))) {
           privateIds.push(id);
         }
@@ -345,7 +341,12 @@ async function batchResolveMetadata(
       );
 
       const strCreatorId = String(creatorId || '');
-      if (!strCreatorId || strCreatorId === '0' || strCreatorId === '1') continue;
+      if (!strCreatorId || strCreatorId === '0' || strCreatorId === '1') {
+        if (confirmedIds.has(String(id))) {
+          privateIds.push(id);
+        }
+        continue;
+      }
 
       results.push({
         assetId: String(item.AssetId || id),
@@ -406,7 +407,7 @@ async function batchResolveMetadata(
 
 async function handleScanPayload(payload, callbacks) {
   const kind = normalizeScanKind(payload?.kind || payload?.type || payload?.scanType);
-  const placeId = normalizePlaceId(payload?.placeId || payload?.PlaceId || payload?.game?.placeId);
+  let placeId = normalizePlaceId(payload?.placeId || payload?.PlaceId || payload?.game?.placeId);
   const names = payload?.names && typeof payload.names === 'object' ? payload.names : {};
   const assetTypes =
     payload?.assetTypes && typeof payload.assetTypes === 'object' ? payload.assetTypes : {};
@@ -427,6 +428,22 @@ async function handleScanPayload(payload, callbacks) {
         const cookie = await getCookieFromAutoDetect();
 
         let fallbackCreator = { creatorType: 'User', creatorId: '' };
+
+        // Instant resolution of unpublished Team Create place IDs
+        const gameId = normalizePlaceId(payload?.gameId || payload?.game?.gameId);
+        if (!placeId && gameId && cookie) {
+          try {
+            const { getPlaceIdFromUniverseId } = require('./assets');
+            const resolvedPlaceId = await getPlaceIdFromUniverseId(gameId, cookie);
+            if (resolvedPlaceId) {
+              placeId = resolvedPlaceId;
+              if (DEVELOPER_MODE) console.log(`[LocalhostPlugin] Instantly resolved GameId ${gameId} to PlaceId ${placeId}`);
+            }
+          } catch (e) {
+            console.warn(`[LocalhostPlugin] Failed to resolve GameId ${gameId} to PlaceId`, e.message);
+          }
+        }
+
         if (payload.gameCreatorId && String(payload.gameCreatorId) !== '0') {
           fallbackCreator = {
             creatorType: payload.gameCreatorType === 1 ? 'Group' : 'User',
