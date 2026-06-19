@@ -390,39 +390,29 @@ end
 
 local function collectIdsFromSource(source, ids, defaultObjName, checkYield, kind)
 	local animationKeywords = {
-		"anim",
-		"walk",
-		"run",
-		"idle",
-		"jump",
-		"fall",
-		"climb",
-		"swim",
-		"sit",
-		"dance",
-		"shoot",
-		"fire",
-		"reload",
-		"equip",
-		"slash",
-		"swing",
-		"throw",
-		"cast",
-		"death",
-		"die",
-		"hurt",
-		"hit",
-		"attack",
-		"load",
-		"play",
+		-- Core
+		"anim", "track", "clip", "motion", "gesture", "stance", "pose", "action", "move", "seq", "sequence",
+		-- Movement
+		"idle", "walk", "run", "sprint", "dash", "dodge", "roll", "jump", "fall", "land", "climb", "swim", "crouch", "crawl", "slide", "dive", "fly", "hover", "glide", "strafe",
+		-- Combat Melee
+		"punch", "kick", "slash", "swing", "stab", "thrust", "block", "parry", "strike", "bash", "slam", "sweep", "smash", "attack", "combo",
+		-- Combat Ranged
+		"shoot", "fire", "reload", "aim", "recoil", "pump", "chamber", "throw", "toss", "lob", "equip", "unequip", "hold",
+		-- Magic & Skills
+		"cast", "spell", "magic", "skill", "ability", "ult", "special", "heal", "buff", "aura", "blast", "burst",
+		-- Reactions & States
+		"death", "die", "dead", "hurt", "hit", "damage", "stun", "flinch", "stagger", "knock", "ragdoll", "emote",
+		-- General
+		"use", "interact", "load", "play"
 	}
 	
 	local soundKeywords = {
-		"sound",
-		"audio",
-		"music",
-		"track",
-		"play",
+		-- Core
+		"sound", "audio", "music", "track", "play", "sfx", "bgm", "ost", "song", "loop", "noise", "voice",
+		-- Speech
+		"dialogue", "dial", "talk", "chat", "bark", "roar", "scream",
+		-- Impacts & FX
+		"step", "footstep", "impact", "clash", "whoosh", "swish", "bang", "boom", "pop", "click", "ui", "hover", "press", "fx"
 	}
 
 	local actionKeywords = {}
@@ -443,22 +433,11 @@ local function collectIdsFromSource(source, ids, defaultObjName, checkYield, kin
 		end
 	end
 
-	local blacklist = {
-		"whitelist", "hitbox", "white", "pitch", "volume", 
-		"color", "size", "position", "cframe", "offset", 
-		"multiplier", "velocity", "force", "damage", "health"
-	}
-
 	local function hasActionKeyword(text)
 		if not text then
 			return false
 		end
 		local t = text:lower()
-		for _, bw in ipairs(blacklist) do
-			if t:find(bw, 1, true) then
-				return false
-			end
-		end
 		for _, kw in ipairs(actionKeywords) do
 			if t:find(kw, 1, true) then
 				return true
@@ -471,8 +450,18 @@ local function collectIdsFromSource(source, ids, defaultObjName, checkYield, kin
 	local len = #source
 	local finds = 0
 
+	-- Global 'return { ... }' module parsing for modules named with keywords
+	if hasActionKeyword(defaultObjName) then
+		local retContent = source:match("return%s*%{([^}]*)%}")
+		if retContent then
+			for tblId in retContent:gmatch("(%d+)") do
+				addId(ids, tblId, defaultObjName, false)
+			end
+		end
+	end
+
 	while init <= len do
-		local s, e, id = source:find("(%d%d%d%d%d%d%d+)", init)
+		local s, e, id = source:find("(%d+)", init)
 		if not s then
 			break
 		end
@@ -488,41 +477,36 @@ local function collectIdsFromSource(source, ids, defaultObjName, checkYield, kin
 		local confirmed = false
 		local name = defaultObjName
 
-		local varName = context:match("([%a_][%w_]*)%s*=%s*['\"]?r?b?x?a?s?s?e?t?i?d?:///?['\"]?$")
-		if not varName then
-			varName = context:match("([%a_][%w_]*)%s*=%s*['\"]?$")
-		end
-		if not varName then
-			varName = context:match("([%a_][%w_]*)%s*%(['\"]?r?b?x?a?s?s?e?t?i?d?:///?['\"]?$")
-		end
-		if not varName then
-			varName = context:match("([%a_][%w_]*)%s*%(['\"]?$")
-		end
+		local lineStart = context:match("[^\r\n]*$") or context
+		local isExplicitUri = lineStart:match("rbxassetid://%s*$") 
+			or lineStart:match("asset/?%?id=%s*$") 
+			or lineStart:match("roblox%.com/asset/?%?id=%s*$")
+			or lineStart:match("LoadAnimation%s*%($")
+			or lineStart:match("PreloadAsync%s*%($")
+			or lineStart:match("PlayLocalSound%s*%($")
 
-		if varName and hasActionKeyword(varName) then
+		if isExplicitUri then
 			confirmed = true
-			name = varName
 		else
-			local dictName = context:match("([%a_][%w_]*)%s*=%s*%{[^}]*$")
-			if dictName and hasActionKeyword(dictName) then
-				confirmed = true
-				name = dictName
-			else
-				local lineStart = context:match("[^\r\n]*$") or context
-				if hasActionKeyword(lineStart) then
-					if
-						lineStart:match("rbxassetid://%s*$")
-						or lineStart:match("asset/?%?id=%s*$")
-						or lineStart:match("id%s*=%s*['\"]?$")
-					then
-						addId(ids, id, defaultObjName, false)
-					end
+			local words = {}
+			for word in context:gmatch("[%a_][%w_]*") do
+				table.insert(words, word)
+			end
+			
+			local checkCount = math.min(4, #words)
+			for i = #words, #words - checkCount + 1, -1 do
+				if hasActionKeyword(words[i]) then
+					confirmed = true
+					name = words[i]
+					break
 				end
 			end
 		end
 
 		if confirmed then
 			addId(ids, id, name, true)
+		elseif #id >= 6 then
+			addId(ids, id, "Unknown (No Keyword)", false)
 		end
 
 		init = e + 1
@@ -596,8 +580,10 @@ local function collectIdsFromObject(obj, ids, checkYield, kind)
 		local ok, v = pcall(function()
 			return obj.Value
 		end)
-		if ok then
-			addId(ids, v, objName, false)
+		if ok and type(v) == "string" then
+			for idStr in v:gmatch("(%d+)") do
+				addId(ids, idStr, objName, false)
+			end
 		end
 	elseif obj:IsA("NumberValue") or obj:IsA("IntValue") then
 		local ok, v = pcall(function()
@@ -633,7 +619,13 @@ local function collectIdsFromObject(obj, ids, checkYield, kind)
 	end)
 	if okA and attrs then
 		for _, attrVal in pairs(attrs) do
-			addNestedIds(ids, attrVal, nil, objName, false)
+			if type(attrVal) == "string" then
+				for idStr in attrVal:gmatch("(%d+)") do
+					addId(ids, idStr, objName, false)
+				end
+			else
+				addNestedIds(ids, attrVal, nil, objName, false)
+			end
 		end
 	end
 end

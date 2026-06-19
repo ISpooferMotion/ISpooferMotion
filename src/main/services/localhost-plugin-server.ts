@@ -257,8 +257,8 @@ async function fetchSingleAssetDetail(id, placeId, session, attempt = 1) {
     const fetchFn = session ? (u, o) => session.fetch(u, o) : fetch;
     const response = await fetchFn(url, { headers, signal, includeCookie: false });
 
-    if (response.status === 429 && attempt <= 5) {
-      await new Promise((r) => setTimeout(r, 1000 * attempt));
+    if (response.status === 429 && attempt <= 1) {
+      await new Promise((r) => setTimeout(r, 500));
       return fetchSingleAssetDetail(id, placeId, session, attempt + 1);
     }
 
@@ -269,8 +269,8 @@ async function fetchSingleAssetDetail(id, placeId, session, attempt = 1) {
     const json = await response.json();
     return json && json.AssetId ? json : { error: true, status: 404, id };
   } catch (err) {
-    if (attempt <= 5 && err.name !== 'AbortError') {
-      await new Promise((r) => setTimeout(r, 1000 * attempt));
+    if (attempt <= 1 && err.name !== 'AbortError') {
+      await new Promise((r) => setTimeout(r, 500));
       return fetchSingleAssetDetail(id, placeId, session, attempt + 1);
     }
     return { error: true, status: 0, id };
@@ -298,7 +298,7 @@ async function batchResolveMetadata(
     seen.add(s);
     if (s[0] === '0') return false;
     const len = s.length;
-    return len >= 7 && len <= 15;
+    return len >= 1 && len <= 15;
   });
 
   let processedCount = 0;
@@ -341,7 +341,12 @@ async function batchResolveMetadata(
       );
 
       const strCreatorId = String(creatorId || '');
-      if (!strCreatorId || strCreatorId === '0' || strCreatorId === '1') continue;
+      if (!strCreatorId || strCreatorId === '0' || strCreatorId === '1') {
+        if (confirmedIds.has(String(id))) {
+          privateIds.push(id);
+        }
+        continue;
+      }
 
       results.push({
         assetId: String(item.AssetId || id),
@@ -423,6 +428,22 @@ async function handleScanPayload(payload, callbacks) {
         const cookie = await getCookieFromAutoDetect();
 
         let fallbackCreator = { creatorType: 'User', creatorId: '' };
+
+        // Instant resolution of unpublished Team Create place IDs
+        const gameId = normalizePlaceId(payload?.gameId || payload?.game?.gameId);
+        if (!placeId && gameId && cookie) {
+          try {
+            const { getPlaceIdFromUniverseId } = require('./assets');
+            const resolvedPlaceId = await getPlaceIdFromUniverseId(gameId, cookie);
+            if (resolvedPlaceId) {
+              placeId = resolvedPlaceId;
+              if (DEVELOPER_MODE) console.log(`[LocalhostPlugin] Instantly resolved GameId ${gameId} to PlaceId ${placeId}`);
+            }
+          } catch (e) {
+            console.warn(`[LocalhostPlugin] Failed to resolve GameId ${gameId} to PlaceId`, e.message);
+          }
+        }
+
         if (payload.gameCreatorId && String(payload.gameCreatorId) !== '0') {
           fallbackCreator = {
             creatorType: payload.gameCreatorType === 1 ? 'Group' : 'User',

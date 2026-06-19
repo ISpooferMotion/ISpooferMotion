@@ -341,7 +341,7 @@ async function collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie,
   return { places: state.suggestions, errors, pagesRequested };
 }
 
-async function getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 200) {
+async function getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 1000) {
   const result = await collectPlaceSuggestionsForCreator(
     creatorType,
     creatorId,
@@ -358,7 +358,7 @@ async function getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds
   return rootPlaces;
 }
 
-async function getPlaceSuggestionsFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 200) {
+async function getPlaceSuggestionsFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 1000) {
   return collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie, maxPlaceIds);
 }
 
@@ -539,6 +539,7 @@ module.exports = {
   getPlaceIdFromCreator,
   getPlaceSuggestionsFromCreator,
   getPlaceSuggestionByPlaceId,
+  getPlaceIdFromUniverseId,
   getGroupsForUser,
   getFriendsForUser,
   getPlaceIdsFromAllUserContext,
