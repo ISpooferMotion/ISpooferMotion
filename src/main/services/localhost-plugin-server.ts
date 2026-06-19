@@ -407,7 +407,7 @@ async function batchResolveMetadata(
 
 async function handleScanPayload(payload, callbacks) {
   const kind = normalizeScanKind(payload?.kind || payload?.type || payload?.scanType);
-  const placeId = normalizePlaceId(payload?.placeId || payload?.PlaceId || payload?.game?.placeId);
+  let placeId = normalizePlaceId(payload?.placeId || payload?.PlaceId || payload?.game?.placeId);
   const names = payload?.names && typeof payload.names === 'object' ? payload.names : {};
   const assetTypes =
     payload?.assetTypes && typeof payload.assetTypes === 'object' ? payload.assetTypes : {};

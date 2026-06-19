@@ -535,6 +535,23 @@ async function getPlaceIdsFromAllUserContext(
   return results;
 }
 
+async function getPlaceIdFromUniverseId(universeId, cookie) {
+  const normalizedUniverseId = normalizeNumericId(universeId);
+  if (!normalizedUniverseId) return null;
+
+  const robloxSession = createRobloxSession(cookie);
+  try {
+    const details = await fetchUniverseDetailsByIds([normalizedUniverseId], robloxSession);
+    const detail = details.get(normalizedUniverseId);
+    if (detail && detail.rootPlaceId) {
+      return String(detail.rootPlaceId);
+    }
+  } catch (error) {
+    debugWarn('(Dev) Could not resolve place ID from universe ID:', error.message);
+  }
+  return null;
+}
+
 module.exports = {
   getPlaceIdFromCreator,
   getPlaceSuggestionsFromCreator,
