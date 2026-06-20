@@ -346,6 +346,8 @@ local function isValidId(id)
 	end
 	local len = #tostring(math.floor(math.abs(n)))
 	return len >= 7 and len <= 15
+end
+
 local function addId(ids, value, objName, isConfirmed, assetTypeName)
 	local text = tostring(value or "")
 	for id in text:gmatch("(%d+)") do
