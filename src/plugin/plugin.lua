@@ -1,6 +1,7 @@
 local HttpService = game:GetService("HttpService")
 local CollectionService = game:GetService("CollectionService")
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local PLUGIN_VERSION = "__ISPOOFERMOTION_VERSION__"
 if PLUGIN_VERSION:match("^__") then
@@ -345,8 +346,6 @@ local function isValidId(id)
 	end
 	local len = #tostring(math.floor(math.abs(n)))
 	return len >= 7 and len <= 15
-end
-
 local function addId(ids, value, objName, isConfirmed, assetTypeName)
 	local text = tostring(value or "")
 	for id in text:gmatch("(%d+)") do
@@ -1057,62 +1056,7 @@ local function collectHumanoidDescriptionAnimationIds(obj, ids)
 	end
 end
 
-local function collectIdsFromObject(obj, ids)
-	local objName = obj.Name or "Unknown"
-	local props = getWritableProperties(obj.ClassName)
-	if #props > 0 then
-		for _, propName in ipairs(props) do
-			addPropertyIdsFromObject(obj, propName, ids)
-		end
-	else
-		if obj:IsA("Animation") then
-			addId(ids, obj.AnimationId, objName)
-		elseif obj:IsA("Sound") then
-			addId(ids, obj.SoundId, objName)
-			addPropertyIdsFromObject(obj, "AudioContent", ids)
-		elseif obj:IsA("AudioPlayer") then
-			addPropertyIdsFromObject(obj, "Asset", ids)
-			addPropertyIdsFromObject(obj, "AssetId", ids)
-			addPropertyIdsFromObject(obj, "AudioContent", ids)
-		end
-	end
 
-	if obj:IsA("HumanoidDescription") then
-		collectHumanoidDescriptionAnimationIds(obj, ids)
-	elseif obj:IsA("LuaSourceContainer") then
-		local ok, source = pcall(function()
-			return obj.Source
-		end)
-		if ok and source then
-			collectIdsFromSource(source, ids)
-		end
-	elseif obj:IsA("StringValue") or obj:IsA("IntValue") or obj:IsA("NumberValue") then
-		local ok, value = pcall(function()
-			return obj.Value
-		end)
-		if ok then
-			addId(ids, value, objName)
-		end
-	end
-
-	local okAttributes, attributes = pcall(function()
-		return obj:GetAttributes()
-	end)
-	if okAttributes and attributes then
-		for _, attributeValue in pairs(attributes) do
-			addNestedIds(ids, attributeValue, nil, objName)
-		end
-	end
-
-	local okTags, tags = pcall(function()
-		return CollectionService:GetTags(obj)
-	end)
-	if okTags and tags then
-		for _, tag in ipairs(tags) do
-			addId(ids, tag, objName)
-		end
-	end
-end
 
 local function sortedIds(idsMap)
 	local list = {}

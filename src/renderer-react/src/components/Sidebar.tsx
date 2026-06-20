@@ -42,7 +42,7 @@ export default function Sidebar({ currentView, setCurrentView }: { currentView: 
   };
 
   return (
-    <Flex direction="column" h="100%" bg="discord.sidebar" align="center" py="12px" gap="8px" sx={{ WebkitAppRegion: 'drag' } as any}>
+    <Flex direction="column" h="100%" bg="discord.sidebar" backdropFilter="blur(20px)" borderRight="1px solid" borderColor="discord.border" align="center" py="12px" gap="8px" sx={{ WebkitAppRegion: 'drag' } as any}>
       <VStack spacing="8px" flex={1} sx={{ WebkitAppRegion: 'no-drag' } as any}>
         <ServerButton id="spoofer" icon={Wand2} />
         <ServerButton id="activity" icon={Activity} />

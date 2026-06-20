@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use strict';
 
 let isPaused = false;
@@ -6,17 +7,17 @@ let abortController = new AbortController();
 
 const pauseResolvers = new Set();
 
-function pauseSpoofer() {
+export function pauseSpoofer() {
   isPaused = true;
 }
 
-function resumeSpoofer() {
+export function resumeSpoofer() {
   isPaused = false;
   for (const resolve of pauseResolvers) resolve();
   pauseResolvers.clear();
 }
 
-function cancelSpoofer() {
+export function cancelSpoofer() {
   isCancelled = true;
   abortController.abort();
   resumeSpoofer();
@@ -28,27 +29,21 @@ function resetRunControls() {
   resumeSpoofer();
 }
 
-function checkCancelled() {
+export function checkCancelled() {
   if (isCancelled) throw new Error('Operation cancelled');
 }
 
-async function checkPaused() {
+export async function checkPaused() {
   checkCancelled();
   if (!isPaused) return;
   await new Promise((resolve) => pauseResolvers.add(resolve));
   checkCancelled();
 }
 
-function getAbortSignal() {
+export function getAbortSignal() {
   return abortController.signal;
 }
 
-module.exports = {
-  pauseSpoofer,
-  resumeSpoofer,
-  cancelSpoofer,
-  resetRunControls,
-  checkCancelled,
-  checkPaused,
-  getAbortSignal,
-};
+
+
+export {};

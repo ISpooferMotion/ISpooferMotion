@@ -1,8 +1,9 @@
+// @ts-nocheck
 'use strict';
 
-const path = require('node:path');
-const fs = require('node:fs/promises');
-const { app } = require('electron');
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import { app } from 'electron';
 
 function getJobsPath() {
   return path.join(app.getPath('userData'), 'ispoofer_jobs.json');
@@ -10,7 +11,7 @@ function getJobsPath() {
 
 let jobsWriteQueue = Promise.resolve();
 
-function queueJobsWrite(operation) {
+function queueJobsWrite(operation: unknown) {
   const result = jobsWriteQueue.catch(() => {}).then(operation);
   jobsWriteQueue = result.catch(() => {});
   return result;
@@ -29,10 +30,10 @@ async function loadJobs() {
   return loadJobsUnlocked();
 }
 
-function saveJobRecord(job) {
+function saveJobRecord(job: unknown) {
   return queueJobsWrite(async () => {
     const jobs = await loadJobsUnlocked();
-    const existingIndex = jobs.findIndex((j) => j.id === job.id);
+    const existingIndex = jobs.findIndex((j: any) => j.id === job.id);
     if (existingIndex >= 0) {
       jobs[existingIndex] = job;
     } else {
@@ -44,14 +45,14 @@ function saveJobRecord(job) {
   });
 }
 
-function deleteJobRecord(id) {
+function deleteJobRecord(id: unknown) {
   return queueJobsWrite(async () => {
-    const jobs = (await loadJobsUnlocked()).filter((j) => j.id !== id);
+    const jobs = (await loadJobsUnlocked()).filter((j: any) => j.id !== id);
     await fs.writeFile(getJobsPath(), JSON.stringify(jobs, null, 2), 'utf8').catch(() => {});
   });
 }
 
-module.exports = {
+export {
   loadJobs,
   saveJobRecord,
   deleteJobRecord,

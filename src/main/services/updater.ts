@@ -1,11 +1,12 @@
 'use strict';
 
-const { app, dialog, shell } = require('electron');
-const https = require('https');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { spawn } = require('child_process');
+import { app, dialog, shell } from 'electron';
+import https from 'https';
+import fs from 'fs';
+import { promises as fsPromises } from 'fs';
+import path from 'path';
+import os from 'os';
+import { spawn } from 'child_process';
 
 
 const USER_AGENT = `ISpooferMotion-Electron-App/${app.getVersion()} (+https://github.com/IncrediDev/ISpooferMotion)`;
@@ -14,13 +15,13 @@ const REPO_NAME = 'ISpooferMotion';
 const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`;
 const REQUEST_TIMEOUT_MS = 15000;
 
-function getVersionFromNameOrTag(value) {
+function getVersionFromNameOrTag(value: any) {
   const match = String(value || '').match(/v?\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?/i);
   if (!match) return null;
   return /^v/i.test(match[0]) ? match[0] : `v${match[0]}`;
 }
 
-function parseVersionParts(value) {
+function parseVersionParts(value: any) {
   const match = String(value || '').match(
     /v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z][0-9A-Za-z.-]*))?/i,
   );
@@ -31,7 +32,7 @@ function parseVersionParts(value) {
   };
 }
 
-function compareVersions(a, b) {
+function compareVersions(a: any, b: any) {
   const left = parseVersionParts(a);
   const right = parseVersionParts(b);
   if (!left || !right) return 0;
@@ -66,7 +67,7 @@ function compareVersions(a, b) {
   return 0;
 }
 
-function requestJson(url, depth = 0) {
+function requestJson(url: any, depth = 0): Promise<any> {
   return new Promise((resolve, reject) => {
     if (depth > 5) return reject(new Error('Too many redirects'));
     const req = https.get(
@@ -77,7 +78,7 @@ function requestJson(url, depth = 0) {
           Accept: 'application/vnd.github+json',
         },
       },
-      (res) => {
+      (res: any) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           return resolve(requestJson(res.headers.location, depth + 1));
         }
@@ -86,7 +87,7 @@ function requestJson(url, depth = 0) {
         }
         let body = '';
         res.setEncoding('utf8');
-        res.on('data', (chunk) => {
+        res.on('data', (chunk: any) => {
           body += chunk;
         });
         res.on('end', () => {
@@ -103,7 +104,7 @@ function requestJson(url, depth = 0) {
   });
 }
 
-function downloadFile(url, destination, depth = 0) {
+function downloadFile(url: any, destination: any, depth = 0): Promise<any> {
   return new Promise((resolve, reject) => {
     if (depth > 5) return reject(new Error('Too many redirects'));
     const req = https.get(
@@ -111,7 +112,7 @@ function downloadFile(url, destination, depth = 0) {
       {
         headers: { 'User-Agent': USER_AGENT },
       },
-      (res) => {
+      (res: any) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           return resolve(downloadFile(res.headers.location, destination, depth + 1));
         }
@@ -124,7 +125,7 @@ function downloadFile(url, destination, depth = 0) {
           file.close();
           resolve(destination);
         });
-        file.on('error', (err) => {
+        file.on('error', (err: any) => {
           fs.unlink(destination, () => {});
           reject(err);
         });
@@ -135,7 +136,7 @@ function downloadFile(url, destination, depth = 0) {
   });
 }
 
-async function promptUpdateFailed(err, releaseUrl) {
+async function promptUpdateFailed(err: any, releaseUrl: any) {
   const { response } = await dialog.showMessageBox({
     type: 'error',
     title: 'Update Failed',
@@ -164,7 +165,7 @@ function getRobloxPluginsDir() {
   return null;
 }
 
-async function applyUpdate(downloadPath) {
+async function applyUpdate(downloadPath: any) {
   if (process.platform === 'darwin') {
     shell.openPath(downloadPath);
     app.quit();
@@ -174,8 +175,7 @@ async function applyUpdate(downloadPath) {
   if (process.platform === 'linux') {
     if (downloadPath.endsWith('.AppImage')) {
       try {
-        const fsSync = require('fs');
-        fsSync.chmodSync(downloadPath, '755');
+        fs.chmodSync(downloadPath, '755');
       } catch {}
     }
     shell.showItemInFolder(downloadPath);
@@ -196,7 +196,6 @@ async function applyUpdate(downloadPath) {
     'del "%~f0"',
   ].join('\r\n') + '\r\n';
 
-  const fsPromises = require('fs/promises');
   await fsPromises.writeFile(scriptPath, scriptContent, 'utf8');
 
   const child = spawn('cmd.exe', ['/c', scriptPath], {
@@ -237,11 +236,11 @@ async function checkForUpdates(force = false) {
     if (process.platform === 'darwin') extension = '.dmg';
     else if (process.platform === 'linux') extension = '.AppImage';
 
-    const osAsset = release.assets.find((a) =>
+    const osAsset = release.assets.find((a: any) =>
       a.name.toLowerCase().endsWith(extension.toLowerCase()),
     );
 
-    const pluginAsset = release.assets.find((a) => a.name.toLowerCase().endsWith('.rbxmx'));
+    const pluginAsset = release.assets.find((a: any) => a.name.toLowerCase().endsWith('.rbxmx'));
 
     if (!osAsset) {
       throw new Error(`No update executable found for ${process.platform}.`);
@@ -255,7 +254,6 @@ async function checkForUpdates(force = false) {
       try {
         const pluginsDir = getRobloxPluginsDir();
         if (pluginsDir) {
-          const fsPromises = require('fs/promises');
           await fsPromises.mkdir(pluginsDir, { recursive: true });
           const pluginPath = path.join(pluginsDir, pluginAsset.name);
           await downloadFile(pluginAsset.browser_download_url, pluginPath);
@@ -272,6 +270,6 @@ async function checkForUpdates(force = false) {
   }
 }
 
-module.exports = {
+export {
   checkForUpdates,
 };

@@ -1,7 +1,7 @@
-const path = require('node:path');
-const { app, BrowserWindow, Notification, nativeImage } = require('electron');
+import path from 'node:path';
+import { app, BrowserWindow, Notification, nativeImage } from 'electron';
 
-let mainWindow = null;
+let mainWindow: BrowserWindow | null = null;
 
 const WINDOW_OPTIONS = Object.freeze({
   width: 1280,
@@ -15,7 +15,7 @@ const WINDOW_OPTIONS = Object.freeze({
   backgroundColor: '#0a0a0a',
 });
 
-function resolveAssetPath(fileName) {
+function resolveAssetPath(fileName: string) {
   const assetPath = path.join(__dirname, '..', 'src', 'assets', fileName);
   return app.isPackaged ? assetPath.replace('app.asar', 'app.asar.unpacked') : assetPath;
 }
@@ -27,7 +27,7 @@ function getIconPath() {
 }
 
 function getPreloadPath() {
-  return path.join(__dirname, '..', 'src', 'preload', 'preload.js');
+  return path.join(__dirname, 'preload.js');
 }
 
 function getRendererPath() {
@@ -63,7 +63,7 @@ function createWindow() {
     mainWindow = null;
   });
 
-  mainWindow.loadFile(getRendererPath()).catch((error) => {
+  mainWindow.loadFile(getRendererPath()).catch((error: unknown) => {
     console.error('[WINDOW ERROR] Failed to load renderer:', error);
   });
 
@@ -98,7 +98,7 @@ function setupAppLifecycle() {
   return ready;
 }
 
-module.exports = {
+export {
   createWindow,
   getMainWindow,
   setupAppLifecycle,

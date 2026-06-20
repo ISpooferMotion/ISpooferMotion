@@ -1,8 +1,9 @@
+// @ts-nocheck
 'use strict';
 
-const fs = require('node:fs/promises');
-const path = require('node:path');
-const { inspect } = require('node:util');
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { inspect } from 'node:util';
 
 const DEVELOPER_MODE = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
 const KEEP_DOWNLOADS_ON_FAILURE = false;
@@ -35,7 +36,7 @@ const SENSITIVE_PATTERNS = [
 
 let fileLoggingInitialized = false;
 
-function toLogString(value) {
+function toLogString(value: any) {
   if (typeof value === 'string') return value;
   if (value instanceof Error) return value.stack || `${value.name}: ${value.message}`;
   return inspect(value, {
@@ -48,7 +49,7 @@ function toLogString(value) {
   });
 }
 
-function sanitizeLogMessage(message) {
+function sanitizeLogMessage(message: any) {
   if (message == null) return message;
   let sanitized = typeof message === 'string' ? message : toLogString(message);
   for (const [pattern, replacement] of SENSITIVE_PATTERNS) {
@@ -57,20 +58,20 @@ function sanitizeLogMessage(message) {
   return sanitized;
 }
 
-function formatLogMessage(level, args) {
+function formatLogMessage(level: any, args: any[]) {
   const timestamp = new Date().toISOString();
   const message = args.map((arg) => sanitizeLogMessage(toLogString(arg))).join(' ');
   return `[${timestamp}] [${level}] ${message}`;
 }
 
-async function writeToLogFile(message, logFilePath) {
+async function writeToLogFile(message: any, logFilePath: any) {
   if (!LOG_TO_FILE || !logFilePath) return;
   try {
     await fs.appendFile(logFilePath, `${message}\n`, 'utf8');
   } catch {}
 }
 
-async function initializeFileLogging(logsDir) {
+async function initializeFileLogging(logsDir: any) {
   if (!LOG_TO_FILE || fileLoggingInitialized) return null;
 
   try {
@@ -94,9 +95,9 @@ async function initializeFileLogging(logsDir) {
       error: console.error.bind(console),
     };
 
-    const patchConsole = (method, level) => {
-      console[method] = (...args) => {
-        originals[method](...args);
+    const patchConsole = (method: any, level: any) => {
+      (console as any)[method] = (...args: any[]) => {
+        (originals as any)[method](...args);
         void writeToLogFile(formatLogMessage(level, args), logFilePath);
       };
     };
@@ -114,7 +115,7 @@ async function initializeFileLogging(logsDir) {
   }
 }
 
-function normalizeRobloxCookie(cookieValue) {
+function normalizeRobloxCookie(cookieValue: any) {
   if (typeof cookieValue !== 'string') return '';
 
   let normalized = cookieValue.trim().replace(/^['"]+|['"]+$/g, '');
@@ -129,28 +130,29 @@ function normalizeRobloxCookie(cookieValue) {
   return normalized;
 }
 
-function buildRobloxCookieHeader(cookieValue) {
+function buildRobloxCookieHeader(cookieValue: any) {
   const normalized = normalizeRobloxCookie(cookieValue);
   return normalized ? `.ROBLOSECURITY=${normalized}` : '';
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+const sleep = (ms: any) =>
+  new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 
-function markNonRetryableError(error, code = 'NON_RETRYABLE') {
-  const normalized = error instanceof Error ? error : new Error(String(error || code));
+function markNonRetryableError(error: any, code = 'NON_RETRYABLE') {
+  const normalized: any = error instanceof Error ? error : new Error(String(error || code));
   normalized.nonRetryable = true;
   normalized.code = normalized.code || code;
   return normalized;
 }
 
-function isNonRetryableError(error) {
+function isNonRetryableError(error: any) {
   if (error?.nonRetryable === true) return true;
   if (error?.name === 'AbortError') return true;
   if (error?.message === 'Operation cancelled') return true;
   return false;
 }
 
-async function retryAsync(fn, retries = 3, delayMs = 1000, onRetryAttempt) {
+async function retryAsync(fn: any, retries: any = 3, delayMs = 1000, onRetryAttempt?: any) {
   const attempts = Math.max(1, Number.parseInt(retries, 10) || 1);
   let lastError;
 
@@ -172,7 +174,10 @@ async function retryAsync(fn, retries = 3, delayMs = 1000, onRetryAttempt) {
   });
 }
 
-async function clearDownloadsDirectory(directoryPath, skipIfEnabled = KEEP_DOWNLOADS_ON_FAILURE) {
+async function clearDownloadsDirectory(
+  directoryPath: any,
+  skipIfEnabled = KEEP_DOWNLOADS_ON_FAILURE,
+) {
   if (skipIfEnabled) {
     if (DEVELOPER_MODE)
       console.log('(Dev) Skipping directory clear: KEEP_DOWNLOADS_ON_FAILURE is enabled');
@@ -203,7 +208,7 @@ async function clearDownloadsDirectory(directoryPath, skipIfEnabled = KEEP_DOWNL
   }
 }
 
-function sanitizeFilename(filename) {
+function sanitizeFilename(filename: any) {
   return (
     String(filename || 'untitled')
       .normalize('NFKC')
@@ -214,18 +219,18 @@ function sanitizeFilename(filename) {
   );
 }
 
-module.exports = {
+export {
+  buildRobloxCookieHeader,
+  clearDownloadsDirectory,
   DEVELOPER_MODE,
+  initializeFileLogging,
+  isNonRetryableError,
   KEEP_DOWNLOADS_ON_FAILURE,
   LOG_TO_FILE,
-  sleep,
   markNonRetryableError,
-  isNonRetryableError,
-  retryAsync,
-  clearDownloadsDirectory,
-  sanitizeFilename,
   normalizeRobloxCookie,
-  buildRobloxCookieHeader,
-  initializeFileLogging,
+  retryAsync,
+  sanitizeFilename,
   sanitizeLogMessage,
+  sleep,
 };

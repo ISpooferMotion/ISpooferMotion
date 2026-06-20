@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Flex, Box, Text, IconButton, Menu, MenuButton, MenuList, MenuItem, Button, Tooltip, Image } from '@chakra-ui/react';
+import { Flex, Box, Text, IconButton, Menu, MenuButton, MenuList, MenuItem, Button, Tooltip, Image, Portal } from '@chakra-ui/react';
 import { Minus, X, ChevronDown } from 'lucide-react';
 import appIcon from '../assets/app_icon.png';
 
@@ -53,7 +53,7 @@ export default function TopBar() {
     : 'Profile 1';
 
   return (
-    <Flex h="100%" pl="16px" justify="space-between" align="center" sx={{ WebkitAppRegion: 'drag' } as any} borderBottom="1px solid" borderColor="discord.border" bg="discord.topbar">
+    <Flex h="100%" pl="16px" justify="space-between" align="center" sx={{ WebkitAppRegion: 'drag' } as any} borderBottom="1px solid" borderColor="discord.border" bg="discord.topbar" backdropFilter="blur(10px)">
       <Flex gap="12px" align="center">
         <Image src={appIcon} boxSize="20px" borderRadius="4px" />
         <Text fontWeight={800} fontSize="13px" color="discord.text" letterSpacing="0.5px" textTransform="uppercase">ISpooferMotion</Text>
@@ -66,28 +66,34 @@ export default function TopBar() {
             {activeProfileName}
           </MenuButton>
 
-          <MenuList bg="discord.inputDark" borderColor="discord.border" zIndex={10} p="8px" borderRadius="8px" boxShadow="0 8px 16px rgba(0,0,0,0.24)">
-            <Box px="12px" py="8px"><Text fontSize="11px" fontWeight={800} color="discord.darkMuted" textTransform="uppercase" letterSpacing="0.5px">Profiles</Text></Box>
-            {Object.entries(profilesInfo.profiles).map(([id, profile]: [string, any]) => (
-              <MenuItem
-                key={id}
-                bg="transparent"
-                _hover={{ bg: 'brand.500', color: 'brand.contrast', borderRadius: '4px' }}
-                onClick={async () => {
-                  await (window as any).electronAPI?.saveProfileSecrets?.({
-                    action: 'setActive',
-                    profileId: id,
-                  });
-                  setProfilesInfo((prev) => ({ ...prev, activeId: id }));
-                  window.dispatchEvent(new Event('profile-changed'));
-                }}
-                px="12px" py="8px" mb="2px"
-                color="discord.muted"
-              >
-                <Text fontSize="13px" fontWeight={500}>{profile.name || 'Unnamed Profile'}</Text>
-              </MenuItem>
-            ))}
-          </MenuList>
+          <Portal>
+            <MenuList bg="discord.inputDark" borderColor="discord.border" zIndex={1000} p="8px" borderRadius="8px" boxShadow="0 8px 16px rgba(0,0,0,0.24)">
+              <Box px="12px" py="8px"><Text fontSize="11px" fontWeight={800} color="discord.darkMuted" textTransform="uppercase" letterSpacing="0.5px">Profiles</Text></Box>
+              {Object.entries(profilesInfo.profiles).map(([id, profile]: [string, any]) => (
+                <MenuItem
+                  key={id}
+                  bg="transparent"
+                  _hover={{ bg: 'brand.500', color: 'brand.contrast', borderRadius: '4px' }}
+                  onClick={async () => {
+                    await (window as any).electronAPI?.saveProfileSecrets?.({
+                      action: 'setActive',
+                      profileId: id,
+                    });
+                    setProfilesInfo((prev) => ({ ...prev, activeId: id }));
+                    window.dispatchEvent(new Event('profile-changed'));
+                  }}
+                  px="12px" py="8px" mb="2px"
+                  color="discord.muted"
+                  fontWeight={500}
+                >
+                  <Flex align="center" gap="8px">
+                    <Box w="6px" h="6px" borderRadius="50%" bg={id === profilesInfo.activeId ? 'brand.500' : 'transparent'} />
+                    {profile.name}
+                  </Flex>
+                </MenuItem>
+              ))}
+            </MenuList>
+          </Portal>
         </Menu>
 
         <Tooltip label="Discord" placement="bottom" hasArrow bg="discord.inputDark" color="discord.muted" borderRadius="4px" fontSize="12px" px="10px" py="4px">

@@ -134,7 +134,7 @@ export default function SettingsView({ isActive }: { isActive: boolean }) {
           <VStack spacing="20px" align="stretch">
             <HStack mb="-8px"><Paintbrush size={18} color="discord.muted" /><Text fontWeight={800} color="discord.text" fontSize="16px">Appearance</Text></HStack>
             <Box h="1px" w="100%" bg="discord.border" />
-            <HStack justify="space-between" align="center" bg="discord.card" p="16px" borderRadius="8px" border="1px solid" borderColor="discord.border">
+            <HStack justify="space-between" align="center" bg="discord.card" borderRadius="8px" border="1px solid" borderColor="discord.border" p="16px">
               <Text fontSize="14px" color="discord.text" fontWeight={500}>Accent Color</Text>
               <input 
                 ref={colorInputRef}
@@ -149,7 +149,7 @@ export default function SettingsView({ isActive }: { isActive: boolean }) {
           <VStack spacing="20px" align="stretch">
             <HStack mb="-8px"><Bell size={18} color="discord.muted" /><Text fontWeight={800} color="discord.text" fontSize="16px">Notifications</Text></HStack>
             <Box h="1px" w="100%" bg="discord.border" />
-            <HStack justify="space-between" align="center" bg="discord.card" p="16px" borderRadius="8px" border="1px solid" borderColor="discord.border">
+            <HStack justify="space-between" align="center" bg="discord.card" borderRadius="8px" border="1px solid" borderColor="discord.border" p="16px">
               <Text fontSize="14px" color="discord.text" fontWeight={500}>Enable Desktop Notifications</Text>
               <Switch
                 colorScheme="brand"
@@ -166,7 +166,7 @@ export default function SettingsView({ isActive }: { isActive: boolean }) {
             <HStack mb="-8px"><UploadCloud size={18} color="discord.muted" /><Text fontWeight={800} color="discord.text" fontSize="16px">Upload Settings</Text></HStack>
             <Box h="1px" w="100%" bg="discord.border" />
             
-            <HStack spacing="16px" p="20px" bg="discord.card" borderRadius="8px" align="stretch" border="1px solid" borderColor="discord.border">
+            <HStack spacing="16px" p="20px" bg="discord.card" borderRadius="8px" border="1px solid" borderColor="discord.border" align="stretch">
               <Box flex={1}>
                 <Text fontSize="12px" color="discord.darkMuted" textTransform="uppercase" fontWeight={800} mb="8px" letterSpacing="0.5px">Retries</Text>
                 <NumberInput size="sm" min={1} max={10} value={uploadRetries} onChange={(_, val) => { setUploadRetries(val || 3); updateSetting('uploadRetries', val || 3); }}>
@@ -183,13 +183,13 @@ export default function SettingsView({ isActive }: { isActive: boolean }) {
               </Box>
             </HStack>
             
-            <HStack justify="space-between" align="center" bg="discord.card" p="16px" borderRadius="8px" border="1px solid" borderColor="discord.border">
+            <HStack justify="space-between" align="center" bg="discord.card" borderRadius="8px" border="1px solid" borderColor="discord.border" p="16px">
               <Text fontSize="14px" color="discord.text" fontWeight={500}>Rename on Upload</Text>
               <Switch colorScheme="brand" isChecked={renameToggle} onChange={(e) => { setRenameToggle(e.target.checked); updateSetting('renameToggle', e.target.checked); }} />
             </HStack>
             
             <Collapse in={renameToggle} animateOpacity>
-              <VStack spacing="16px" p="20px" bg="discord.card" borderRadius="8px" align="stretch" border="1px solid" borderColor="discord.border">
+              <VStack spacing="16px" p="20px" bg="discord.card" borderRadius="8px" border="1px solid" borderColor="discord.border" align="stretch">
                 <Box>
                   <Text fontSize="12px" color="discord.darkMuted" textTransform="uppercase" fontWeight={800} mb="8px" letterSpacing="0.5px">Name Prefix</Text>
                   <Input size="sm" value={renamePrefix} onChange={(e) => { setRenamePrefix(e.target.value); updateSetting('renamePrefix', e.target.value); }} bg="discord.input" border="none" color="discord.text" borderRadius="4px" h="40px" _focus={{ boxShadow: 'none', border: '1px solid', borderColor: 'discord.muted' }} />
@@ -234,21 +234,6 @@ export default function SettingsView({ isActive }: { isActive: boolean }) {
                 </Box>
               </HStack>
             </Collapse>
-
-            <HStack justify="space-between" align="center" bg="discord.card" p="16px" borderRadius="8px" border="1px solid" borderColor="discord.border">
-              <Box>
-                <Text fontSize="14px" color="discord.text" fontWeight={500}>Share Cache Data</Text>
-                <Text fontSize="12px" color="discord.muted" mt="2px">Help improve asset discovery by sharing resolved asset/place ID pairs with ISpooferMotion servers.</Text>
-              </Box>
-              <Switch
-                colorScheme="brand"
-                isChecked={shareCacheData}
-                onChange={(e) => {
-                  setShareCacheData(e.target.checked);
-                  updateSetting('shareCacheData', e.target.checked);
-                }}
-              />
-            </HStack>
           </VStack>
 
           <VStack spacing="20px" align="stretch" mt="16px">
@@ -269,6 +254,21 @@ export default function SettingsView({ isActive }: { isActive: boolean }) {
                 }}
               />
             </HStack>
+            
+            <HStack justify="space-between" align="center" bg="discord.card" p="16px" borderRadius="8px" border="1px solid" borderColor="discord.border">
+              <Box flex={1} mr="16px">
+                <Text fontSize="14px" color="discord.text" fontWeight={500}>Share Cache Data</Text>
+                <Text fontSize="12px" color="discord.muted" mt="2px">Help improve asset discovery by sharing resolved asset/place ID pairs with ISpooferMotion servers.</Text>
+              </Box>
+              <Switch
+                colorScheme="brand"
+                isChecked={shareCacheData}
+                onChange={(e) => {
+                  setShareCacheData(e.target.checked);
+                  updateSetting('shareCacheData', e.target.checked);
+                }}
+              />
+            </HStack>
           </VStack>
 
           <VStack spacing="20px" align="stretch" mt="16px">
@@ -276,8 +276,13 @@ export default function SettingsView({ isActive }: { isActive: boolean }) {
             <Box h="1px" w="100%" bg="discord.border" />
             <HStack spacing="12px">
               <Button size="sm" bg="discord.card" color="discord.text" border="1px solid" borderColor="discord.border" _hover={{ bg: 'discord.input', color: 'discord.text' }} onClick={async () => await (window as any).electronAPI?.clearAppCache?.()} h="36px" px="16px" borderRadius="4px" leftIcon={<Trash2 size={16} />}>Clear App Data</Button>
-              <Button size="sm" variant="ghost" bg="discord.card" color="discord.text" _hover={{ bg: 'discord.input' }} onClick={() => (window as any).electronAPI?.openDataFolder?.()} h="36px" px="16px" borderRadius="4px" leftIcon={<FolderSearch size={16} />}>Open Data Folder</Button>
-              <Button size="sm" variant="ghost" bg="discord.card" color="discord.text" _hover={{ bg: 'discord.input' }} onClick={() => (window as any).electronAPI?.openLogsFolder?.()} h="36px" px="16px" borderRadius="4px" leftIcon={<FolderSearch size={16} />}>Open Logs Folder</Button>
+              <Button size="sm" bg="discord.card" color="discord.text" border="1px solid" borderColor="discord.border" _hover={{ bg: 'discord.input', color: 'discord.text' }} onClick={() => (window as any).electronAPI?.openDataFolder?.()} h="36px" px="16px" borderRadius="4px" leftIcon={<FolderSearch size={16} />}>Open Data Folder</Button>
+              <Button size="sm" bg="discord.card" color="discord.text" border="1px solid" borderColor="discord.border" _hover={{ bg: 'discord.input', color: 'discord.text' }} onClick={() => (window as any).electronAPI?.openLogsFolder?.()} h="36px" px="16px" borderRadius="4px" leftIcon={<FolderSearch size={16} />}>Open Logs Folder</Button>
+              <Button size="sm" bg="#da373c" color="white" border="none" _hover={{ bg: '#a12828' }} onClick={async () => {
+                if (window.confirm('Are you sure you want to uninstall ISpooferMotion?')) {
+                  await (window as any).electronAPI?.uninstallApp?.();
+                }
+              }} h="36px" px="16px" borderRadius="4px" leftIcon={<Trash2 size={16} />}>Uninstall App</Button>
             </HStack>
           </VStack>
 

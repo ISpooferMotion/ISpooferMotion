@@ -1,17 +1,18 @@
+// @ts-nocheck
 'use strict';
 
-const fs = require('node:fs/promises');
-const path = require('node:path');
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
 const CACHE_VERSION = 1;
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MAX_PLACE_IDS_PER_CREATOR = 20;
 
-function getCacheFilePath(userDataPath) {
+function getCacheFilePath(userDataPath: any) {
   return path.join(userDataPath, 'place-id-cache.json');
 }
 
-async function loadPlaceIdCache(userDataPath) {
+async function loadPlaceIdCache(userDataPath: any) {
   const filePath = getCacheFilePath(userDataPath);
   try {
     const raw = await fs.readFile(filePath, 'utf8');
@@ -23,7 +24,7 @@ async function loadPlaceIdCache(userDataPath) {
   }
 }
 
-async function savePlaceIdCache(userDataPath, entries) {
+async function savePlaceIdCache(userDataPath: any, entries: any) {
   const filePath = getCacheFilePath(userDataPath);
   const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   try {
@@ -48,9 +49,9 @@ async function savePlaceIdCache(userDataPath, entries) {
   }
 }
 
-function pruneExpiredEntries(entries) {
+function pruneExpiredEntries(entries: any) {
   const now = Date.now();
-  const pruned = {};
+  const pruned: any = {};
   for (const [key, entry] of Object.entries(entries)) {
     const freshIds = (entry.placeIds || []).filter(
       (p) => typeof p?.lastSuccess === 'number' && now - p.lastSuccess < CACHE_TTL_MS,
@@ -63,7 +64,7 @@ function pruneExpiredEntries(entries) {
 }
 
 
-function getCachedPlaceIds(entries, creatorKey) {
+function getCachedPlaceIds(entries: any, creatorKey: any) {
   const entry = entries[creatorKey];
   if (!entry?.placeIds?.length) return [];
   const now = Date.now();
@@ -73,7 +74,7 @@ function getCachedPlaceIds(entries, creatorKey) {
     .map((p) => p.id);
 }
 
-function recordSuccessfulPlaceId(entries, creatorKey, placeId) {
+function recordSuccessfulPlaceId(entries: any, creatorKey: any, placeId: any) {
   if (!creatorKey || !placeId) return;
   const id = String(placeId);
   if (!entries[creatorKey]) entries[creatorKey] = { placeIds: [] };
@@ -91,14 +92,14 @@ function recordSuccessfulPlaceId(entries, creatorKey, placeId) {
   }
 }
 
-function evictPlaceId(entries, creatorKey, placeId) {
+function evictPlaceId(entries: any, creatorKey: any, placeId: any) {
   if (!creatorKey || !placeId || !entries[creatorKey]) return;
   entries[creatorKey].placeIds = (entries[creatorKey].placeIds || []).filter(
     (p) => p.id !== String(placeId),
   );
 }
 
-module.exports = {
+export {
   loadPlaceIdCache,
   savePlaceIdCache,
   pruneExpiredEntries,

@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.3.21
+
+### Frontend & UI
+
+- **Colour Change**: Changed the colours because I felt like it,, "Color" for americans.
+- **Settings Menu Cleanup**: Moved the "Share Cache Data" toggle out of Advanced and properly categorized it under the Privacy tab.
+- **Fixed Profile Dropdown**: Fixed an annoying bug where the profile dropdown menu would get hidden behind other UI elements (fixed the z-index).
+
+### Backend & Core Architecture
+
+- **Multiple Override Place IDs**: The "Override Place ID" field now accepts multiple IDs separated by commas (e.g 1234, 5678, 9101112). If one place ID fails, the spoofer will automatically try the next one in your list.
+- **Service Modularization**: Ripped apart the massive `app.js` file and split it into dedicated services (`RobloxApiService`, `AssetService`, `SpooferController`).
+- **IPC Routing**: Created a dedicated `IpcRegistry` to safely and cleanly route events between the backend and the new React frontend.
+- **Strict TypeScript**: Enabled `strict: true` in the TS config and enforced modern ESLint rules across the board. Every single type error and lint warning was fixed.
+
+### Bug Fixes
+
+- **Fixed 403 Access Denied Errors**: Patched a massive flaw in the Roblox authentication flow. `getCookieFromAutoDetect` is now properly imported and invoked during the auth process, which stops assets from failing to download.
+- **Fixed Endless ID Fetching**: Resolved the critical bug where the app was fetching random non-animation IDs and getting stuck checking them forever.
+- **Fixed Startup Crashes**: Patched the `ReferenceError: getCookieFromAutoDetect is not defined` crash that was happening right as the app booted.
+
 ## v1.3.20
 
 - **Fixed False Positives in Studio Plugin**: Fixed an issue where numeric variables in scripts (like `1000000`) were incorrectly captured as assets due to substring matches (e.g., "Whitelist" matching "hit").

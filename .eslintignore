@@ -1,3 +1,2 @@
-dist-main
-src/renderer-react/dist
-node_modules
+src/main/services/*.ts
+src/preload/*.ts

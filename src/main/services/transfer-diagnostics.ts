@@ -1,25 +1,25 @@
 'use strict';
 
-const crypto = require('node:crypto');
-const path = require('node:path');
-const fs = require('node:fs/promises');
+import crypto from 'node:crypto';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import { app } from 'electron';
 
 const MAX_TRANSFER_DIAGNOSTICS = 10;
 
-function getTransferDiagnosticsDirectory(userDataPath = null) {
+function getTransferDiagnosticsDirectory(userDataPath: any = null) {
   if (userDataPath) return path.join(userDataPath, 'failed-transfer-diagnostics');
-  const { app } = require('electron');
   return path.join(app.getPath('userData'), 'failed-transfer-diagnostics');
 }
 
-function sanitizeDiagnosticSegment(value, fallback = 'unknown') {
+function sanitizeDiagnosticSegment(value: any, fallback = 'unknown') {
   const safeValue = String(value || fallback)
     .replace(/[^a-zA-Z0-9._-]+/g, '_')
     .slice(0, 80);
   return safeValue || fallback;
 }
 
-function getSourceHostname(sourceUrl) {
+function getSourceHostname(sourceUrl: any) {
   try {
     return new URL(String(sourceUrl || '')).hostname;
   } catch {
@@ -27,24 +27,24 @@ function getSourceHostname(sourceUrl) {
   }
 }
 
-async function pruneTransferDiagnostics(directoryPath, maxEntries = MAX_TRANSFER_DIAGNOSTICS) {
+async function pruneTransferDiagnostics(directoryPath: any, maxEntries: any = MAX_TRANSFER_DIAGNOSTICS) {
   const diagnosticsDir = path.resolve(directoryPath);
   await fs.mkdir(diagnosticsDir, { recursive: true });
   const entries = await fs.readdir(diagnosticsDir, { withFileTypes: true });
   const directories = entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
+    .filter((entry: any) => entry.isDirectory())
+    .map((entry: any) => entry.name)
     .sort()
     .reverse();
 
   await Promise.all(
     directories
       .slice(Math.max(0, Number(maxEntries) || MAX_TRANSFER_DIAGNOSTICS))
-      .map((name) => fs.rm(path.join(diagnosticsDir, name), { recursive: true, force: true })),
+      .map((name: any) => fs.rm(path.join(diagnosticsDir, name), { recursive: true, force: true })),
   );
 }
 
-async function recordFailedTransferDiagnostic(details = {}, directoryPath = null) {
+async function recordFailedTransferDiagnostic(details: any = {}, directoryPath: any = null) {
   const diagnosticsDir = path.resolve(directoryPath || getTransferDiagnosticsDirectory());
   const timestamp = new Date().toISOString();
   const recordName = [
@@ -100,14 +100,14 @@ async function recordFailedTransferDiagnostic(details = {}, directoryPath = null
   }
 }
 
-async function clearTransferDiagnostics(directoryPath = null) {
+async function clearTransferDiagnostics(directoryPath: any = null) {
   const diagnosticsDir = path.resolve(directoryPath || getTransferDiagnosticsDirectory());
   await fs.rm(diagnosticsDir, { recursive: true, force: true });
   await fs.mkdir(diagnosticsDir, { recursive: true });
   return true;
 }
 
-module.exports = {
+export {
   MAX_TRANSFER_DIAGNOSTICS,
   clearTransferDiagnostics,
   getTransferDiagnosticsDirectory,

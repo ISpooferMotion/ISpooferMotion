@@ -1,13 +1,13 @@
 'use strict';
 
-const { buildRobloxCookieHeader, normalizeRobloxCookie } = require('./common');
+import { buildRobloxCookieHeader, normalizeRobloxCookie } from './common';
 
 const ROBLOX_COOKIE_ROLLOUT_URL =
   'https://devforum.roblox.com/t/upcoming-roblosecurity-cookie-format-changes/4328913';
 
 const sessionsByCookie = new Map();
 
-function getSetCookieHeaders(response) {
+function getSetCookieHeaders(response: Response) {
   if (!response?.headers) return [];
   if (typeof response.headers.getSetCookie === 'function') {
     return response.headers.getSetCookie();
@@ -17,7 +17,7 @@ function getSetCookieHeaders(response) {
   return combined ? [combined] : [];
 }
 
-function extractRotatedRobloxCookie(response) {
+function extractRotatedRobloxCookie(response: Response) {
   for (const header of getSetCookieHeaders(response)) {
     const match = String(header).match(/(?:^|,\s*)\.ROBLOSECURITY=([^;,\r\n]+)/i);
     const cookie = normalizeRobloxCookie(match?.[1] || '');
@@ -27,13 +27,16 @@ function extractRotatedRobloxCookie(response) {
 }
 
 class RobloxSession {
-  constructor(cookie) {
+  cookie: string;
+  cookieRotatedListeners: Map<unknown, (cookie: string) => void>;
+
+  constructor(cookie: string) {
     this.cookie = '';
     this.cookieRotatedListeners = new Map();
     this.setCookie(cookie);
   }
 
-  addCookieRotatedListener(listener, listenerKey = listener) {
+  addCookieRotatedListener(listener: (cookie: string) => void, listenerKey: unknown = listener) {
     if (typeof listener === 'function') this.cookieRotatedListeners.set(listenerKey, listener);
     return this;
   }
@@ -42,7 +45,7 @@ class RobloxSession {
     return buildRobloxCookieHeader(this.cookie);
   }
 
-  setCookie(cookie) {
+  setCookie(cookie: string) {
     const normalized = normalizeRobloxCookie(cookie);
     if (!normalized || normalized === this.cookie) return false;
 
@@ -53,7 +56,7 @@ class RobloxSession {
     return true;
   }
 
-  absorbResponse(response) {
+  absorbResponse(response: Response) {
     const rotatedCookie = extractRotatedRobloxCookie(response);
     if (!rotatedCookie || !this.setCookie(rotatedCookie)) return false;
 
@@ -65,7 +68,7 @@ class RobloxSession {
     return true;
   }
 
-  async fetch(url, options = {}, requestOptions = {}) {
+  async fetch(url: string | URL | Request, options: RequestInit = {}, requestOptions: { includeCookie?: boolean } = {}) {
     const headers = new Headers(options.headers || {});
     if (requestOptions.includeCookie !== false) {
       const cookieHeader = this.getCookieHeader();
@@ -81,10 +84,10 @@ class RobloxSession {
   }
 }
 
-function createRobloxSession(cookieOrSession, options = {}) {
+function createRobloxSession(cookieOrSession: string | RobloxSession, options: { onCookieRotated?: (cookie: string) => void, cookieRotatedListenerKey?: unknown } = {}) {
   if (cookieOrSession instanceof RobloxSession) {
     return cookieOrSession.addCookieRotatedListener(
-      options.onCookieRotated,
+      options.onCookieRotated!,
       options.cookieRotatedListenerKey,
     );
   }
@@ -92,12 +95,12 @@ function createRobloxSession(cookieOrSession, options = {}) {
   const normalized = normalizeRobloxCookie(cookieOrSession);
   const session = sessionsByCookie.get(normalized) || new RobloxSession(normalized);
   return session.addCookieRotatedListener(
-    options.onCookieRotated,
+    options.onCookieRotated!,
     options.cookieRotatedListenerKey,
   );
 }
 
-function describeRobloxAuthStatus(status) {
+function describeRobloxAuthStatus(status: number | string) {
   if (Number(status) === 401) {
     return `Roblox rejected the session cookie (401). Sign in again so the app can receive the rotated cookie required by Roblox's 2026 rollout: ${ROBLOX_COOKIE_ROLLOUT_URL}`;
   }
@@ -107,7 +110,7 @@ function describeRobloxAuthStatus(status) {
   return '';
 }
 
-module.exports = {
+export {
   ROBLOX_COOKIE_ROLLOUT_URL,
   RobloxSession,
   createRobloxSession,

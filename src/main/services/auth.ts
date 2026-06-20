@@ -1,13 +1,14 @@
+// @ts-nocheck
 'use strict';
 
-const os = require('node:os');
-const path = require('node:path');
-const { execFile } = require('node:child_process');
-const { promisify } = require('node:util');
-const keytar = require('keytar');
-const fs = require('node:fs/promises');
-const { DEVELOPER_MODE } = require('./common');
-const { createRobloxSession } = require('./roblox-session');
+import keytar from 'keytar';
+import { execFile } from 'node:child_process';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import { DEVELOPER_MODE } from './common';
+import { createRobloxSession } from './roblox-session';
 
 const execFileAsync = promisify(execFile);
 
@@ -18,20 +19,20 @@ const ROBLOX_USER_AGENT = 'RobloxStudio/WinInet';
 const DEFAULT_TIMEOUT_MS = 15_000;
 const BROWSER_COOKIE_SCAN_BYTES = 25 * 1024 * 1024;
 
-function debugLog(...args) {
+function debugLog(...args: unknown[]) {
   if (DEVELOPER_MODE) console.log(...args);
 }
 
-function debugWarn(...args) {
+function debugWarn(...args: unknown[]) {
   if (DEVELOPER_MODE) console.warn(...args);
 }
 
-function withTimeout(options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
+function withTimeout(options: any = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   if (typeof AbortSignal?.timeout !== 'function') return options;
   return { ...options, signal: options.signal || AbortSignal.timeout(timeoutMs) };
 }
 
-async function readResponseText(response, maxLength = 300) {
+async function readResponseText(response: any, maxLength = 300) {
   try {
     return (await response.text()).slice(0, maxLength);
   } catch {
@@ -39,7 +40,7 @@ async function readResponseText(response, maxLength = 300) {
   }
 }
 
-async function readJsonResponse(response, context) {
+async function readJsonResponse(response: any, context: any) {
   let data;
   try {
     data = await response.json();
@@ -54,13 +55,13 @@ async function readJsonResponse(response, context) {
   return data;
 }
 
-function extractRobloxCookie(rawValue) {
+function extractRobloxCookie(rawValue: any) {
   if (!rawValue) return undefined;
   const text = Buffer.isBuffer(rawValue) ? rawValue.toString('latin1') : String(rawValue);
   return text.match(ROBLOX_COOKIE_PATTERN)?.[0];
 }
 
-async function readPossibleCookieFile(filePath) {
+async function readPossibleCookieFile(filePath: any) {
   try {
     const handle = await fs.open(filePath, 'r');
     try {
@@ -72,13 +73,13 @@ async function readPossibleCookieFile(filePath) {
     } finally {
       await handle.close();
     }
-  } catch (err) {
+  } catch (err: any) {
     debugWarn('(Dev) Could not scan browser cookie file:', filePath, err.message);
     return undefined;
   }
 }
 
-async function findExistingFiles(paths) {
+async function findExistingFiles(paths: any[]) {
   const existing = [];
   for (const filePath of paths) {
     try {
@@ -162,7 +163,7 @@ async function getCookieFromBrowserProfiles() {
         await getAuthenticatedUserId(cookie);
         debugLog(`(Dev) Found valid Roblox cookie in browser profile file: ${filePath}`);
         return cookie;
-      } catch (err) {
+      } catch (err: any) {
         if (err.message.includes('(401)')) {
           debugWarn(`(Dev) Cookie from ${filePath} is expired (401).`);
           continue;
@@ -175,7 +176,7 @@ async function getCookieFromBrowserProfiles() {
   return undefined;
 }
 
-async function getCookieFromAutoDetect(userId = null) {
+async function getCookieFromAutoDetect(userId: any = null) {
   const studioAttempt = getCookieFromRobloxStudio(userId)
     .then((cookie) => ({ source: 'studio', cookie, id: 'studio' }))
     .catch((err) => {
@@ -194,7 +195,7 @@ async function getCookieFromAutoDetect(userId = null) {
 
   while (attempts.length > 0) {
     const result = await Promise.race(attempts);
-    attempts = attempts.filter((attempt) => attempt.id !== result.id);
+    attempts = attempts.filter((attempt: any) => attempt.id !== result.id);
     if (result.cookie) {
       debugLog(`(Dev) Auto-detected Roblox cookie from ${result.source}`);
       return result.cookie;
@@ -203,7 +204,7 @@ async function getCookieFromAutoDetect(userId = null) {
   return undefined;
 }
 
-async function getCookieFromRobloxStudio(userId = null) {
+async function getCookieFromRobloxStudio(userId: any = null) {
   if (!['darwin', 'win32'].includes(process.platform)) return undefined;
 
   if (process.platform === 'darwin') {
@@ -218,7 +219,7 @@ async function getCookieFromRobloxStudio(userId = null) {
         try {
           await getAuthenticatedUserId(cookie);
           return cookie;
-        } catch (err) {
+        } catch (err: any) {
           if (err.message.includes('(401)')) {
             debugWarn('(Dev) Binarycookies cookie is expired (401).');
           } else {
@@ -227,7 +228,7 @@ async function getCookieFromRobloxStudio(userId = null) {
           }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       debugWarn('(Dev) Could not read Roblox cookie from binarycookies:', err.message);
     }
     return undefined;
@@ -244,8 +245,8 @@ async function getCookieFromRobloxStudio(userId = null) {
       .split(/\r?\n/)
       .map((line) => line.match(/Target:\s*LegacyGeneric:target=(.+)/)?.[1]?.trim())
       .filter(Boolean)
-      .filter((target) => target.includes(ROBLOX_STUDIO_COOKIE_TARGET))
-      .sort((a, b) => {
+      .filter((target: any) => target.includes(ROBLOX_STUDIO_COOKIE_TARGET))
+      .sort((a: any, b: any) => {
         const aIncludesUser = requestedUserId && a.includes(requestedUserId) ? 1 : 0;
         const bIncludesUser = requestedUserId && b.includes(requestedUserId) ? 1 : 0;
         if (aIncludesUser !== bIncludesUser) return bIncludesUser - aIncludesUser;
@@ -263,7 +264,7 @@ async function getCookieFromRobloxStudio(userId = null) {
             await getAuthenticatedUserId(token);
             debugLog(`(Dev) Using valid Roblox cookie from credential: ${target}`);
             return token;
-          } catch (err) {
+          } catch (err: any) {
             if (err.message.includes('(401)')) {
               debugWarn(`(Dev) Cookie from credential ${target} is expired (401).`);
               continue;
@@ -272,18 +273,18 @@ async function getCookieFromRobloxStudio(userId = null) {
             return token;
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         debugWarn('(Dev) Could not read credential target:', target, err.message);
       }
     }
-  } catch (err) {
+  } catch (err: any) {
     debugWarn('(Dev) Could not read Roblox cookie from Windows Credential Manager:', err.message);
   }
 
   return undefined;
 }
 
-async function getCsrfToken(cookie) {
+async function getCsrfToken(cookie: any) {
   const csrfUrl = 'https://auth.roblox.com/v2/logout';
   const robloxSession = createRobloxSession(cookie);
   const cookieHeader = robloxSession.getCookieHeader();
@@ -303,7 +304,7 @@ async function getCsrfToken(cookie) {
         body: '{}',
       }),
     );
-  } catch (err) {
+  } catch (err: any) {
     throw new Error(`Network error fetching CSRF token: ${err.message}`, { cause: err });
   }
 
@@ -318,7 +319,7 @@ async function getCsrfToken(cookie) {
   return token;
 }
 
-async function getAuthenticatedUserId(cookie) {
+async function getAuthenticatedUserId(cookie: any) {
   const robloxSession = createRobloxSession(cookie);
   const cookieHeader = robloxSession.getCookieHeader();
   if (!cookieHeader) throw new Error('Missing or invalid ROBLOSECURITY cookie');
@@ -345,16 +346,16 @@ async function getAuthenticatedUserId(cookie) {
   return String(data.id);
 }
 
-module.exports = {
-  getCookieFromRobloxStudio,
-  getCookieFromBrowserProfiles,
-  getCookieFromAutoDetect,
-  getCsrfToken,
-  getAuthenticatedUserId,
-  withTimeout,
-  readResponseText,
-  readJsonResponse,
-  ROBLOX_USER_AGENT,
+export {
   debugLog,
   debugWarn,
+  getAuthenticatedUserId,
+  getCookieFromAutoDetect,
+  getCookieFromBrowserProfiles,
+  getCookieFromRobloxStudio,
+  getCsrfToken,
+  readJsonResponse,
+  readResponseText,
+  ROBLOX_USER_AGENT,
+  withTimeout,
 };

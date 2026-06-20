@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import './styles/app.css';
+import './index.css';
 
 // Discord Onyx Theme Settings for Chakra UI
 function getContrastColor(hex: string) {
@@ -30,45 +30,42 @@ function getBaseTheme(accentHex: string) {
         300: `${accentHex}60`,
         400: `${accentHex}80`,
         500: accentHex,
-        600: accentHex, // darken later if needed
-        700: `${accentHex}e0`,
-        800: `${accentHex}c0`,
-        900: `${accentHex}a0`,
+        600: `${accentHex}e0`, // darken later if needed
+        700: `${accentHex}c0`,
+        800: `${accentHex}a0`,
+        900: `${accentHex}80`,
         contrast: contrastText,
       },
       discord: {
-        text: '#f2f3f5',
-        muted: '#dbdee1',
-        darkMuted: '#949ba4',
-        border: '#1e1f22',
-        card: '#1e1f22',
-        input: '#070709',
-        inputDark: '#000000',
-        background: '#131416',
-        sidebar: '#000000',
-        topbar: '#000000',
+        text: '#dbdee1',
+        muted: '#949ba4',
+        darkMuted: '#4e5058',
+        border: 'rgba(255, 255, 255, 0.06)',
+        card: '#2b2d31',
+        input: '#1e1f22',
+        inputDark: '#111214',
+        background: 'transparent',
+        sidebar: '#111214',
+        topbar: 'transparent',
       }
     },
     fonts: {
-      heading: '"gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif',
-      body: '"gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif',
+      heading: '"Outfit", system-ui, "Segoe UI", Roboto, sans-serif',
+      body: '"Inter", system-ui, "Segoe UI", Roboto, sans-serif',
     },
     styles: {
       global: {
         body: {
-          bg: 'discord.background',
+          bg: 'transparent',
           color: 'discord.text',
         },
-        'button, input, textarea, select, .chakra-switch__track': {
-          transition: 'all 0.2s ease-in-out',
-        }
       },
     },
     components: {
       Button: {
         baseStyle: {
-          fontWeight: 500,
-          borderRadius: '4px',
+          fontWeight: 600,
+          borderRadius: '10px',
         },
         variants: {
           solid: (props: any) => {
@@ -76,17 +73,35 @@ function getBaseTheme(accentHex: string) {
               return {
                 bg: 'brand.500',
                 color: 'brand.contrast',
-                _hover: { bg: 'brand.600', _disabled: { bg: 'brand.500' } },
-                _active: { bg: 'brand.700' }
+                boxShadow: `0 4px 14px 0 ${accentHex}40`,
+                _hover: { bg: 'brand.600', transform: 'translateY(-1px)', boxShadow: `0 6px 20px 0 ${accentHex}60`, _disabled: { bg: 'brand.500', transform: 'none' } },
+                _active: { bg: 'brand.700', transform: 'translateY(1px)' }
               };
             }
-            return {};
+            return {
+              bg: 'rgba(255,255,255,0.05)',
+              _hover: { bg: 'rgba(255,255,255,0.1)' }
+            };
           }
         }
       },
       Badge: {
         baseStyle: {
-          color: 'brand.contrast'
+          color: 'brand.contrast',
+          borderRadius: '6px',
+        }
+      },
+      Input: {
+        variants: {
+          outline: {
+            field: {
+              border: '1px solid',
+              borderColor: 'discord.border',
+              bg: 'discord.input',
+              _hover: { borderColor: 'rgba(255,255,255,0.15)' },
+              _focus: { borderColor: 'brand.500', boxShadow: 'none' }
+            }
+          }
         }
       }
     },
