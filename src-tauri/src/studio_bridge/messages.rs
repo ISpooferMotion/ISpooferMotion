@@ -538,17 +538,17 @@ pub fn analyze_records(
             } else if record.property == "__Emotes__" {
                 extract_script_asset_ids(&record.value)
                     .into_iter()
-                    .map(|id| (id.to_string(), Some("animation")))
+                    .map(|id| (id.clone(), Some("animation")))
                     .collect()
             } else if record.property == "__Accessories__" {
                 extract_script_asset_ids(&record.value)
                     .into_iter()
-                    .map(|id| (id.to_string(), Some("mesh")))
+                    .map(|id| (id.clone(), Some("mesh")))
                     .collect()
             } else {
                 extract_script_asset_ids(&record.value)
                     .into_iter()
-                    .map(|id| (id.to_string(), None))
+                    .map(|id| (id.clone(), None))
                     .collect()
             };
 
@@ -690,7 +690,7 @@ pub fn analyze_records(
             for asset_id in extract_script_asset_ids(&record.value) {
                 if let Some(category) = infer_category_from_property(&record.property) {
                     use std::collections::hash_map::Entry;
-                    match category_id_indices.entry((category, asset_id.to_string())) {
+                    match category_id_indices.entry((category, asset_id.clone())) {
                         Entry::Vacant(e) => {
                             let store = match category {
                                 "animation" => &mut animations,
@@ -985,13 +985,45 @@ fn normalize_asset_id(value: &str) -> Option<&str> {
     (asset_id != "0").then_some(asset_id)
 }
 
-fn extract_script_asset_ids(source: &str) -> Vec<&str> {
+fn extract_script_asset_ids(source: &str) -> Vec<String> {
+    struct AstExtractor {
+        ids: HashSet<String>,
+    }
+
+    impl full_moon::visitors::Visitor for AstExtractor {
+        fn visit_string_literal(&mut self, token: &full_moon::tokenizer::Token) {
+            let text = token.to_string();
+            let pattern = script_ref_pattern();
+            for captures in pattern.captures_iter(&text) {
+                if let Some(asset_id) = captures.get(1) {
+                    if asset_id.as_str() != "0" {
+                        self.ids.insert(asset_id.as_str().to_string());
+                    }
+                }
+            }
+        }
+
+        fn visit_number(&mut self, token: &full_moon::tokenizer::Token) {
+            let text = token.to_string();
+            if text.len() >= 4 && text.chars().all(|c| c.is_ascii_digit()) && text != "0" {
+                self.ids.insert(text);
+            }
+        }
+    }
+
+    if let Ok(ast) = full_moon::parse(source) {
+        let mut extractor = AstExtractor { ids: HashSet::new() };
+        full_moon::visitors::Visitor::visit_ast(&mut extractor, &ast);
+        return extractor.ids.into_iter().collect();
+    }
+
+    // Fallback to regex if parsing fails
     let pattern = script_ref_pattern();
     let mut ids = HashSet::new();
     for captures in pattern.captures_iter(source) {
         if let Some(asset_id) = captures.get(1) {
             if asset_id.as_str() != "0" {
-                ids.insert(asset_id.as_str());
+                ids.insert(asset_id.as_str().to_string());
             }
         }
     }
@@ -1002,6 +1034,64 @@ fn replace_script_asset_ids<'a>(
     source: &'a str,
     mappings: &HashMap<&str, &str>,
 ) -> std::borrow::Cow<'a, str> {
+    struct AstReplacer<'m> {
+        mappings: &'m HashMap<&'m str, &'m str>,
+    }
+
+    impl<'m> full_moon::visitors::VisitorMut for AstReplacer<'m> {
+        fn visit_string_literal(&mut self, token: full_moon::tokenizer::Token) -> full_moon::tokenizer::Token {
+            let mut text = token.to_string();
+            let mut changed = false;
+            for (old, new) in self.mappings {
+                if text.contains(old) {
+                    text = text.replace(old, new);
+                    changed = true;
+                }
+            }
+            if changed {
+                return full_moon::tokenizer::Token::new(full_moon::tokenizer::TokenType::StringLiteral {
+                    literal: text.trim_matches(|c| c == '\'' || c == '"' || c == '[' || c == ']').into(),
+                    multi_line_depth: match token.token_type() {
+                        full_moon::tokenizer::TokenType::StringLiteral { multi_line_depth, .. } => *multi_line_depth,
+                        _ => 0,
+                    },
+                    quote_type: match token.token_type() {
+                        full_moon::tokenizer::TokenType::StringLiteral { quote_type, .. } => *quote_type,
+                        _ => full_moon::tokenizer::StringLiteralQuoteType::Double,
+                    },
+                });
+            }
+            token
+        }
+
+        fn visit_number(&mut self, token: full_moon::tokenizer::Token) -> full_moon::tokenizer::Token {
+            let text = token.to_string();
+            let mut replaced = text.clone();
+            for (old, new) in self.mappings {
+                if replaced == *old {
+                    replaced = (*new).to_string();
+                }
+            }
+            if replaced != text {
+                return full_moon::tokenizer::Token::new(full_moon::tokenizer::TokenType::Number {
+                    text: replaced.into(),
+                });
+            }
+            token
+        }
+    }
+
+    if let Ok(ast) = full_moon::parse(source) {
+        let mut replacer = AstReplacer { mappings };
+        let new_ast = full_moon::visitors::VisitorMut::visit_ast(&mut replacer, ast);
+        let new_source = new_ast.to_string();
+        if new_source != source {
+            return std::borrow::Cow::Owned(new_source);
+        }
+        return std::borrow::Cow::Borrowed(source);
+    }
+
+    // Fallback to regex if parsing fails
     script_rewrite_pattern().replace_all(source, |captures: &Captures<'_>| {
         let prefix = captures.get(1).map_or("", |item| item.as_str());
         let asset_id = captures.get(2).map_or("", |item| item.as_str());
@@ -1041,7 +1131,7 @@ mod tests {
     fn extracts_all_long_numbers_as_script_ids() {
         let mut ids = extract_script_asset_ids("local count = 12345678\nlocal soundId = 87654321");
         ids.sort();
-        assert_eq!(ids, vec!["12345678", "87654321"]);
+        assert_eq!(ids, vec!["12345678".to_string(), "87654321".to_string()]);
     }
 
     #[test]

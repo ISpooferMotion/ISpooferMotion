@@ -227,7 +227,12 @@ export const useConfigStore = create<ConfigState>((set, get) => {
       if (!isTauriRuntime()) return;
       try {
         const { invoke } = await import('@tauri-apps/api/core');
-        const s: any = await invoke('load_profile_secrets');
+        interface ProfileSecrets {
+          cookie?: string;
+          apiKey?: string;
+          profileCookies?: Record<string, string>;
+        }
+        const s: ProfileSecrets = await invoke('load_profile_secrets');
         if (s && (s.cookie || s.apiKey)) {
           set((state) => {
             const selectedUser = state.config.spoofing.selectedUser;

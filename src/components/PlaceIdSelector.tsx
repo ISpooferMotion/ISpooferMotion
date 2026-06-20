@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Loader2, Link2, Hash } from 'lucide-react';
+import { AnimatePresence,motion } from 'framer-motion';
+import { Hash,Link2, Loader2, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 
@@ -72,7 +72,7 @@ export default function PlaceIdSelector({
     }
 
     // Check if it's a URL
-    const urlMatch = val.match(/(?:roblox\.com\/games\/|roblox\.com\/discover\/\#\/)(\d+)/i);
+    const urlMatch = val.match(/(?:roblox\.com\/games\/|roblox\.com\/discover\/#\/)(\d+)/i);
     if (urlMatch && urlMatch[1]) {
       const extractedId = urlMatch[1];
       setLocalValue(extractedId); // replace input with just the ID
@@ -90,7 +90,7 @@ export default function PlaceIdSelector({
     const timeout = setTimeout(() => {
       if (!localValue.trim() || /^\d+$/.test(localValue.trim())) return;
       const urlMatch = localValue.match(
-        /(?:roblox\.com\/games\/|roblox\.com\/discover\/\#\/)(\d+)/i,
+        /(?:roblox\.com\/games\/|roblox\.com\/discover\/#\/)(\d+)/i,
       );
       if (urlMatch) return;
 

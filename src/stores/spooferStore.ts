@@ -143,7 +143,7 @@ export const applyReplacements = async (replacements: Record<string, string>) =>
         throw new Error('Roblox Studio is not running.');
       }
 
-      const results = await invoke<Record<string, any>>('scan_and_replace_multiple_strings', {
+      const results = await invoke<Record<string, { total_replaced: number }>>('scan_and_replace_multiple_strings', {
         pid,
         replacements,
       });
@@ -166,7 +166,7 @@ export const applyReplacements = async (replacements: Record<string, string>) =>
       );
     }
     setLastReplacements(replacements);
-  } catch (e: any) {
+  } catch (e: unknown) {
     setReplaceError(true);
     notifyError('Replacement Error', String(e));
     setSpoofingLogs((prev) =>

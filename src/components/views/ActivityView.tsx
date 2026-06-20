@@ -1,11 +1,11 @@
 import { Accordion, AccordionItem, Button, pageVariants } from '@codycon/ism-library';
 import { invoke } from '@tauri-apps/api/core';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence,motion } from 'framer-motion';
 import { CheckCircle2, Clock, FileText, Play, RotateCcw, Trash2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { useConfig } from '../../contexts/ConfigContext';
-import { type SpoofJob, queueSpoofRetry } from '../../utils/jobTypes';
+import { queueSpoofRetry,type SpoofJob } from '../../utils/jobTypes';
 import { logIsm } from '../../utils/robloxProfiles';
 
 export default function ActivityView() {

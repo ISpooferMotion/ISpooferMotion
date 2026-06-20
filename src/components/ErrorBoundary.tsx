@@ -3,6 +3,7 @@ import { type as getOsType, version as getOsVersion } from '@tauri-apps/plugin-o
 import { Component, ErrorInfo, ReactNode } from 'react';
 
 import { useConfigStore } from '../stores/configStore';
+import { isTauriRuntime } from '../utils/tauriRuntime';
 
 interface Props {
   children?: ReactNode;

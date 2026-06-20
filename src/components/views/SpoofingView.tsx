@@ -20,20 +20,17 @@ import { readText as readClipboardText } from '@tauri-apps/plugin-clipboard-mana
 import { motion } from 'framer-motion';
 import {
   Ban,
-  ListChecks,
   Play,
   RotateCcw,
   ScanSearch,
   UserSquare2,
   Wand2,
-  Trash2,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import AnimationIcon from '../../assets/roblox_icons/Animation.png';
 import DecalIcon from '../../assets/roblox_icons/Decal.png';
 import MeshIcon from '../../assets/roblox_icons/MeshPart.png';
-import ResultsModal from '../modals/ResultsModal';
 import SoundIcon from '../../assets/roblox_icons/Sound.png';
 import VideoIcon from '../../assets/roblox_icons/VideoFrame.png';
 import { useConfig } from '../../contexts/ConfigContext';
@@ -58,6 +55,8 @@ import { appendSpoofingLog } from '../../utils/spoofingLogs';
 import { queueStudioReplacements } from '../../utils/studioBridge';
 import { triggerStudioScan } from '../../utils/studioScan';
 import { isTauriRuntime } from '../../utils/tauriRuntime';
+import ResultsModal from '../modals/ResultsModal';
+import ExecutionLogs from './spoofing/ExecutionLogs';
 import {
   type AudioQuotaDisplay,
   AvatarDropdown,
@@ -150,7 +149,6 @@ export default function SpoofingView() {
     runContext?: SpooferRunContext;
   } | null>(null);
 
-  const outputRef = useRef<HTMLDivElement>(null);
   const handleRunSpooferRef = useRef<
     (
       overrideAssetIds?: string[],
@@ -177,11 +175,7 @@ export default function SpoofingView() {
     }
   }, [spoofCompletionVersion, lastReplacements]);
 
-  useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight;
-    }
-  }, [logs]);
+
 
   useEffect(() => {
     const cookie = config.spoofing.cookie.trim();
@@ -842,7 +836,7 @@ export default function SpoofingView() {
           <Accordion
             selectionMode="multiple"
             expandedKeys={config.ui.spoofingSections}
-            onExpandedChange={(keys: any) => updateConfig('ui', 'spoofingSections', keys)}
+            onExpandedChange={(keys: string[]) => updateConfig('ui', 'spoofingSections', keys)}
             className="flex flex-col gap-6"
           >
             <AccordionItem
@@ -916,60 +910,12 @@ export default function SpoofingView() {
                   </div>
                 )}
 
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-text-primary">
-                      {t('spoof.output')}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      {Object.keys(lastReplacements).length > 0 && (
-                        <button
-                          onClick={() => setResultsModalOpen(true)}
-                          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-                        >
-                          <ListChecks size={14} /> View Results
-                        </button>
-                      )}
-                      {logs && logs.length > 0 && (
-                        <button
-                          onClick={() => setLogs([])}
-                          className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary hover:text-danger transition-colors"
-                        >
-                          <Trash2 size={14} /> Clear Logs
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div
-                    ref={outputRef as React.RefObject<HTMLDivElement>}
-                    className="w-full rounded-[var(--radius-md)] border border-border-strong bg-bg-surface p-3 font-mono text-[13px] font-medium text-text-primary shadow-inner overflow-y-auto whitespace-pre-wrap break-words"
-                    style={{ height: '13rem' }}
-                  >
-                    {logs && logs.length > 0 ? (
-                      <div className="flex flex-col">
-                        {logs.map((line, idx) => {
-                          if (!line) return null;
-                          const colorClass = line.includes('[SUCCESS]')
-                            ? 'text-success'
-                            : line.includes('[WARN]')
-                              ? 'text-warning'
-                              : line.includes('[ERROR]')
-                                ? 'text-danger'
-                                : line.includes('[INFO]')
-                                  ? 'text-[#87ceeb]' // nice blue for INFO
-                                  : 'text-text-primary';
-                          return (
-                            <div key={idx} className={colorClass}>
-                              {line}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <span className="opacity-50">{t('spoof.outputPlaceholder')}</span>
-                    )}
-                  </div>
-                </div>
+                <ExecutionLogs
+                  logs={logs}
+                  setLogs={setLogs}
+                  lastReplacements={lastReplacements}
+                  setResultsModalOpen={setResultsModalOpen}
+                />
 
                 <Row className="gap-2">
                   <Button
@@ -1052,7 +998,7 @@ export default function SpoofingView() {
 
       <Modal
         isOpen={Boolean(pendingQuotaRun)}
-        onOpenChange={(open: any) => !open && setPendingQuotaRun(null)}
+        onOpenChange={(open: boolean) => !open && setPendingQuotaRun(null)}
         size="sm"
       >
         <ModalContent>

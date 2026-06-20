@@ -1,7 +1,7 @@
 import { Button } from '@codycon/ism-library';
 import { open } from '@tauri-apps/plugin-shell';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Beaker, FileCog, Heart, History, Home, Info, ScanLine, Settings } from 'lucide-react';
+import { Beaker, FileCog, Heart, History, Info, ScanLine, Settings } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { useConfig } from '../../contexts/ConfigContext';

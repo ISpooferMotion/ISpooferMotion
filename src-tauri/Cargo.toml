@@ -64,6 +64,7 @@ specta-typescript = "0.0.12"
 semver = "1.0.28"
 tauri-plugin-deep-link = "2.4.9"
 validator = { version = "0.19.0", features = ["derive"] }
+full_moon = { version = "2.2.0", features = ["luau", "roblox"] }
 
 [lints.clippy]
 complexity = { level = "warn", priority = -1 }

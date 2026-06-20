@@ -463,12 +463,34 @@ pub async fn find_asset_by_name(
     Ok(None)
 }
 
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalPlacesResponse {
+    pub previous_page_cursor: Option<String>,
+    pub next_page_cursor: Option<String>,
+    pub games: Vec<GlobalPlace>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalPlace {
+    #[specta(type = f64)]
+    pub creator_id: i64,
+    pub creator_name: String,
+    pub creator_type: String,
+    #[specta(type = f64)]
+    pub universe_id: i64,
+    pub name: String,
+    #[specta(type = f64)]
+    pub place_id: i64,
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn search_global_places(
     keyword: String,
     limit: Option<u32>,
-) -> crate::error::Result<Value> {
+) -> crate::error::Result<GlobalPlacesResponse> {
     let limit = limit.unwrap_or(20).min(50);
     let client = crate::utils::get_http_client();
     let encoded_keyword = keyword.replace(" ", "%20");
@@ -485,6 +507,6 @@ pub async fn search_global_places(
         )));
     }
 
-    let data: Value = resp.json().await?;
+    let data: GlobalPlacesResponse = resp.json().await?;
     Ok(data)
 }

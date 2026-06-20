@@ -77,7 +77,7 @@ export default function ExperimentalView() {
                     <FormToggle
                       label="Auto Scroll Sections"
                       checked={config.ui.autoScrollSections}
-                      onChange={(v: any) => updateConfig('ui', 'autoScrollSections', v)}
+                      onChange={(v: boolean) => updateConfig('ui', 'autoScrollSections', v)}
                     />
                   </Row>
                 </Group>
@@ -98,7 +98,7 @@ export default function ExperimentalView() {
                       label="Clipboard Monitoring"
                       description="Silently monitor your clipboard for Roblox asset URLs and auto-queue them for spoofing."
                       checked={config.advanced.clipboardMonitoring}
-                      onChange={(v: any) => updateConfig('advanced', 'clipboardMonitoring', v)}
+                      onChange={(v: boolean) => updateConfig('advanced', 'clipboardMonitoring', v)}
                     />
                   </Row>
                   <Row>
@@ -106,7 +106,7 @@ export default function ExperimentalView() {
                       label="Spoof Plugins"
                       description="[WIP] Attempt to spoof plugin assets."
                       checked={config.advanced.enablePluginSpoofing}
-                      onChange={(v: any) => updateConfig('advanced', 'enablePluginSpoofing', v)}
+                      onChange={(v: boolean) => updateConfig('advanced', 'enablePluginSpoofing', v)}
                     />
                   </Row>
                   <Row>
@@ -120,7 +120,7 @@ export default function ExperimentalView() {
                       checked={
                         memoryInjectionSupported ? config.advanced.memoryInjectionEnabled : false
                       }
-                      onChange={(v: any) => {
+                      onChange={(v: boolean) => {
                         if (!hasDevAccess || !memoryInjectionSupported) return;
                         updateConfig('advanced', 'memoryInjectionEnabled', v);
                       }}
