@@ -61,6 +61,20 @@ export default function App() {
   useCloudThemeSync();
 
   useEffect(() => {
+    if (!isTauriRuntime()) {
+      setDiscordAuth({
+        id: 'web-preview',
+        username: 'Web Preview',
+        discriminator: '0000',
+        avatar: '',
+        access_token: '',
+        refresh_token: '',
+        expires_at: Date.now() + 10000000,
+        scopes: 'identify'
+      });
+      return;
+    }
+
     invoke<StoredDiscordAuth | null>('load_discord_report_auth')
       .then((auth) => setDiscordAuth(auth ?? null))
       .catch(() => setDiscordAuth(null));
@@ -117,6 +131,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!isTauriRuntime()) return;
     // Send a heartbeat every 60 seconds to track active spoofer users
     const sendHeartbeat = async () => {
       try {
