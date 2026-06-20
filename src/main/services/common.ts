@@ -219,7 +219,16 @@ function sanitizeFilename(filename: any) {
   );
 }
 
+
+function extractNumericId(input) {
+  if (typeof input === 'number') return String(input);
+  if (typeof input !== 'string') return null;
+  const numeric = input.replace(/\D/g, '');
+  return numeric || null;
+}
+
 export {
+  extractNumericId,
   buildRobloxCookieHeader,
   clearDownloadsDirectory,
   DEVELOPER_MODE,

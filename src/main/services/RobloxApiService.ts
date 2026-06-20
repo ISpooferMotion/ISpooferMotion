@@ -1,3 +1,5 @@
+import { extractNumericId } from './common';
+import { AssetService } from './AssetService';
 // @ts-nocheck
 import { withTimeout, readResponseText, readJsonResponse, ROBLOX_USER_AGENT, debugLog, debugWarn, getCookieFromAutoDetect } from './auth';
 import { createRobloxSession } from './roblox-session';
@@ -14,7 +16,7 @@ export class RobloxApiService {
   
   public static shouldRefreshAssetName(entry, force = false) {
     if (force) return true;
-    return !getCleanAssetName(entry?.name, entry?.id);
+    return !RobloxApiService.getCleanAssetName(entry?.name, entry?.id);
   }
   
   
@@ -31,7 +33,7 @@ export class RobloxApiService {
     ];
   
     for (const candidate of candidates) {
-      const name = getCleanAssetName(candidate);
+      const name = RobloxApiService.getCleanAssetName(candidate);
       if (name) return name;
     }
   
@@ -72,12 +74,12 @@ export class RobloxApiService {
   
   
   public static getAssetMetadataFromDetails(data) {
-    const creator = getAssetCreatorFromDetails(data);
+    const creator = RobloxApiService.getAssetCreatorFromDetails(data);
     const assetTypeId = data?.AssetTypeId || data?.assetTypeId || data?.asset?.AssetTypeId || null;
     return {
-      name: getAssetNameFromDetails(data),
+      name: RobloxApiService.getAssetNameFromDetails(data),
       assetTypeId,
-      assetTypeName: normalizeAssetTypeName(assetTypeId),
+      assetTypeName: AssetService.normalizeAssetTypeName(assetTypeId),
       ...(creator || {}),
     };
   }
@@ -88,8 +90,8 @@ export class RobloxApiService {
   
     const forceName = Boolean(options.forceName);
     let changed = false;
-    const resolvedName = getCleanAssetName(metadata.name, entry.id);
-    if (resolvedName && (forceName || shouldRefreshAssetName(entry))) {
+    const resolvedName = RobloxApiService.getCleanAssetName(metadata.name, entry.id);
+    if (resolvedName && (forceName || RobloxApiService.shouldRefreshAssetName(entry))) {
       if (entry.name !== resolvedName) changed = true;
       entry.name = resolvedName;
     }
@@ -104,7 +106,7 @@ export class RobloxApiService {
       }
     }
   
-    const assetTypeName = getAssetTypeNameFromMetadata(metadata);
+    const assetTypeName = AssetService.getAssetTypeNameFromMetadata(metadata);
     if (assetTypeName && entry.assetTypeName !== assetTypeName) {
       entry.assetTypeName = assetTypeName;
       changed = true;
@@ -159,7 +161,7 @@ export class RobloxApiService {
         const oldName = entry.name;
         const oldCreator = `${entry.creatorType}:${entry.creatorId}`;
         const changed = applyResolvedAssetMetadata(entry, metadata, {
-          forceName: force || shouldRefreshAssetName(entry, force),
+          forceName: force || RobloxApiService.shouldRefreshAssetName(entry, force),
         });
         if (!changed) return;
   

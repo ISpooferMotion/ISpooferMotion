@@ -11,6 +11,7 @@ import { saveJobRecord } from './jobs';
 import { getAuthenticatedUserId } from './auth';
 import { buildFinalUploadName } from './replacement-utils';
 import { AssetService } from './AssetService';
+import { inspectTransferPayload } from './payload-inspector';
 import { RobloxApiService } from './RobloxApiService';
 
 import { createRobloxSession } from './roblox-session';
@@ -135,9 +136,9 @@ export class SpooferController {
   
   
   public static hasBatchAccessDeniedErrors(loc) {
-    return getBatchLocationErrors(loc).some((error) => {
+    return SpooferController.getBatchLocationErrors(loc).some((error) => {
       const status = Number(error?.code || error?.Code || error?.status || error?.statusCode || 0);
-      const message = getBatchLocationErrorMessage(error);
+      const message = SpooferController.getBatchLocationErrorMessage(error);
       return (
         status === 403 || /\b403\b|not authorized|unauthorized|forbidden|permission/i.test(message)
       );
@@ -155,10 +156,10 @@ export class SpooferController {
   
   public static extractBatchLocationError(loc) {
     if (!loc) return 'No location in batch response';
-    const errors = getBatchLocationErrors(loc);
+    const errors = SpooferController.getBatchLocationErrors(loc);
     if (errors.length === 0) return 'No locations in batch response';
   
-    return getBatchLocationErrorMessage(errors[0]) || 'Unknown batch error';
+    return SpooferController.getBatchLocationErrorMessage(errors[0]) || 'Unknown batch error';
   }
   
   
@@ -244,12 +245,12 @@ export class SpooferController {
     let assetTypeName = '';
     for (const extraToken of tokens.slice(3)) {
       if (/^place/i.test(extraToken)) {
-        placeId = normalizePlaceContextId(extraToken);
+        placeId = AssetService.normalizePlaceContextId(extraToken);
         if (!placeId) {
           return { error: 'Place ID must be numeric.' };
         }
       } else if (/^(type|assettype|kind)/i.test(extraToken)) {
-        assetTypeName = normalizeAssetTypeName(extraToken);
+        assetTypeName = AssetService.normalizeAssetTypeName(extraToken);
         if (!assetTypeName) {
           return { error: 'Type must be Sound, Audio, or Animation.' };
         }

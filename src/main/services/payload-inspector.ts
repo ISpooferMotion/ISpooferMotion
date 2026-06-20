@@ -2,6 +2,8 @@
 'use strict';
 
 import { markNonRetryableError } from './common';
+
+const MAX_TEXT_SAMPLE_BYTES = 512;
 function startsWithBytes(buffer: Buffer, bytes: number[]) {
   if (!Buffer.isBuffer(buffer) || buffer.length < bytes.length) return false;
   return bytes.every((byte, index) => buffer[index] === byte);

@@ -1,3 +1,4 @@
+import { extractNumericId } from './common';
 // @ts-nocheck
 import { app, dialog, ipcMain, shell, Notification, nativeImage, session } from 'electron';
 import * as path from 'path';
@@ -95,9 +96,6 @@ function spawnDetached(filePath: any, args: any[] = []) {
 }
 
 
-function extractNumericId(input: any) {
-  return String(input || '').match(/\d+/)?.[0] || '';
-}
 
 
 function parsePlaceLookupInput(input: any, explicitType: any) {

@@ -1,3 +1,4 @@
+import { extractNumericId } from './common';
 // @ts-nocheck
 import {
   debugLog,
@@ -603,9 +604,9 @@ export class AssetService {
   }
 
   public static buildDirectAssetDownloadAttempts(assetId, placeIds = [], isSoundMode = false) {
-    return buildDirectAssetDownloadUrls(assetId, placeIds, isSoundMode).map((url) => ({
+    return AssetService.buildDirectAssetDownloadUrls(assetId, placeIds, isSoundMode).map((url) => ({
       url,
-      placeId: getPlaceIdFromDownloadUrl(url),
+      placeId: AssetService.getPlaceIdFromDownloadUrl(url),
     }));
   }
 
@@ -618,13 +619,13 @@ export class AssetService {
 
   public static getAssetTypeNameFromMetadata(metadata) {
     return (
-      normalizeAssetTypeName(metadata?.assetTypeName || metadata?.assetType) ||
-      normalizeAssetTypeName(metadata?.assetTypeId)
+      AssetService.normalizeAssetTypeName(metadata?.assetTypeName || metadata?.assetType) ||
+      AssetService.normalizeAssetTypeName(metadata?.assetTypeId)
     );
   }
 
   public static getEntryAssetTypeName(entry, fallback = 'Animation') {
-    return normalizeAssetTypeName(entry?.assetTypeName || entry?.assetType) || fallback;
+    return AssetService.normalizeAssetTypeName(entry?.assetTypeName || entry?.assetType) || fallback;
   }
 
   public static getAssetKindLabel(assetTypeName) {
@@ -651,7 +652,7 @@ export class AssetService {
     for (const group of groups) {
       const values = Array.isArray(group) ? group : [group];
       for (const value of values) {
-        const id = normalizePlaceContextId(value);
+        const id = AssetService.normalizePlaceContextId(value);
         if (!id || seen.has(id)) continue;
         seen.add(id);
         ids.push(id);
