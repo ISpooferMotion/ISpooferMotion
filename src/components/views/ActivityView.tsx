@@ -1,11 +1,20 @@
-import { Accordion, AccordionItem, Button, itemVariants, pageVariants, StatusPill, Window } from '@codycon/ism-library';
+import { Accordion, AccordionItem, itemVariants, pageVariants, Window } from '@codycon/ism-library';
 import { invoke } from '@tauri-apps/api/core';
-import { AnimatePresence,motion } from 'framer-motion';
-import { CheckCircle2, Clock, FileText, Play, RotateCcw, Trash2, User2, XCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  CheckCircle2,
+  Clock,
+  FileText,
+  Play,
+  RotateCcw,
+  Trash2,
+  User2,
+  XCircle,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { useConfig } from '../../contexts/ConfigContext';
-import { queueSpoofRetry,type SpoofJob } from '../../utils/jobTypes';
+import { queueSpoofRetry, type SpoofJob } from '../../utils/jobTypes';
 import { logIsm } from '../../utils/robloxProfiles';
 
 export default function ActivityView() {
@@ -17,7 +26,7 @@ export default function ActivityView() {
     try {
       const data = await invoke<SpoofJob[]>('get_jobs');
       const finalJobs = data ? [...data] : [];
-      
+
       // Inject a fake job for UI testing in development mode
       if (import.meta.env.DEV) {
         finalJobs.push({
@@ -29,7 +38,8 @@ export default function ActivityView() {
           account: {
             id: '1',
             name: 'DevUser',
-            avatarUrl: 'https://tr.rbxcdn.com/38c6edcb50633730ff4cf39ac8859840/150/150/AvatarHeadshot/Png',
+            avatarUrl:
+              'https://tr.rbxcdn.com/38c6edcb50633730ff4cf39ac8859840/150/150/AvatarHeadshot/Png',
           },
           assetResults: [
             { id: '123456', success: true, newId: '654321', type: 'Animation' },
@@ -42,10 +52,11 @@ export default function ActivityView() {
             downloadOnly: false,
             uploadTypes: ['animation', 'mesh', 'audio'],
           },
-          logFilePath: 'C:\\\\Users\\\\cflem\\\\Documents\\\\GitHub\\\\ISpooferMotion-V2\\\\package.json',
+          logFilePath:
+            'C:\\\\Users\\\\cflem\\\\Documents\\\\GitHub\\\\ISpooferMotion-V2\\\\package.json',
         });
       }
-      
+
       setJobs(finalJobs);
     } catch (e) {
       logIsm('error', `Failed to load job history: ${e}`, true);
@@ -126,32 +137,33 @@ export default function ActivityView() {
       <Window>
         <motion.div variants={itemVariants} className="w-full h-full flex flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-6">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <span className="text-text-secondary">Loading history...</span>
-          </div>
-        ) : jobs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center text-text-secondary space-y-3">
-            <Clock size={48} className="opacity-20" />
-            <p>No job history found.</p>
-            <p className="text-[13px] opacity-70">Jobs you run will appear here.</p>
-          </div>
-        ) : (
-          <Accordion selectionMode="multiple" className="space-y-3 pb-8">
-              {jobs.map((job) => {
-                const totalAssets = job.assetResults?.length || 0;
-                const successfulAssets = job.assetResults?.filter((r) => r.success).length || 0;
-                const failedAssets = job.assetResults?.filter((r) => !r.success && !r.skipped).length || 0;
-                const skippedAssets = job.assetResults?.filter((r) => r.skipped).length || 0;
+            {isLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <span className="text-text-secondary">Loading history...</span>
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center text-text-secondary space-y-3">
+                <Clock size={48} className="opacity-20" />
+                <p>No job history found.</p>
+                <p className="text-[13px] opacity-70">Jobs you run will appear here.</p>
+              </div>
+            ) : (
+              <Accordion selectionMode="multiple" className="space-y-3 pb-8">
+                {jobs.map((job) => {
+                  const totalAssets = job.assetResults?.length || 0;
+                  const successfulAssets = job.assetResults?.filter((r) => r.success).length || 0;
+                  const failedAssets =
+                    job.assetResults?.filter((r) => !r.success && !r.skipped).length || 0;
+                  const skippedAssets = job.assetResults?.filter((r) => r.skipped).length || 0;
 
-                const dateStr = new Date(job.startTime).toLocaleDateString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                });
+                  const dateStr = new Date(job.startTime).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  });
 
-                return (
+                  return (
                     <AccordionItem
                       key={job.id}
                       value={job.id}
@@ -181,16 +193,19 @@ export default function ActivityView() {
                             </div>
                             <div className="flex flex-col items-start gap-[2px]">
                               <span className="text-[15px] font-semibold text-text-primary tracking-tight">
-                                {job.group ? `Spoofed to ${job.group.name}` : `Spoofed to ${job.account?.name || 'Unknown'}`}
+                                {job.group
+                                  ? `Spoofed to ${job.group.name}`
+                                  : `Spoofed to ${job.account?.name || 'Unknown'}`}
                               </span>
                               <span className="text-[13px] text-text-muted flex items-center gap-2">
                                 {dateStr}
                                 <span className="w-1 h-1 rounded-full bg-border-strong" />
-                                <span className="font-medium text-text-secondary">{totalAssets} asset{totalAssets !== 1 ? 's' : ''}</span>
+                                <span className="font-medium text-text-secondary">
+                                  {totalAssets} asset{totalAssets !== 1 ? 's' : ''}
+                                </span>
                               </span>
                             </div>
                           </div>
-
                         </div>
                       }
                     >
@@ -280,10 +295,10 @@ export default function ActivityView() {
                         </div>
                       </div>
                     </AccordionItem>
-                );
-              })}
-          </Accordion>
-        )}
+                  );
+                })}
+              </Accordion>
+            )}
           </div>
         </motion.div>
       </Window>

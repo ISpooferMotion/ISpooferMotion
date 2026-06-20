@@ -29,7 +29,7 @@ export function getCurrentWindow() {
     onDragDropEvent: (handler: any) => {
       console.log('Mock onDragDropEvent listener attached');
       return async () => {};
-    }
+    },
   };
 }
 
@@ -55,5 +55,5 @@ export async function emit(event: string, payload: any) {
 }
 
 export async function getVersion() {
-  return "2.0.0-mock";
+  return '2.0.0-mock';
 }

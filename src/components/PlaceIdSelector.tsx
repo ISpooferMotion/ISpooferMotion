@@ -1,9 +1,8 @@
 import { FormInput } from '@codycon/ism-library';
 import { invoke } from '@tauri-apps/api/core';
-import { AnimatePresence,motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-
 
 export interface PlaceIdSelectorProps {
   label: string;
@@ -105,8 +104,8 @@ export default function PlaceIdSelector({
 
   return (
     <div className={`relative flex-1 min-w-0 ${className}`} ref={dropdownRef}>
-      <div 
-        ref={inputRef} 
+      <div
+        ref={inputRef}
         className="relative"
         onFocusCapture={() => {
           if (results.length > 0) setShowDropdown(true);

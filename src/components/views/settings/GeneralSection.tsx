@@ -1,4 +1,11 @@
-import { Button, Divider, FormColorPickerRow, FormDropdown, FormToggle, Group } from '@codycon/ism-library';
+import {
+  Button,
+  Divider,
+  FormColorPickerRow,
+  FormDropdown,
+  FormToggle,
+  Group,
+} from '@codycon/ism-library';
 import { invoke } from '@tauri-apps/api/core';
 import { ask } from '@tauri-apps/plugin-dialog';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -111,9 +118,7 @@ export default function GeneralSection() {
       />
 
       <div className="flex items-center justify-between w-full">
-        <span className="text-sm font-medium text-text-primary">
-          {t('settings.theme')}
-        </span>
+        <span className="text-sm font-medium text-text-primary">{t('settings.theme')}</span>
         <div className="flex bg-bg-surface border border-border-subtle rounded-[calc(var(--radius-md)-2px)] p-1 overflow-hidden w-[160px] shrink-0">
           {(['light', 'dark'] as const).map((tMode) => (
             <button
@@ -177,7 +182,9 @@ export default function GeneralSection() {
                     <input
                       type="text"
                       value={localAccent.toUpperCase()}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleColorChange(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        handleColorChange(e.target.value)
+                      }
                       className="bg-bg-base text-text-primary text-xs font-mono px-2 py-1 rounded w-20 text-center border border-border-strong outline-none focus:border-primary transition-colors"
                     />
                   </div>
@@ -202,10 +209,7 @@ export default function GeneralSection() {
             );
             if (confirmed) {
               resetConfig();
-              window.ismLog?.(
-                'success',
-                'All settings have been reset to their default values.',
-              );
+              window.ismLog?.('success', 'All settings have been reset to their default values.');
             }
           }}
         >

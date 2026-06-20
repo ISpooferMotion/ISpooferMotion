@@ -270,7 +270,7 @@ export const useConfigStore = create<ConfigState>((set, get) => {
             cookie: c.cookie,
             apiKey: c.apiKey,
             profileCookies,
-          }
+          },
         });
       } catch (e) {
         console.error('Failed to save secrets:', e);

@@ -18,14 +18,7 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { readText as readClipboardText } from '@tauri-apps/plugin-clipboard-manager';
 import { motion } from 'framer-motion';
-import {
-  Ban,
-  Play,
-  RotateCcw,
-  ScanSearch,
-  UserSquare2,
-  Wand2,
-} from 'lucide-react';
+import { Ban, Play, RotateCcw, ScanSearch, UserSquare2, Wand2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import AnimationIcon from '../../assets/roblox_icons/Animation.png';
@@ -174,8 +167,6 @@ export default function SpoofingView() {
       setResultsModalOpen(true);
     }
   }, [spoofCompletionVersion, lastReplacements]);
-
-
 
   useEffect(() => {
     const cookie = config.spoofing.cookie.trim();

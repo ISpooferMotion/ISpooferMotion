@@ -1,10 +1,4 @@
-import {
-  Accordion,
-  AccordionItem,
-  itemVariants,
-  pageVariants,
-  Window,
-} from '@codycon/ism-library';
+import { Accordion, AccordionItem, itemVariants, pageVariants, Window } from '@codycon/ism-library';
 import { motion } from 'framer-motion';
 import { ArrowDownUp, Key, ShieldAlert, Sliders } from 'lucide-react';
 

@@ -1,5 +1,5 @@
 import { ListChecks, Trash2 } from 'lucide-react';
-import { useEffect,useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { cn } from '../../../utils/cn';
@@ -29,9 +29,7 @@ export default function ExecutionLogs({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-text-primary">
-          {t('spoof.output')}
-        </span>
+        <span className="text-sm font-semibold text-text-primary">{t('spoof.output')}</span>
         <div className="flex items-center gap-3">
           {Object.keys(lastReplacements).length > 0 && (
             <button

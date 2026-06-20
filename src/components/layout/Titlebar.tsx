@@ -62,8 +62,7 @@ export default function Titlebar() {
                 style={{ opacity: customLogo?.opacity ?? 1 }}
                 alt="Custom Logo"
               />
-            ) : (
-              isTauriRuntime() ? (
+            ) : isTauriRuntime() ? (
               <>
                 <img
                   src={AppIconLight}
@@ -79,8 +78,7 @@ export default function Titlebar() {
                   alt="Logo Dark"
                 />
               </>
-              ) : null
-            )}
+            ) : null}
           </div>
         )}
         <div className="flex flex-col justify-center">

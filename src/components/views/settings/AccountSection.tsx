@@ -35,9 +35,7 @@ export default function AccountSection() {
               )}
               <div className="flex flex-col">
                 <span className="text-sm font-semibold text-text-primary">
-                  {discordAuth.user?.globalName ||
-                    discordAuth.user?.username ||
-                    'Unknown User'}
+                  {discordAuth.user?.globalName || discordAuth.user?.username || 'Unknown User'}
                 </span>
                 <span className="text-xs text-text-muted">
                   Connected · Cloud themes sync enabled

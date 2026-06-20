@@ -143,10 +143,13 @@ export const applyReplacements = async (replacements: Record<string, string>) =>
         throw new Error('Roblox Studio is not running.');
       }
 
-      const results = await invoke<Record<string, { total_replaced: number }>>('scan_and_replace_multiple_strings', {
-        pid,
-        replacements,
-      });
+      const results = await invoke<Record<string, { total_replaced: number }>>(
+        'scan_and_replace_multiple_strings',
+        {
+          pid,
+          replacements,
+        },
+      );
 
       let total = 0;
       for (const [, res] of Object.entries(results)) {

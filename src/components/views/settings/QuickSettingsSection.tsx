@@ -9,8 +9,7 @@ export default function QuickSettingsSection() {
   return (
     <Group>
       <div className="text-sm text-text-muted mb-3 font-medium px-5">
-        Select which settings you want to appear in the Quick Settings menu located in the
-        top bar.
+        Select which settings you want to appear in the Quick Settings menu located in the top bar.
       </div>
       <div className="flex flex-col gap-0 pb-2">
         {Object.entries(

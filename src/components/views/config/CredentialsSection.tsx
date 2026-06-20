@@ -1,13 +1,18 @@
 import { FormDropdown, FormInput, Group } from '@codycon/ism-library';
 import { invoke } from '@tauri-apps/api/core';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ExternalLink, Loader2, Save,ShieldCheck } from 'lucide-react';
+import { ExternalLink, Loader2, Save, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { useConfig } from '../../../contexts/ConfigContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useConfigStore } from '../../../stores/configStore';
-import { detectCookie, logIsm, mergeCachedUser, validateCookieProfile } from '../../../utils/robloxProfiles';
+import {
+  detectCookie,
+  logIsm,
+  mergeCachedUser,
+  validateCookieProfile,
+} from '../../../utils/robloxProfiles';
 
 type AuthStatus = 'idle' | 'loading' | 'success' | 'error';
 type ApiKeyOwnerDetectResult = {
@@ -43,7 +48,7 @@ export default function CredentialsSection() {
     });
     setAuthStatus('success');
     logIsm('info', 'Cookie validated for the selected profile.');
-    
+
     // Auto-save the newly validated profile directly to the OS keyring
     void saveSecrets();
   };

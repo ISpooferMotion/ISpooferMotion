@@ -1,4 +1,15 @@
-import { Button, FormInput, FormToggle, Group, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, MultiSelectDropdown } from '@codycon/ism-library';
+import {
+  Button,
+  FormInput,
+  FormToggle,
+  Group,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  MultiSelectDropdown,
+} from '@codycon/ism-library';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { FolderSearch, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
@@ -60,7 +71,8 @@ export default function UploadSection() {
             Upload Configuration
           </span>
           <span className="text-xs text-text-muted px-1 mb-2">
-            Selected asset types will be downloaded AND uploaded. Unselected types will only be downloaded.
+            Selected asset types will be downloaded AND uploaded. Unselected types will only be
+            downloaded.
           </span>
           <MultiSelectDropdown
             options={uploadOptions}
@@ -96,7 +108,7 @@ export default function UploadSection() {
             />
           </div>
         </div>
-        
+
         <div className="pt-2 pb-1">
           <FormInput
             label="Download Folder"
