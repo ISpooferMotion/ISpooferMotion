@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "2.0.0-beta.1"
+version = "2.0.0-beta.3"
 authors = ["IncredibroXP <incredibroxpdev@gmail.com>"]
 description = "Animation spoofing utility for Roblox"
 edition = "2021"

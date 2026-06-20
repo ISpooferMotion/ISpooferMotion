@@ -261,12 +261,20 @@ export const useConfigStore = create<ConfigState>((set, get) => {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         const c = get().config.spoofing;
+        const profileCookies: Record<string, string> = {};
+        if (c.selectedUser !== 'none' && c.cookie) {
+          profileCookies[c.selectedUser] = c.cookie;
+        }
         await invoke('save_profile_secrets', {
-          cookie: c.cookie,
-          apiKey: c.apiKey,
-          selectedUser: c.selectedUser,
+          data: {
+            cookie: c.cookie,
+            apiKey: c.apiKey,
+            profileCookies,
+          }
         });
-      } catch (e) {}
+      } catch (e) {
+        console.error('Failed to save secrets:', e);
+      }
     },
   };
 });

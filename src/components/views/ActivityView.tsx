@@ -1,7 +1,7 @@
-import { Accordion, AccordionItem, Button, pageVariants } from '@codycon/ism-library';
+import { Accordion, AccordionItem, Button, itemVariants, pageVariants, StatusPill, Window } from '@codycon/ism-library';
 import { invoke } from '@tauri-apps/api/core';
 import { AnimatePresence,motion } from 'framer-motion';
-import { CheckCircle2, Clock, FileText, Play, RotateCcw, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, FileText, Play, RotateCcw, Trash2, User2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { useConfig } from '../../contexts/ConfigContext';
@@ -16,7 +16,37 @@ export default function ActivityView() {
   const fetchJobs = async () => {
     try {
       const data = await invoke<SpoofJob[]>('get_jobs');
-      setJobs(data || []);
+      const finalJobs = data ? [...data] : [];
+      
+      // Inject a fake job for UI testing in development mode
+      if (import.meta.env.DEV) {
+        finalJobs.push({
+          id: 'fake-dev-job-123',
+          status: 'partially_finished',
+          startTime: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+          endTime: new Date(Date.now() - 1000 * 60 * 55).toISOString(),
+          durationMs: 1000 * 60 * 5,
+          account: {
+            id: '1',
+            name: 'DevUser',
+            avatarUrl: 'https://tr.rbxcdn.com/38c6edcb50633730ff4cf39ac8859840/150/150/AvatarHeadshot/Png',
+          },
+          assetResults: [
+            { id: '123456', success: true, newId: '654321', type: 'Animation' },
+            { id: '111111', success: false, errorReason: 'Roblox API Error', type: 'Mesh' },
+            { id: '222222', success: true, newId: '333333', type: 'Audio' },
+          ],
+          config: {
+            assets: '123456, 111111, 222222',
+            spoofSounds: true,
+            downloadOnly: false,
+            uploadTypes: ['animation', 'mesh', 'audio'],
+          },
+          logFilePath: 'C:\\\\Users\\\\cflem\\\\Documents\\\\GitHub\\\\ISpooferMotion-V2\\\\package.json',
+        });
+      }
+      
+      setJobs(finalJobs);
     } catch (e) {
       logIsm('error', `Failed to load job history: ${e}`, true);
     } finally {
@@ -88,23 +118,14 @@ export default function ActivityView() {
   return (
     <motion.div
       variants={pageVariants}
-      initial="initial"
-      animate="animate"
+      initial="hidden"
+      animate="show"
       exit="exit"
-      className="h-full w-full flex flex-col p-6 overflow-y-auto overflow-x-hidden relative"
+      className="w-full h-full"
     >
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-text-primary mb-1">
-            Job History
-          </h1>
-          <p className="text-[13px] text-text-secondary">
-            Review past spoofing jobs and easily retry failed assets.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex-1 min-h-0">
+      <Window>
+        <motion.div variants={itemVariants} className="w-full h-full flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-6">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <span className="text-text-secondary">Loading history...</span>
@@ -116,104 +137,108 @@ export default function ActivityView() {
             <p className="text-[13px] opacity-70">Jobs you run will appear here.</p>
           </div>
         ) : (
-          <Accordion type="multiple" className="space-y-3 pb-8">
-            <AnimatePresence initial={false}>
+          <Accordion selectionMode="multiple" className="space-y-3 pb-8">
               {jobs.map((job) => {
                 const totalAssets = job.assetResults?.length || 0;
                 const successfulAssets = job.assetResults?.filter((r) => r.success).length || 0;
-                const failedAssets =
-                  job.assetResults?.filter((r) => !r.success && !r.skipped).length || 0;
-                const date = new Date(job.startTime).toLocaleString();
+                const failedAssets = job.assetResults?.filter((r) => !r.success && !r.skipped).length || 0;
+                const skippedAssets = job.assetResults?.filter((r) => r.skipped).length || 0;
+
+                const dateStr = new Date(job.startTime).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                });
 
                 return (
-                  <motion.div
-                    key={job.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
                     <AccordionItem
+                      key={job.id}
                       value={job.id}
-                      className="bg-bg-elevated/40 border border-border-subtle rounded-[var(--radius-lg)] overflow-hidden"
-                      trigger={
-                        <div className="flex items-center justify-between w-full p-4 hover:bg-bg-elevated/60 transition-colors">
+                      className="bg-bg-elevated/30 border border-border-subtle/50 shadow-sm rounded-xl overflow-hidden mb-3"
+                      title={
+                        <div className="flex items-center justify-between w-full py-2 pr-3 pl-1">
                           <div className="flex items-center gap-4">
-                            <div className="p-2 rounded-full bg-bg-base border border-border-strong">
-                              {job.status === 'successful' ? (
-                                <CheckCircle2 size={18} className="text-green-500" />
-                              ) : job.status === 'partially_finished' ? (
-                                <CheckCircle2 size={18} className="text-yellow-500" />
+                            <div className="relative w-11 h-11 shrink-0">
+                              {job.account?.avatarUrl ? (
+                                <img
+                                  src={job.account.avatarUrl}
+                                  alt=""
+                                  className="w-11 h-11 rounded-full border border-border-strong object-cover bg-bg-base shadow-sm"
+                                />
                               ) : (
-                                <XCircle size={18} className="text-red-500" />
+                                <div className="w-11 h-11 rounded-full border border-border-strong bg-bg-base flex items-center justify-center shadow-sm">
+                                  <User2 size={20} className="text-text-muted" />
+                                </div>
+                              )}
+                              {job.group?.iconUrl && (
+                                <img
+                                  src={job.group.iconUrl}
+                                  alt=""
+                                  className="w-[22px] h-[22px] rounded-full border-[2.5px] border-bg-elevated absolute -bottom-1 -right-1 object-cover bg-bg-base shadow-sm"
+                                />
                               )}
                             </div>
-                            <div className="flex flex-col items-start gap-1">
-                              <span className="text-[14px] font-medium text-text-primary">
-                                Spoof Job • {totalAssets} asset{totalAssets !== 1 ? 's' : ''}
+                            <div className="flex flex-col items-start gap-[2px]">
+                              <span className="text-[15px] font-semibold text-text-primary tracking-tight">
+                                {job.group ? `Spoofed to ${job.group.name}` : `Spoofed to ${job.account?.name || 'Unknown'}`}
                               </span>
-                              <span className="text-[12px] text-text-muted flex items-center gap-2">
-                                {date}
-                                <span>•</span>
-                                {formatDuration(job.durationMs)}
+                              <span className="text-[13px] text-text-muted flex items-center gap-2">
+                                {dateStr}
+                                <span className="w-1 h-1 rounded-full bg-border-strong" />
+                                <span className="font-medium text-text-secondary">{totalAssets} asset{totalAssets !== 1 ? 's' : ''}</span>
                               </span>
                             </div>
                           </div>
 
-                          <div className="flex flex-col items-end gap-1">
-                            <div className="flex gap-2 text-[12px] font-medium">
-                              <span className="text-green-500/90">{successfulAssets} OK</span>
-                              {failedAssets > 0 && (
-                                <span className="text-red-500/90">{failedAssets} Failed</span>
-                              )}
-                            </div>
-                            {job.account && (
-                              <div className="flex items-center gap-1.5 opacity-70">
-                                {job.account.avatarUrl && (
-                                  <img
-                                    src={job.account.avatarUrl}
-                                    alt=""
-                                    className="w-4 h-4 rounded-full"
-                                  />
-                                )}
-                                <span className="text-[11px] truncate max-w-[100px]">
-                                  {job.account.name}
-                                </span>
-                              </div>
-                            )}
-                          </div>
                         </div>
                       }
                     >
-                      <div className="px-4 pb-4 pt-2 border-t border-border-subtle/50 bg-bg-base/30">
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          <Button variant="secondary" size="sm" onClick={(e: React.MouseEvent) => handleRedoJob(job, e)}>
+                      <div className="px-4 pb-4 pt-3 border-t border-border-subtle/30 bg-bg-base/20">
+                        <div className="flex flex-wrap items-center gap-5 mb-4 px-1">
+                          <button
+                            type="button"
+                            onClick={(e) => handleRedoJob(job, e)}
+                            className="flex items-center text-[13px] font-medium text-text-muted hover:text-primary transition-colors"
+                          >
                             <Play size={14} className="mr-1.5" />
                             Redo Job
-                          </Button>
+                          </button>
                           {failedAssets > 0 && (
-                            <Button variant="primary" size="sm" onClick={(e: React.MouseEvent) => handleRetryFailed(job, e)}>
+                            <button
+                              type="button"
+                              onClick={(e) => handleRetryFailed(job, e)}
+                              className="flex items-center text-[13px] font-medium text-text-muted hover:text-yellow-400 transition-colors"
+                            >
                               <RotateCcw size={14} className="mr-1.5" />
                               Retry Failed ({failedAssets})
-                            </Button>
+                            </button>
                           )}
                           {job.logFilePath && (
-                            <Button variant="ghost" size="sm" onClick={(e: React.MouseEvent) => handleOpenLog(job.logFilePath, e)}>
+                            <button
+                              type="button"
+                              onClick={(e) => handleOpenLog(job.logFilePath, e)}
+                              className="flex items-center text-[13px] font-medium text-text-muted hover:text-text-primary transition-colors"
+                            >
                               <FileText size={14} className="mr-1.5" />
                               View Log
-                            </Button>
+                            </button>
                           )}
-                          <Button variant="ghost" size="sm" onClick={(e: React.MouseEvent) => handleDelete(job.id, e)} className="ml-auto text-red-500/80 hover:bg-red-500/10">
+                          <button
+                            type="button"
+                            onClick={(e) => handleDelete(job.id, e)}
+                            className="flex items-center text-[13px] font-medium text-text-muted hover:text-red-400 transition-colors ml-auto"
+                          >
                             <Trash2 size={14} className="mr-1.5" />
                             Delete
-                          </Button>
+                          </button>
                         </div>
 
-                        <div className="space-y-1 max-h-[300px] overflow-y-auto pr-2 rounded-[var(--radius-md)] border border-border-subtle/50 p-2 bg-bg-base/50">
+                        <div className="space-y-1 max-h-[300px] overflow-y-auto pr-2 rounded-[var(--radius-md)] border border-border-subtle/30 p-2 bg-bg-base/30">
                           {job.assetResults?.map((res, i) => (
                             <div
                               key={i}
-                              className="flex items-center justify-between p-2 rounded-md hover:bg-bg-elevated/40 text-[12px]"
+                              className="flex items-center justify-between p-2 rounded-md hover:bg-bg-elevated/30 text-[12px] transition-colors"
                             >
                               <div className="flex items-center gap-3 overflow-hidden">
                                 {res.success ? (
@@ -255,13 +280,13 @@ export default function ActivityView() {
                         </div>
                       </div>
                     </AccordionItem>
-                  </motion.div>
                 );
               })}
-            </AnimatePresence>
           </Accordion>
         )}
-      </div>
+          </div>
+        </motion.div>
+      </Window>
     </motion.div>
   );
 }

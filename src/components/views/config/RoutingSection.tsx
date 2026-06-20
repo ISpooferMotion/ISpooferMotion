@@ -13,21 +13,25 @@ export default function RoutingSection() {
 
   return (
     <Group>
-      <Row>
-        <FormInput
-          label={t('settings.pluginPort')}
-          type="number"
-          value={config.advanced.pluginPort}
-          onChange={(value: string) => updateConfig('advanced', 'pluginPort', value)}
-        />
+      <div className="flex items-start gap-6 w-full">
+        <div className="w-1/3 shrink-0">
+          <FormInput
+            label={t('settings.pluginPort')}
+            type="number"
+            value={config.advanced.pluginPort}
+            onChange={(value: string) => updateConfig('advanced', 'pluginPort', value)}
+          />
+        </div>
 
-        <PlaceIdSelector
-          label={t('settings.forcePlaceIds')}
-          placeholder={t('settings.forcePlaceIdsPlaceholder')}
-          value={config.advanced.forcePlaceIds}
-          onChange={(value: string) => updateConfig('advanced', 'forcePlaceIds', value)}
-        />
-      </Row>
+        <div className="flex-1 min-w-0">
+          <PlaceIdSelector
+            label={t('settings.forcePlaceIds')}
+            placeholder={t('settings.forcePlaceIdsPlaceholder')}
+            value={config.advanced.forcePlaceIds}
+            onChange={(value: string) => updateConfig('advanced', 'forcePlaceIds', value)}
+          />
+        </div>
+      </div>
       <Row>
         <FormInput
           label={t('settings.searchLimit')}

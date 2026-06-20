@@ -18,7 +18,7 @@ local toolbar = plugin:CreateToolbar("ISpooferMotion")
 local syncButton = toolbar:CreateButton(
 	"Sync to Desktop",
 	"Toggle connection to the ISpooferMotion Desktop App",
-	""
+	"rbxassetid://137844667859456"
 )
 
 syncButton.Click:Connect(function()

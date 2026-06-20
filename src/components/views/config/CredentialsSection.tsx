@@ -1,11 +1,12 @@
 import { FormDropdown, FormInput, Group } from '@codycon/ism-library';
 import { invoke } from '@tauri-apps/api/core';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ExternalLink, Loader2,ShieldCheck } from 'lucide-react';
+import { ExternalLink, Loader2, Save,ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { useConfig } from '../../../contexts/ConfigContext';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { useConfigStore } from '../../../stores/configStore';
 import { detectCookie, logIsm, mergeCachedUser, validateCookieProfile } from '../../../utils/robloxProfiles';
 
 type AuthStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -21,6 +22,8 @@ export default function CredentialsSection() {
   const [manualCookieEdit, setManualCookieEdit] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
   const [apiKeyStatus, setApiKeyStatus] = useState<AuthStatus>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
+  const { saveSecrets } = useConfigStore();
 
   const autoDetectEnabled = config.advanced.autoCookieStudio || config.advanced.autoCookieBrowser;
   const cookieReadOnly = autoDetectEnabled && !manualCookieEdit;
@@ -40,6 +43,9 @@ export default function CredentialsSection() {
     });
     setAuthStatus('success');
     logIsm('info', 'Cookie validated for the selected profile.');
+    
+    // Auto-save the newly validated profile directly to the OS keyring
+    void saveSecrets();
   };
 
   const runAutoDetect = async (mode: string) => {
@@ -127,6 +133,14 @@ export default function CredentialsSection() {
     await invoke('open_external', {
       url: 'https://create.roblox.com/dashboard/credentials?activeTab=ApiKeys',
     }).catch(() => null);
+  };
+
+  const handleSaveProfile = async () => {
+    setSaveStatus('saving');
+    await saveSecrets();
+    setSaveStatus('success');
+    logIsm('success', 'Profile credentials saved successfully.', true);
+    setTimeout(() => setSaveStatus('idle'), 2000);
   };
 
   return (
@@ -245,6 +259,22 @@ export default function CredentialsSection() {
           </div>
         }
       />
+
+      <div className="flex w-full mt-2">
+        <button
+          type="button"
+          onClick={() => void handleSaveProfile()}
+          disabled={saveStatus === 'saving'}
+          className="flex flex-1 items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-white text-black hover:bg-white/90 transition-colors disabled:opacity-50"
+        >
+          {saveStatus === 'saving' ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Save size={16} />
+          )}
+          {saveStatus === 'success' ? 'Saved!' : 'Save Credentials'}
+        </button>
+      </div>
     </Group>
   );
 }

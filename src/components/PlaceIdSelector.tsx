@@ -1,6 +1,7 @@
+import { FormInput } from '@codycon/ism-library';
 import { invoke } from '@tauri-apps/api/core';
 import { AnimatePresence,motion } from 'framer-motion';
-import { Hash,Link2, Loader2, Search } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 
@@ -9,6 +10,7 @@ export interface PlaceIdSelectorProps {
   placeholder?: string;
   value: string;
   onChange: (value: string) => void;
+  className?: string;
 }
 
 interface SearchResult {
@@ -23,6 +25,7 @@ export default function PlaceIdSelector({
   placeholder,
   value,
   onChange,
+  className = '',
 }: PlaceIdSelectorProps) {
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -51,8 +54,7 @@ export default function PlaceIdSelector({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
+  const handleInputChange = (val: string) => {
     setLocalValue(val);
 
     // If empty
@@ -63,52 +65,26 @@ export default function PlaceIdSelector({
       return;
     }
 
-    // Check if it's a direct place ID (all numbers)
-    if (/^\d+$/.test(val.trim())) {
-      onChange(val.trim());
-      setResults([]);
-      setShowDropdown(false);
-      return;
-    }
-
-    // Check if it's a URL
-    const urlMatch = val.match(/(?:roblox\.com\/games\/|roblox\.com\/discover\/#\/)(\d+)/i);
-    if (urlMatch && urlMatch[1]) {
-      const extractedId = urlMatch[1];
-      setLocalValue(extractedId); // replace input with just the ID
-      onChange(extractedId);
-      setResults([]);
-      setShowDropdown(false);
-      return;
-    }
-
-    // Otherwise, treat as a keyword search
-    setShowDropdown(true);
+    onChange(val);
   };
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (!localValue.trim() || /^\d+$/.test(localValue.trim())) return;
-      const urlMatch = localValue.match(
-        /(?:roblox\.com\/games\/|roblox\.com\/discover\/#\/)(\d+)/i,
-      );
-      if (urlMatch) return;
+    if (!localValue.trim() || /^\d+$/.test(localValue.trim())) {
+      setResults([]);
+      setShowDropdown(false);
+      return;
+    }
 
+    const timeout = setTimeout(() => {
       const search = async () => {
         setIsSearching(true);
         try {
-          // any type casting because rust specta doesn't know about this nested structure
-          const res = await invoke<any>('search_global_places', {
-            keyword: localValue.trim(),
-            limit: 15,
-          });
-          if (res && res.data) {
-            setResults(res.data);
-          } else {
-            setResults([]);
-          }
+          const res = await invoke<string>('search_roblox_games', { query: localValue });
+          const parsed = JSON.parse(res);
+          setResults(parsed.data || []);
+          setShowDropdown(true);
         } catch (e) {
-          console.error('Place search failed', e);
+          console.error('Failed to search games:', e);
           setResults([]);
         } finally {
           setIsSearching(false);
@@ -128,31 +104,22 @@ export default function PlaceIdSelector({
   };
 
   return (
-    <div className="flex flex-col gap-[6px] relative">
-      <label className="text-[13px] font-medium text-text-primary ml-1">{label}</label>
-      <div className="relative">
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
-          {/^\d+$/.test(localValue) ? (
-            <Hash size={16} />
-          ) : localValue.includes('roblox.com') ? (
-            <Link2 size={16} />
-          ) : (
-            <Search size={16} />
-          )}
-        </div>
-        <input
-          ref={inputRef}
-          type="text"
+    <div className={`relative flex-1 min-w-0 ${className}`} ref={dropdownRef}>
+      <div 
+        ref={inputRef} 
+        className="relative"
+        onFocusCapture={() => {
+          if (results.length > 0) setShowDropdown(true);
+        }}
+      >
+        <FormInput
+          label={label}
+          placeholder={placeholder || 'Paste URL, Place ID, or Search...'}
           value={localValue}
           onChange={handleInputChange}
-          onFocus={() => {
-            if (results.length > 0) setShowDropdown(true);
-          }}
-          placeholder={placeholder || 'Paste URL, Place ID, or Search by Name...'}
-          className="w-full h-10 bg-bg-elevated text-text-primary text-[13px] rounded-[var(--radius-md)] border border-border-strong px-9 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-text-muted"
         />
         {isSearching && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted">
+          <div className="absolute right-3 top-[34px] text-text-muted pointer-events-none">
             <Loader2 size={16} className="animate-spin opacity-70" />
           </div>
         )}
