@@ -303,7 +303,7 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
           </Text>
         </Box>
 
-        <HStack justify="space-between" align="center" bg="discord.card" p="16px 20px" borderRadius="8px" boxShadow="0 2px 10px rgba(0,0,0,0.1)">
+        <HStack bg="discord.card" border="1px solid" borderColor="discord.border" justify="space-between" align="center" p="16px 20px" borderRadius="16px" mb="12px">
           <Text fontSize="14px" color="discord.text" fontWeight={600}>{statusText}</Text>
           <HStack spacing="12px">
             {running && (
@@ -325,9 +325,9 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
       </Flex>
 
       {/* Right Sidebar */}
-      <VStack w="320px" bg="discord.card" p="24px" spacing="24px" borderLeft="1px solid" borderColor="discord.border" overflowY="auto" align="stretch" sx={{
+      <VStack bg="discord.card" border="1px solid" borderColor="discord.border" borderRadius="16px" w="320px" p="24px" m="24px 24px 24px 0" spacing="24px" overflowY="auto" align="stretch" sx={{
         '&::-webkit-scrollbar': { width: '4px' },
-        '&::-webkit-scrollbar-thumb': { bg: 'discord.input', borderRadius: '4px' },
+        '&::-webkit-scrollbar-thumb': { bg: 'rgba(255,255,255,0.1)', borderRadius: '4px' },
         '&::-webkit-scrollbar-track': { bg: 'transparent' }
       }}>
         <Text fontWeight={800} fontSize="12px" color="discord.darkMuted" textTransform="uppercase" letterSpacing="0.5px">Quick Setup</Text>
@@ -395,7 +395,7 @@ export default function SpooferView({ isActive }: { isActive: boolean }) {
           </Collapse>
           <Box>
             <Text fontSize="12px" color="discord.muted" mb="8px" fontWeight={600}>Override Place ID</Text>
-            <Input size="sm" placeholder="Leave blank to use Group/User default" value={overridePlaceId} onChange={(e) => { const n = e.target.value.replace(/\D/g, ''); setOverridePlaceId(n); updateProfileValue('overridePlaceId', n); }} bg="discord.input" border="none" color="discord.text" borderRadius="4px" h="36px" _focus={{ boxShadow: 'none', border: '1px solid', borderColor: 'brand.500' }} />
+            <Input size="sm" placeholder="Leave blank to use default. Separate multiple IDs with commas" value={overridePlaceId} onChange={(e) => { const n = e.target.value.replace(/[^0-9,\s]/g, ''); setOverridePlaceId(n); updateProfileValue('overridePlaceId', n); }} bg="discord.input" border="none" color="discord.text" borderRadius="4px" h="36px" _focus={{ boxShadow: 'none', border: '1px solid', borderColor: 'brand.500' }} />
           </Box>
         </VStack>
       </VStack>

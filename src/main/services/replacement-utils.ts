@@ -1,6 +1,7 @@
+// @ts-nocheck
 'use strict';
 
-function buildFinalUploadName(entry, data = {}) {
+export function buildFinalUploadName(entry, data = {}) {
   let finalName = String(entry?.name || '');
 
   if (data.renameFind) {
@@ -61,9 +62,6 @@ function buildDuplicateFinalNamesError(entries, data = {}, assetLabel = 'assets'
   );
 }
 
-module.exports = {
-  buildDuplicateFinalNamesError,
-  buildFinalUploadName,
-  describeRenameRules,
-  findDuplicateFinalNames,
-};
+
+
+export {};

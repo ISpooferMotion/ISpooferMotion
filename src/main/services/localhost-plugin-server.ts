@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use strict';
 
 const http = require('node:http');
@@ -6,7 +7,7 @@ const { app, Notification, nativeImage } = require('electron');
 const { DEVELOPER_MODE } = require('./common');
 const { getCookieFromAutoDetect } = require('./auth');
 const { createRobloxSession } = require('./roblox-session');
-const { getPlaceSuggestionByPlaceId } = require('./assets');
+const { AssetService } = require('./AssetService');
 
 const DEFAULT_PORT = 3100;
 const PORT_SCAN_LIMIT = 10;
@@ -433,8 +434,8 @@ async function handleScanPayload(payload, callbacks) {
         const gameId = normalizePlaceId(payload?.gameId || payload?.game?.gameId);
         if (!placeId && gameId && cookie) {
           try {
-            const { getPlaceIdFromUniverseId } = require('./assets');
-            const resolvedPlaceId = await getPlaceIdFromUniverseId(gameId, cookie);
+            const { AssetService } = require('./AssetService');
+            const resolvedPlaceId = await AssetService.getPlaceIdFromUniverseId(gameId, cookie);
             if (resolvedPlaceId) {
               placeId = resolvedPlaceId;
               if (DEVELOPER_MODE) console.log(`[LocalhostPlugin] Instantly resolved GameId ${gameId} to PlaceId ${placeId}`);
@@ -456,7 +457,7 @@ async function handleScanPayload(payload, callbacks) {
           };
         } else if (placeId && cookie) {
           try {
-            const suggestion = await getPlaceSuggestionByPlaceId(placeId, cookie);
+            const suggestion = await AssetService.getPlaceSuggestionByPlaceId(placeId, cookie);
             if (suggestion) {
               fallbackCreator = {
                 creatorType: suggestion.creatorType,

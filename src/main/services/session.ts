@@ -1,9 +1,9 @@
 'use strict';
 
-const path = require('node:path');
-const fs = require('node:fs/promises');
-const { app } = require('electron');
-const { DEVELOPER_MODE } = require('./common');
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import { app } from 'electron';
+import { DEVELOPER_MODE } from './common';
 
 function getSessionPath() {
   return path.join(app.getPath('userData'), 'ispoofer_session.json');
@@ -11,13 +11,13 @@ function getSessionPath() {
 
 let sessionWriteQueue = Promise.resolve();
 
-function queueSessionWrite(operation) {
+function queueSessionWrite(operation: any) {
   const result = sessionWriteQueue.catch(() => {}).then(operation);
   sessionWriteQueue = result.catch(() => {});
   return result;
 }
 
-function saveSession(session) {
+function saveSession(session: any) {
   // Capture a snapshot reference; stringify is deferred until the write actually
   // executes so that any intermediate queued writes see the freshest data.
   const sessionSnapshot = session;
@@ -43,7 +43,7 @@ function clearSession() {
   return queueSessionWrite(() => fs.rm(getSessionPath(), { force: true }).catch(() => {}));
 }
 
-module.exports = {
+export {
   saveSession,
   loadSession,
   clearSession,

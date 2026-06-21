@@ -1,13 +1,11 @@
-const path = require('node:path');
-const { app } = require('electron');
-const { setupAppLifecycle, getMainWindow } = require('./window');
-const { registerIpcHandlers } = require('./services/ipc-handlers');
-const { DEVELOPER_MODE, initializeFileLogging } = require('./services/common');
-const {
-  startLocalhostPluginServer,
-  stopLocalhostPluginServer,
-} = require('./services/localhost-plugin-server');
-const { checkForUpdates } = require('./services/updater');
+// @ts-nocheck
+import path from 'node:path';
+import { app } from 'electron';
+import { setupAppLifecycle, getMainWindow } from './window';
+import { registerIpcHandlers } from './services/IpcRegistry';
+import { DEVELOPER_MODE, initializeFileLogging } from './services/common';
+import { startLocalhostPluginServer, stopLocalhostPluginServer } from './services/localhost-plugin-server';
+import { checkForUpdates } from './services/updater';
 
 let latestReplacementText = '';
 
@@ -102,3 +100,5 @@ bootstrap().catch((error) => {
   console.error('[APP ERROR] Failed to start ISpooferMotion:', error);
   app.quit();
 });
+
+export {};

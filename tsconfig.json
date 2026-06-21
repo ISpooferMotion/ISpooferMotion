@@ -5,11 +5,14 @@
     "moduleResolution": "node",
     "outDir": "./dist-main",
     "rootDir": "./src/main",
-    "strict": false,
+    "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "allowJs": true
+    "allowJs": true,
+    "ignoreDeprecations": "6.0"
   },
-  "include": ["src/main/**/*"]
+  "include": [
+    "src/main/**/*"
+  ]
 }

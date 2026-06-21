@@ -1,10 +1,8 @@
-'use strict';
-
-const fsSync = require('node:fs');
-const fs = require('node:fs/promises');
-const { setTimeout: delay } = require('node:timers/promises');
-const { DEVELOPER_MODE } = require('./common');
-const { inspectTransferPayload } = require('./payload-inspector');
+import fsSync from 'node:fs';
+import fs from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
+import { DEVELOPER_MODE } from './common';
+import { inspectTransferPayload } from './payload-inspector';
 
 const DOWNLOAD_DEFAULTS = Object.freeze({
   timeoutMs: 15_000,
@@ -24,7 +22,7 @@ let nextUploadStartAt = 0;
 let uploadStartIntervalMs = UPLOAD_START_FALLBACK_INTERVAL_MS;
 let uploadStartQueue = Promise.resolve();
 
-function setRateLimit(ms) {
+function setRateLimit(ms: any) {
   rateLimitUntil = Math.max(rateLimitUntil, Date.now() + ms);
 }
 
@@ -33,7 +31,7 @@ async function waitRateLimit() {
   if (waitMs > 0) await delay(waitMs);
 }
 
-function updateUploadRateLimitFromHeaders(response) {
+function updateUploadRateLimitFromHeaders(response: any) {
   const remaining = Number.parseInt(response?.headers?.get('x-ratelimit-remaining') || '', 10);
   const resetSeconds = Number.parseFloat(response?.headers?.get('x-ratelimit-reset') || '');
   if (!Number.isFinite(remaining) || !Number.isFinite(resetSeconds) || resetSeconds <= 0) return;
@@ -62,15 +60,15 @@ function waitUploadStartSlot() {
   return result;
 }
 
-function getErrorMessage(error, fallback = 'Unknown error') {
+function getErrorMessage(error: any, fallback = 'Unknown error') {
   return error instanceof Error ? error.message : String(error || fallback);
 }
 
-function getPositiveNumber(value, fallback) {
+function getPositiveNumber(value: any, fallback: any) {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
-function sendTransferUpdateSafe(sendTransferUpdate, payload) {
+function sendTransferUpdateSafe(sendTransferUpdate: any, payload: any) {
   if (typeof sendTransferUpdate !== 'function') return;
   try {
     sendTransferUpdate(payload);
@@ -81,7 +79,7 @@ function sendTransferUpdateSafe(sendTransferUpdate, payload) {
   }
 }
 
-function sanitizeUploadName(name, fallback = 'asset') {
+function sanitizeUploadName(name: any, fallback = 'asset') {
   const safeName = String(name || fallback)
     .replace(/[<>:"/\\|?*\r\n]/g, '_')
     .trim()
@@ -89,7 +87,7 @@ function sanitizeUploadName(name, fallback = 'asset') {
   return safeName || fallback;
 }
 
-function getRetryAfterMs(response, attempt = 1) {
+function getRetryAfterMs(response: any, attempt = 1) {
   const retryAfterSeconds = Number.parseInt(response?.headers?.get('retry-after'), 10);
   if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
     return Math.min(Math.max(retryAfterSeconds, 1), 300) * 1000;
@@ -99,7 +97,7 @@ function getRetryAfterMs(response, attempt = 1) {
   return Math.floor(Math.min(expMs, 120000) + Math.random() * 2000);
 }
 
-function shouldRetryDownload(error) {
+function shouldRetryDownload(error: any) {
   const message = getErrorMessage(error, '').toLowerCase();
   return (
     error?.name === 'AbortError' ||
@@ -109,7 +107,7 @@ function shouldRetryDownload(error) {
   );
 }
 
-function normalizeOperationUrl(operationPath) {
+function normalizeOperationUrl(operationPath: any) {
   if (!operationPath || typeof operationPath !== 'string') return null;
   const normalizedPath = operationPath.startsWith('assets/')
     ? operationPath
@@ -117,15 +115,15 @@ function normalizeOperationUrl(operationPath) {
   return `https://apis.roblox.com/${normalizedPath}`;
 }
 
-function getAssetIdFromResponse(responseData) {
+function getAssetIdFromResponse(responseData: any) {
   return responseData?.response?.assetId || responseData?.response?.Id || null;
 }
 
 async function fetchWithTimeout(
-  url,
-  options = {},
-  timeoutMs = DOWNLOAD_DEFAULTS.timeoutMs,
-  request = fetch,
+  url: any,
+  options: any = {},
+  timeoutMs: any = DOWNLOAD_DEFAULTS.timeoutMs,
+  request: any = fetch,
 ) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -145,7 +143,7 @@ async function fetchWithTimeout(
   }
 }
 
-async function readJsonResponse(response) {
+async function readJsonResponse(response: any) {
   try {
     return await response.json();
   } catch {
@@ -153,8 +151,8 @@ async function readJsonResponse(response) {
   }
 }
 
-async function waitForStreamEvent(stream, successEvent) {
-  await new Promise((resolve, reject) => {
+async function waitForStreamEvent(stream: any, successEvent: any) {
+  await new Promise<void>((resolve, reject) => {
     const cleanup = () => {
       stream.off(successEvent, onSuccess);
       stream.off('error', onError);
@@ -163,7 +161,7 @@ async function waitForStreamEvent(stream, successEvent) {
       cleanup();
       resolve();
     };
-    const onError = (error) => {
+    const onError = (error: any) => {
       cleanup();
       reject(error);
     };
@@ -172,23 +170,23 @@ async function waitForStreamEvent(stream, successEvent) {
   });
 }
 
-async function removeFileIfExists(filePath) {
+async function removeFileIfExists(filePath: any) {
   try {
     await fs.unlink(filePath);
   } catch (error) {
-    if (error?.code !== 'ENOENT' && DEVELOPER_MODE) {
+    if ((error as any)?.code !== 'ENOENT' && DEVELOPER_MODE) {
       console.warn(`[TRANSFER DEBUG] Failed to remove partial file: ${getErrorMessage(error)}`);
     }
   }
 }
 
 async function writeResponseBodyToFile(
-  response,
-  filePath,
-  transferId,
-  totalSize,
-  sendTransferUpdate,
-  lastProgressRef,
+  response: any,
+  filePath: any,
+  transferId: any,
+  totalSize: any,
+  sendTransferUpdate: any,
+  lastProgressRef: any,
 ) {
   if (!response.body) throw new Error('No response body was returned.');
 
@@ -216,7 +214,7 @@ async function writeResponseBodyToFile(
       }
     }
   } catch (error) {
-    fileStream.destroy(error);
+    fileStream.destroy(error as Error);
     throw error;
   } finally {
     if (!fileStream.destroyed) fileStream.end();
@@ -227,16 +225,16 @@ async function writeResponseBodyToFile(
 }
 
 async function uploadAsset(
-  fileBuffer,
-  fileName,
-  fileType,
-  requestMetadata,
-  apiKey,
-  transferId,
-  sendTransferUpdate,
+  fileBuffer: any,
+  fileName: any,
+  fileType: any,
+  requestMetadata: any,
+  apiKey: any,
+  transferId: any,
+  sendTransferUpdate: any,
   customMethod = 'POST',
   customUrl = ASSET_UPLOAD_URL,
-  abortSignal = null,
+  abortSignal: any = null,
 ) {
   let response = null;
   let responseData = null;
@@ -297,11 +295,11 @@ async function uploadAsset(
 }
 
 async function pollUploadOperation(
-  responseData,
-  apiKey,
-  assetType,
-  transferId,
-  sendTransferUpdate,
+  responseData: any,
+  apiKey: any,
+  assetType: any,
+  transferId: any,
+  sendTransferUpdate: any,
 ) {
   const pollUrl = normalizeOperationUrl(responseData?.path);
   if (!pollUrl) return null;
@@ -359,15 +357,15 @@ async function pollUploadOperation(
 }
 
 async function downloadAnimationAssetWithProgress(
-  url,
-  robloxSession,
-  filePath,
-  transferId,
-  entryName,
-  originalAssetId,
-  sendTransferUpdate,
-  placeId = null,
-  options = {},
+  url: any,
+  robloxSession: any,
+  filePath: any,
+  transferId: any,
+  entryName: any,
+  originalAssetId: any,
+  sendTransferUpdate: any,
+  placeId: any = null,
+  options: any = {},
 ) {
   const cookieHeader = robloxSession.getCookieHeader();
 
@@ -409,7 +407,7 @@ async function downloadAnimationAssetWithProgress(
 
   for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
     try {
-      const fetchHeaders = {};
+      const fetchHeaders: any = {};
       if (placeId) {
         fetchHeaders['Roblox-Place-Id'] = String(placeId);
         fetchHeaders['User-Agent'] = 'RobloxStudio/WinInet';
@@ -489,17 +487,17 @@ async function downloadAnimationAssetWithProgress(
 }
 
 async function publishAnimationRbxmWithProgress(
-  filePath,
-  name,
-  cookie,
-  csrfToken,
-  groupId = null,
-  transferId,
-  sendTransferUpdate,
+  filePath: any,
+  name: any,
+  cookie: any,
+  csrfToken: any,
+  groupId: any = null,
+  transferId: any,
+  sendTransferUpdate: any,
   assetTypeName = 'Animation',
-  apiKey = null,
-  userId = null,
-  options = {},
+  apiKey: any = null,
+  userId: any = null,
+  options: any = {},
 ) {
   let fileBuffer;
   try {
@@ -579,7 +577,7 @@ async function publishAnimationRbxmWithProgress(
       success: false,
       error: errorMsg,
       nonRetryable: true,
-      payloadMetadata: error?.payloadMetadata || null,
+      payloadMetadata: (error as any)?.payloadMetadata || null,
     };
   }
 
@@ -654,7 +652,7 @@ async function publishAnimationRbxmWithProgress(
   }
 }
 
-module.exports = {
+export {
   downloadAnimationAssetWithProgress,
   publishAnimationRbxmWithProgress,
 };

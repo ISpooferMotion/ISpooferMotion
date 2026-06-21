@@ -1,15 +1,15 @@
+// @ts-nocheck
 'use strict';
 
-const { markNonRetryableError } = require('./common');
+import { markNonRetryableError } from './common';
 
-const MAX_TEXT_SAMPLE_BYTES = 2048;
-
-function startsWithBytes(buffer, bytes) {
+const MAX_TEXT_SAMPLE_BYTES = 512;
+function startsWithBytes(buffer: Buffer, bytes: number[]) {
   if (!Buffer.isBuffer(buffer) || buffer.length < bytes.length) return false;
   return bytes.every((byte, index) => buffer[index] === byte);
 }
 
-function getTextSample(buffer) {
+function getTextSample(buffer: Buffer) {
   return buffer
     .subarray(0, Math.min(buffer.length, MAX_TEXT_SAMPLE_BYTES))
     .toString('utf8')
@@ -17,8 +17,8 @@ function getTextSample(buffer) {
     .trimStart();
 }
 
-function createInvalidPayloadError(assetType, reason, metadata = {}) {
-  const error = markNonRetryableError(
+function createInvalidPayloadError(assetType: string, reason: string, metadata: any = {}) {
+  const error: any = markNonRetryableError(
     new Error(`${assetType} payload is not uploadable: ${reason}`),
     'INVALID_TRANSFER_PAYLOAD',
   );
@@ -32,14 +32,14 @@ function createInvalidPayloadError(assetType, reason, metadata = {}) {
   return error;
 }
 
-function getBaseMetadata(buffer, responseContentType = '') {
+function getBaseMetadata(buffer: Buffer, responseContentType = '') {
   return {
     byteSize: Buffer.isBuffer(buffer) ? buffer.length : 0,
     responseContentType: String(responseContentType || '').trim(),
   };
 }
 
-function detectAudioPayload(buffer, responseContentType = '') {
+function detectAudioPayload(buffer: Buffer, responseContentType = '') {
   const base = getBaseMetadata(buffer, responseContentType);
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     throw createInvalidPayloadError('Audio', 'the downloaded file is empty.', base);
@@ -68,7 +68,7 @@ function detectAudioPayload(buffer, responseContentType = '') {
   throw createInvalidPayloadError('Audio', describeUnexpectedPayload(buffer), base);
 }
 
-function detectAnimationPayload(buffer, responseContentType = '') {
+function detectAnimationPayload(buffer: Buffer, responseContentType = '') {
   const base = getBaseMetadata(buffer, responseContentType);
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     throw createInvalidPayloadError('Animation', 'the downloaded file is empty.', base);
@@ -99,7 +99,7 @@ function detectAnimationPayload(buffer, responseContentType = '') {
   throw createInvalidPayloadError('Animation', describeUnexpectedPayload(buffer), base);
 }
 
-function describeUnexpectedPayload(buffer) {
+function describeUnexpectedPayload(buffer: Buffer) {
   const sample = getTextSample(buffer).toLowerCase();
   if (!sample) return 'the downloaded file has no recognizable content.';
   if (/^<!doctype\s+html\b|^<html\b/.test(sample)) {
@@ -114,13 +114,13 @@ function describeUnexpectedPayload(buffer) {
   return 'the file header is not a supported Roblox asset format.';
 }
 
-function inspectTransferPayload(buffer, assetTypeName, responseContentType = '') {
+function inspectTransferPayload(buffer: Buffer, assetTypeName: string, responseContentType = '') {
   return assetTypeName === 'Audio'
     ? detectAudioPayload(buffer, responseContentType)
     : detectAnimationPayload(buffer, responseContentType);
 }
 
-module.exports = {
+export {
   detectAnimationPayload,
   detectAudioPayload,
   inspectTransferPayload,

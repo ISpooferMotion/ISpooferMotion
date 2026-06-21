@@ -3,7 +3,10 @@ const esbuild = require('esbuild');
 async function buildMain() {
   try {
     await esbuild.build({
-      entryPoints: ['src/main/app.ts'],
+      entryPoints: {
+        'app': 'src/main/app.ts',
+        'preload': 'src/preload/preload.ts'
+      },
       bundle: true,
       platform: 'node',
       target: 'node18',

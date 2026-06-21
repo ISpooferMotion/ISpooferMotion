@@ -5,23 +5,25 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { __private } = require('../../src/main/services/ipc-handlers');
+const { AssetService } = require('../../src/main/services/AssetService');
+const { SpooferController } = require('../../src/main/services/SpooferController');
+const { RobloxApiService } = require('../../src/main/services/RobloxApiService');
 const { __private: localhostPrivate } = require('../../src/main/services/localhost-plugin-server');
 
-const {
-  buildDirectAssetDownloadAttempts,
-  buildDirectAssetDownloadUrls,
-  extractBatchLocationError,
-  getSpooferInputTypeMarker,
-  getAssetMetadataFromDetails,
-  getPlaceIdFromDownloadUrl,
-  hasBatchAccessDeniedErrors,
-  applyResolvedAssetMetadata,
-  parseSpooferAssetLine,
-  setBatchLocation,
-  uniquePlaceIds,
-  validateDownloadedAssetFile,
-} = __private;
+const buildDirectAssetDownloadAttempts = AssetService.buildDirectAssetDownloadAttempts.bind(AssetService);
+const buildDirectAssetDownloadUrls = AssetService.buildDirectAssetDownloadUrls.bind(AssetService);
+const getPlaceIdFromDownloadUrl = AssetService.getPlaceIdFromDownloadUrl.bind(AssetService);
+const uniquePlaceIds = AssetService.uniquePlaceIds.bind(AssetService);
+
+const extractBatchLocationError = SpooferController.extractBatchLocationError.bind(SpooferController);
+const getSpooferInputTypeMarker = SpooferController.getSpooferInputTypeMarker.bind(SpooferController);
+const hasBatchAccessDeniedErrors = SpooferController.hasBatchAccessDeniedErrors.bind(SpooferController);
+const parseSpooferAssetLine = SpooferController.parseSpooferAssetLine.bind(SpooferController);
+const setBatchLocation = SpooferController.setBatchLocation.bind(SpooferController);
+const validateDownloadedAssetFile = SpooferController.validateDownloadedAssetFile.bind(SpooferController);
+
+const getAssetMetadataFromDetails = RobloxApiService.getAssetMetadataFromDetails.bind(RobloxApiService);
+const applyResolvedAssetMetadata = RobloxApiService.applyResolvedAssetMetadata.bind(RobloxApiService);
 
 const {
   appendPlaceContextToLine,
