@@ -59,7 +59,7 @@ export class SpooferController {
     if (!Number.isFinite(remaining) || !Number.isFinite(resetSeconds) || resetSeconds <= 0) return;
   
     if (remaining <= 2) {
-      setBatchRateLimit(Math.ceil(resetSeconds * 1000) + 250);
+      SpooferController.setBatchRateLimit(Math.ceil(resetSeconds * 1000) + 250);
       return;
     }
   
@@ -176,7 +176,7 @@ export class SpooferController {
   
   
   public static isSpooferOutputMetadataLine(line) {
-    const trimmed = normalizeSpooferInputLine(line);
+    const trimmed = SpooferController.normalizeSpooferInputLine(line);
     if (!trimmed) return true;
     if (/^--/.test(trimmed)) return true;
     if (/^COPY THE CONTENTS OF THIS SCRIPT/i.test(trimmed)) return true;
@@ -389,7 +389,7 @@ export class SpooferController {
     }
   
     const inputText = String(data.animationId || '');
-    const inputTypeMarker = getSpooferInputTypeMarker(inputText);
+    const inputTypeMarker = SpooferController.getSpooferInputTypeMarker(inputText);
     const defaultInputAssetTypeName = inputTypeMarker
       ? inputTypeMarker === 'mixed'
         ? ''
@@ -403,9 +403,9 @@ export class SpooferController {
     const assetEntries = inputText
       .split('\n')
       .map((line, index) => {
-        const trimmedLine = normalizeSpooferInputLine(line);
-        if (isSpooferOutputMetadataLine(trimmedLine)) return null;
-        const parsed = parseSpooferAssetLine(trimmedLine);
+        const trimmedLine = SpooferController.normalizeSpooferInputLine(line);
+        if (SpooferController.isSpooferOutputMetadataLine(trimmedLine)) return null;
+        const parsed = SpooferController.parseSpooferAssetLine(trimmedLine);
         if (parsed.error) {
           invalidAssetLines.push({
             line: index + 1,
@@ -868,7 +868,7 @@ export class SpooferController {
             } finally {
               clearTimeout(timeout);
             }
-            if (resp) updateBatchRateLimitFromHeaders(resp);
+            if (resp) SpooferController.updateBatchRateLimitFromHeaders(resp);
   
             if (resp && resp.ok) {
               locations = await resp.json();
@@ -920,13 +920,13 @@ export class SpooferController {
             }
   
             if (status === 429 && resp) {
-              const delayMs = getBatchRetryAfterMs(resp, attempt);
+              const delayMs = SpooferController.getBatchRetryAfterMs(resp, attempt);
               sendStatusMessage(
                 `Roblox rate limited download lookup. Retrying in ${Math.ceil(delayMs / 1000)}s...`,
               );
               if (DEVELOPER_MODE)
                 console.warn(`(Dev) Rate limited (429). Pausing batch globally for ${delayMs}ms`);
-              setBatchRateLimit(delayMs);
+              SpooferController.setBatchRateLimit(delayMs);
             } else {
               const delayMs = BATCH_RETRY_DELAY_MS + Math.floor(Math.random() * 300);
               await new Promise((r) => setTimeout(r, delayMs));
