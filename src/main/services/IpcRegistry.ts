@@ -17,8 +17,7 @@ import { ProfileService } from './ProfileService';
 import { RobloxApiService } from './RobloxApiService';
 import { AssetService } from './AssetService';
 import { SpooferController } from './SpooferController';
-
-function normalizePayload(value: any) {
+export function normalizePayload(value: any) {
   return value && typeof value === 'object' ? value : {};
 }
 

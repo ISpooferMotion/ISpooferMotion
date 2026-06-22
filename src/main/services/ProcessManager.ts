@@ -23,7 +23,7 @@ export function cancelSpoofer() {
   resumeSpoofer();
 }
 
-function resetRunControls() {
+export function resetRunControls() {
   isCancelled = false;
   abortController = new AbortController();
   resumeSpoofer();

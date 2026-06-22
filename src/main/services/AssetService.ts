@@ -17,12 +17,12 @@ export class AssetService {
   }
 
   public static normalizePlaceId(value) {
-    const id = normalizeNumericId(value);
+    const id = AssetService.normalizeNumericId(value);
     return id && id !== '0' ? id : '';
   }
 
   public static normalizeCreatorId(value) {
-    const id = normalizeNumericId(value);
+    const id = AssetService.normalizeNumericId(value);
     return id && id !== '0' ? id : '';
   }
 
@@ -102,7 +102,7 @@ export class AssetService {
     if (!game || typeof game !== 'object') return '';
     const candidates = [game.universeId, game.universe?.id, game.id, game.rootPlace?.universeId];
     for (const candidate of candidates) {
-      const id = normalizeNumericId(candidate);
+      const id = AssetService.normalizeNumericId(candidate);
       if (id) return id;
     }
     return '';
@@ -171,7 +171,7 @@ export class AssetService {
   }
 
   public static async fetchCreatorGamesPage(url, robloxSession) {
-    const data = await fetchJsonWithRetries(url, robloxSession, 'Games API');
+    const data = await AssetService.fetchJsonWithRetries(url, robloxSession, 'Games API');
     if (!Array.isArray(data.data)) {
       throw new Error(`Invalid games response format: ${JSON.stringify(data).slice(0, 200)}`);
     }
@@ -188,7 +188,7 @@ export class AssetService {
       url.searchParams.set('universeIds', chunk.join(','));
 
       try {
-        const data = await fetchJsonWithRetries(url, robloxSession, 'Universe details API');
+        const data = await AssetService.fetchJsonWithRetries(url, robloxSession, 'Universe details API');
         if (Array.isArray(data?.data)) {
           for (const item of data.data) {
             const universeId = getUniverseId(item);
@@ -210,8 +210,8 @@ export class AssetService {
     const url = new URL(
       `https://apis.roblox.com/universes/v1/places/${normalizedPlaceId}/universe`,
     );
-    const data = await fetchJsonWithRetries(url, robloxSession, 'Place universe API');
-    const universeId = normalizeNumericId(data?.universeId || data?.UniverseId || data?.id);
+    const data = await AssetService.fetchJsonWithRetries(url, robloxSession, 'Place universe API');
+    const universeId = AssetService.normalizeNumericId(data?.universeId || data?.UniverseId || data?.id);
     if (!universeId) throw new Error('No universe ID returned for that place');
     return universeId;
   }
@@ -238,17 +238,17 @@ export class AssetService {
         continue;
       }
 
-      const universeId = getUniverseId(game);
+      const universeId = AssetService.getUniverseId(game);
       if (universeId) missingUniverseIds.push(universeId);
     }
 
     if (!missingUniverseIds.length || state.suggestions.length >= state.maxResults) return;
 
-    const detailMap = await fetchUniverseDetailsByIds(missingUniverseIds, robloxSession);
+    const detailMap = await AssetService.fetchUniverseDetailsByIds(missingUniverseIds, robloxSession);
     for (const universeId of missingUniverseIds) {
       const detail = detailMap.get(universeId);
       if (!detail) continue;
-      const enrichedSuggestion = makePlaceSuggestion(
+      const enrichedSuggestion = AssetService.makePlaceSuggestion(
         detail,
         creatorType,
         creatorId,
@@ -307,7 +307,7 @@ export class AssetService {
 
           let pageData;
           try {
-            pageData = await fetchCreatorGamesPage(url, robloxSession);
+            pageData = await AssetService.fetchCreatorGamesPage(url, robloxSession);
           } catch (err) {
             errors.push(`${accessFilter || 'default'} ${sortOrder}: ${err.message}`);
             break;
@@ -323,7 +323,7 @@ export class AssetService {
             break;
           }
 
-          await addSuggestionsFromGames(
+          await AssetService.addSuggestionsFromGames(
             pageData.data,
             normalizedCreatorType,
             normalizedCreatorId,
@@ -350,7 +350,7 @@ export class AssetService {
   }
 
   public static async getPlaceIdFromCreator(creatorType, creatorId, cookie, maxPlaceIds = 1000) {
-    const result = await collectPlaceSuggestionsForCreator(
+    const result = await AssetService.collectPlaceSuggestionsForCreator(
       creatorType,
       creatorId,
       cookie,
@@ -372,7 +372,7 @@ export class AssetService {
     cookie,
     maxPlaceIds = 1000,
   ) {
-    return collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie, maxPlaceIds);
+    return AssetService.collectPlaceSuggestionsForCreator(creatorType, creatorId, cookie, maxPlaceIds);
   }
 
   public static async getPlaceSuggestionByPlaceId(placeId, cookie) {
@@ -381,11 +381,11 @@ export class AssetService {
 
     const robloxSession = createRobloxSession(cookie);
     try {
-      const universeId = await fetchUniverseIdForPlaceId(normalizedPlaceId, robloxSession);
-      const details = await fetchUniverseDetailsByIds([universeId], robloxSession);
+      const universeId = await AssetService.fetchUniverseIdForPlaceId(normalizedPlaceId, robloxSession);
+      const details = await AssetService.fetchUniverseDetailsByIds([universeId], robloxSession);
       const detail = details.get(universeId);
       const suggestion = detail
-        ? makePlaceSuggestion(
+        ? AssetService.makePlaceSuggestion(
             { ...detail, rootPlaceId: normalizedPlaceId },
             null,
             null,
@@ -422,18 +422,18 @@ export class AssetService {
   }
 
   public static async getGroupsForUser(userId, cookie) {
-    const normalizedId = normalizeNumericId(userId);
+    const normalizedId = AssetService.normalizeNumericId(userId);
     if (!normalizedId) return [];
 
     const robloxSession = createRobloxSession(cookie);
     try {
       const url = new URL(`https://groups.roblox.com/v1/users/${normalizedId}/groups/roles`);
-      const data = await fetchJsonWithRetries(url, robloxSession, 'User groups API', 2);
+      const data = await AssetService.fetchJsonWithRetries(url, robloxSession, 'User groups API', 2);
       if (!Array.isArray(data?.data)) return [];
       return data.data
         .map((entry) => {
-          const groupId = normalizeNumericId(entry?.group?.id);
-          const ownerId = normalizeNumericId(entry?.group?.owner?.userId);
+          const groupId = AssetService.normalizeNumericId(entry?.group?.id);
+          const ownerId = AssetService.normalizeNumericId(entry?.group?.owner?.userId);
           return groupId ? { groupId, ownerId: ownerId || null } : null;
         })
         .filter(Boolean);
@@ -444,15 +444,15 @@ export class AssetService {
   }
 
   public static async getFriendsForUser(userId, cookie) {
-    const normalizedId = normalizeNumericId(userId);
+    const normalizedId = AssetService.normalizeNumericId(userId);
     if (!normalizedId) return [];
 
     const robloxSession = createRobloxSession(cookie);
     try {
       const url = new URL(`https://friends.roblox.com/v1/users/${normalizedId}/friends`);
-      const data = await fetchJsonWithRetries(url, robloxSession, 'Friends API', 2);
+      const data = await AssetService.fetchJsonWithRetries(url, robloxSession, 'Friends API', 2);
       if (!Array.isArray(data?.data)) return [];
-      return data.data.map((f) => normalizeNumericId(f?.id || f?.userId)).filter(Boolean);
+      return data.data.map((f) => AssetService.normalizeNumericId(f?.id || f?.userId)).filter(Boolean);
     } catch (err) {
       debugWarn('(Dev) Failed to fetch user friends:', err.message);
       return [];
@@ -468,6 +468,7 @@ export class AssetService {
   ) {
     const seenPlaceIds = new Set();
     const results = [];
+    const robloxSession = createRobloxSession(cookie);
 
     const addPlaceIds = (ids) => {
       for (const id of ids || []) {
@@ -481,7 +482,7 @@ export class AssetService {
 
     const fetchUserPlaces = async (userId, label) => {
       try {
-        const r = await collectPlaceSuggestionsForCreator('user', userId, cookie, maxPerSource);
+        const r = await AssetService.collectPlaceSuggestionsForCreator('user', userId, cookie, maxPerSource);
         addPlaceIds(r.places.map((p) => p.placeId));
         if (r.places.length > 0)
           debugLog(`(Dev) Fallback: got ${r.places.length} places from ${label} (${userId})`);
@@ -490,7 +491,7 @@ export class AssetService {
 
     const fetchGroupPlaces = async (groupId, label) => {
       try {
-        const r = await collectPlaceSuggestionsForCreator('group', groupId, cookie, maxPerSource);
+        const r = await AssetService.collectPlaceSuggestionsForCreator('group', groupId, cookie, maxPerSource);
         addPlaceIds(r.places.map((p) => p.placeId));
         if (r.places.length > 0)
           debugLog(
@@ -505,7 +506,7 @@ export class AssetService {
     }
 
     if (authUserId) {
-      const authGroups = await getGroupsForUser(authUserId, cookie);
+      const authGroups = await AssetService.getGroupsForUser(authUserId, cookie);
       debugLog(`(Dev) Fallback: auth user is in ${authGroups.length} groups`);
       for (const { groupId } of authGroups) {
         if (results.length >= maxPerSource * 5) break;
@@ -515,7 +516,7 @@ export class AssetService {
     }
 
     if (creatorType === 'user' && creatorId && creatorId !== authUserId) {
-      const creatorGroups = await getGroupsForUser(creatorId, cookie);
+      const creatorGroups = await AssetService.getGroupsForUser(creatorId, cookie);
       debugLog(`(Dev) Fallback: creator ${creatorId} is in ${creatorGroups.length} groups`);
 
       for (const { groupId } of creatorGroups) {
@@ -535,7 +536,7 @@ export class AssetService {
       debugLog(`(Dev) Fallback pool after (group owner personal games): ${results.length}`);
 
       if (results.length < maxPerSource * 3) {
-        const friendIds = await getFriendsForUser(creatorId, cookie);
+        const friendIds = await AssetService.getFriendsForUser(creatorId, cookie);
         debugLog(`(Dev) Fallback: creator has ${friendIds.length} friends`);
         for (const friendId of friendIds) {
           if (results.length >= maxPerSource * 15) break;
@@ -551,12 +552,12 @@ export class AssetService {
   }
 
   public static async getPlaceIdFromUniverseId(universeId, cookie) {
-    const normalizedUniverseId = normalizeNumericId(universeId);
+    const normalizedUniverseId = AssetService.normalizeNumericId(universeId);
     if (!normalizedUniverseId) return null;
 
     const robloxSession = createRobloxSession(cookie);
     try {
-      const details = await fetchUniverseDetailsByIds([normalizedUniverseId], robloxSession);
+      const details = await AssetService.fetchUniverseDetailsByIds([normalizedUniverseId], robloxSession);
       const detail = details.get(normalizedUniverseId);
       if (detail && detail.rootPlaceId) {
         return String(detail.rootPlaceId);
@@ -629,11 +630,11 @@ export class AssetService {
   }
 
   public static getAssetKindLabel(assetTypeName) {
-    return getEntryAssetTypeName({ assetTypeName }) === 'Audio' ? 'Sound' : 'Animation';
+    return AssetService.getEntryAssetTypeName({ assetTypeName }) === 'Audio' ? 'Sound' : 'Animation';
   }
 
   public static summarizeAssetTypes(entries) {
-    const audio = entries.filter((entry) => getEntryAssetTypeName(entry) === 'Audio').length;
+    const audio = entries.filter((entry) => AssetService.getEntryAssetTypeName(entry) === 'Audio').length;
     const animations = entries.length - audio;
     if (audio > 0 && animations > 0) return `${animations} animation(s), ${audio} sound(s)`;
     if (audio > 0) return `${audio} sound(s)`;

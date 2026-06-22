@@ -3,12 +3,14 @@ import { withTimeout, readResponseText, readJsonResponse, ROBLOX_USER_AGENT, deb
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as crypto from 'crypto';
+import { app } from 'electron';
 import { DEVELOPER_MODE, clearDownloadsDirectory } from './common';
-import { getAbortSignal, checkPaused, checkCancelled } from './ProcessManager';
-import { showDesktopNotification } from './IpcRegistry';
-import { clearSession, saveSession } from './session';
+import { getAbortSignal, checkPaused, checkCancelled, resetRunControls } from './ProcessManager';
+import { showDesktopNotification, normalizePayload } from './IpcRegistry';
+import { clearSession, saveSession, loadSession } from './session';
 import { saveJobRecord } from './jobs';
-import { getAuthenticatedUserId } from './auth';
+import { getAuthenticatedUserId, getCookieFromAutoDetect } from './auth';
 import { buildFinalUploadName } from './replacement-utils';
 import { AssetService } from './AssetService';
 import { inspectTransferPayload } from './payload-inspector';
@@ -17,7 +19,7 @@ import { RobloxApiService } from './RobloxApiService';
 import { createRobloxSession } from './roblox-session';
 
 
-import { evictPlaceId, recordSuccessfulPlaceId, savePlaceIdCache } from './place-id-cache';
+import { evictPlaceId, recordSuccessfulPlaceId, savePlaceIdCache, loadPlaceIdCache, pruneExpiredEntries, getCachedPlaceIds } from './place-id-cache';
 import { sanitizeFilename, retryAsync } from './common';
 import { downloadAnimationAssetWithProgress, publishAnimationRbxmWithProgress } from './transfer-handlers';
 
@@ -79,7 +81,7 @@ export class SpooferController {
   }
   
   
-  private static runWithConcurrency = async (items, limit, worker) => {
+  public static runWithConcurrency = async (items, limit, worker) => {
     const results = new Array(items.length);
     let index = 0;
     let cancelled = false;
@@ -374,7 +376,7 @@ export class SpooferController {
     }
   
     if (!data.downloadOnly) {
-      const apiKeyValidation = await validateOpenCloudApiKey(data.apiKey);
+      const apiKeyValidation = await RobloxApiService.validateOpenCloudApiKey(data.apiKey);
       if (!apiKeyValidation.ok) {
         sendSpooferResultToRenderer({
           output: apiKeyValidation.message,
@@ -500,7 +502,7 @@ export class SpooferController {
     }
   
     try {
-      const resolvedMetadataCount = await resolveAssetEntryMetadata(animationEntries, robloxSession, {
+      const resolvedMetadataCount = await RobloxApiService.resolveAssetEntryMetadata(animationEntries, robloxSession, {
         force: data.downloadOnly,
       });
       
@@ -702,7 +704,7 @@ export class SpooferController {
         const fallbackPools = new Map();
         const getFallbackPool = async (creatorKey, creatorType, creatorId) => {
           if (fallbackPools.has(creatorKey)) return fallbackPools.get(creatorKey);
-          const pool = await getPlaceIdsFromAllUserContext(
+          const pool = await AssetService.getPlaceIdsFromAllUserContext(
             fallbackAuthUserId,
             creatorId,
             creatorType,
