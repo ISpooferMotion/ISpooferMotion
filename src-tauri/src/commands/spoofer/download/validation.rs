@@ -28,10 +28,11 @@ pub async fn validate_downloaded_payload(
 
     match asset_type.unwrap_or_default().to_ascii_lowercase().as_str() {
         "audio" => {
-            if valid_bytes.starts_with(b"OggS")
-                || valid_bytes.starts_with(b"ID3")
-                || valid_bytes.starts_with(&[0xff, 0xfb])
-                || valid_bytes.starts_with(b"RIFF")
+            if head.starts_with(b"OggS")
+                || head.starts_with(b"ID3")
+                || (head.len() >= 2 && head[0] == 0xff && (head[1] & 0xe0) == 0xe0)
+                || head.starts_with(b"RIFF")
+                || head.starts_with(b"fLaC")
             {
                 Ok(())
             } else {
@@ -39,10 +40,10 @@ pub async fn validate_downloaded_payload(
             }
         }
         "image" => {
-            if valid_bytes.starts_with(b"\x89PNG\r\n\x1a\n")
-                || valid_bytes.starts_with(&[0xff, 0xd8, 0xff])
-                || valid_bytes.starts_with(b"GIF87a")
-                || valid_bytes.starts_with(b"GIF89a")
+            if head.starts_with(b"\x89PNG\r\n\x1a\n")
+                || head.starts_with(&[0xff, 0xd8, 0xff])
+                || head.starts_with(b"GIF87a")
+                || head.starts_with(b"GIF89a")
             {
                 Ok(())
             } else {

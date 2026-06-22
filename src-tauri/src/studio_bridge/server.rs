@@ -49,7 +49,7 @@ pub async fn handle_scan_start(
 ) -> &'static str {
     let mut guard = state.data.write().await;
     guard.last_plugin_poll_time = Some(Instant::now());
-    guard.studio_records = std::sync::Arc::new(Vec::new());
+    guard.pending_studio_records = std::sync::Arc::new(Vec::new());
     let incoming_place_id = payload
         .get("placeId")
         .and_then(|value| {
@@ -101,13 +101,13 @@ pub async fn handle_scan_records(
     guard.last_plugin_poll_time = Some(Instant::now());
     let mut truncated = false;
     for record in records {
-        if guard.studio_records.len() >= super::MAX_STUDIO_RECORDS {
+        if guard.pending_studio_records.len() >= super::MAX_STUDIO_RECORDS {
             truncated = true;
             break;
         }
         if let Ok(record) = serde_json::from_value::<StudioRecord>(record.clone()) {
             if record.property != "Source" || record.value.len() <= super::MAX_SCRIPT_SOURCE_BYTES {
-                std::sync::Arc::make_mut(&mut guard.studio_records).push(record);
+                std::sync::Arc::make_mut(&mut guard.pending_studio_records).push(record);
             }
         }
     }
@@ -122,6 +122,7 @@ pub async fn handle_scan_complete(State(state): State<AppState>) -> Json<Value> 
         let mut guard = state.data.write().await;
         guard.last_plugin_poll_time = Some(Instant::now());
         guard.scan_status = None;
+        guard.studio_records = guard.pending_studio_records.clone();
         std::sync::Arc::clone(&guard.studio_records)
     };
     let stores =
@@ -162,7 +163,7 @@ pub async fn handle_scan_complete(State(state): State<AppState>) -> Json<Value> 
 pub async fn handle_scan_abort(State(state): State<AppState>) -> &'static str {
     let mut guard = state.data.write().await;
     guard.scan_status = None;
-    guard.studio_records = std::sync::Arc::new(Vec::new());
+    guard.pending_studio_records = std::sync::Arc::new(Vec::new());
     guard.last_sounds.scanning = false;
     guard.last_animations.scanning = false;
     guard.last_images.scanning = false;
