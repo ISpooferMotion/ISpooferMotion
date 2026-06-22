@@ -1,5 +1,5 @@
 import { emit } from '@tauri-apps/api/event';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { commands } from '../bindings';
 import { type StoredDiscordAuth } from '../types/discordAuth';
@@ -18,6 +18,12 @@ export function useDiscordLogin(onSuccess?: (auth: StoredDiscordAuth) => void) {
       pollRef.current = null;
     }
   };
+
+  useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, []);
 
   const startLogin = useCallback(async () => {
     // start the oauth flow and wait for the user to approve in their browser

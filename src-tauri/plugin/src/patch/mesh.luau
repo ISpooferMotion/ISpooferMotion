@@ -80,6 +80,10 @@ local function rewritePartReference(obj: Instance, src: BasePart, dst: BasePart)
 end
 
 local function moveMeshPartContentsInto(src: BasePart, dst: BasePart)
+	pcall(function()
+		src.Parent = nil
+	end)
+
 	for _, child in ipairs(src:GetChildren()) do
 		pcall(function()
 			child.Parent = dst

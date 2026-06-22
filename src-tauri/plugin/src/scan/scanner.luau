@@ -273,46 +273,17 @@ local function scanAssets(): ()
 	resetObjectRegistry()
 	resetScanRecordState()
 
-	local servicesToProcess = {}
-	local totalObjects = 0
-
-	for _, serviceName in ipairs(SERVICES_TO_SCAN) do
-		local ok, service = pcall(function()
-			return game:GetService(serviceName)
-		end)
-
-		if ok and service then
-			local okDescendants, descendants = pcall(function()
-				return service:GetDescendants()
-			end)
-
-			if okDescendants and type(descendants) == "table" then
-				totalObjects += #descendants + 1
-				table.insert(servicesToProcess, {
-					name = serviceName,
-					service = service,
-					descendants = descendants,
-				})
-			else
-				totalObjects += 1
-				table.insert(servicesToProcess, {
-					name = serviceName,
-					service = service,
-					descendants = {},
-				})
-			end
-		end
-	end
-
 	local records: { Record } = {}
 	local captured = 0
 	local processed = 0
 	local lastYieldTime = os.clock()
 	local lastProgressTime = 0
+	local totalObjects = 0
 
-	for _, serviceData in ipairs(servicesToProcess) do
+	local function scanRecursive(obj: Instance, currentService: string)
 		processed += 1
-		processScannedObject(records, serviceData.service)
+		totalObjects += 1
+		processScannedObject(records, obj)
 
 		if #records >= SEND_CHUNK_SIZE or getPendingRecordBytes() >= SCAN_CHUNK_BYTES then
 			captured += #records
@@ -324,7 +295,7 @@ local function scanAssets(): ()
 			pcall(function()
 				postJson("/scan-progress", {
 					scanning = true,
-					current_service = serviceData.name,
+					current_service = currentService,
 					scanned = processed,
 					total = totalObjects,
 				})
@@ -337,32 +308,22 @@ local function scanAssets(): ()
 			lastYieldTime = os.clock()
 		end
 
-		for _, obj in ipairs(serviceData.descendants) do
-			processed += 1
-			processScannedObject(records, obj)
-
-			if #records >= SEND_CHUNK_SIZE or getPendingRecordBytes() >= SCAN_CHUNK_BYTES then
-				captured += #records
-				flushScanRecordsOrError(records)
+		local ok, children = pcall(function()
+			return obj:GetChildren()
+		end)
+		if ok and type(children) == "table" then
+			for _, child in ipairs(children) do
+				scanRecursive(child, currentService)
 			end
+		end
+	end
 
-			now = os.clock()
-			if now - lastProgressTime >= 0.25 then
-				pcall(function()
-					postJson("/scan-progress", {
-						scanning = true,
-						current_service = serviceData.name,
-						scanned = processed,
-						total = totalObjects,
-					})
-				end)
-				lastProgressTime = now
-			end
-
-			if now - lastYieldTime >= 0.08 then
-				task.wait(0)
-				lastYieldTime = os.clock()
-			end
+	for _, serviceName in ipairs(SERVICES_TO_SCAN) do
+		local ok, service = pcall(function()
+			return game:GetService(serviceName)
+		end)
+		if ok and service then
+			scanRecursive(service, serviceName)
 		end
 	end
 
@@ -388,7 +349,9 @@ local function scanAssets(): ()
 				)
 			)
 		else
-			warn("[ISpooferMotion] Scan hit the server record limit - some assets may be missing. Try splitting very large places or contact support.")
+			warn(
+				"[ISpooferMotion] Scan hit the server record limit - some assets may be missing. Try splitting very large places or contact support."
+			)
 		end
 	end
 

@@ -52,7 +52,7 @@ export default function ActivityView() {
             downloadOnly: false,
             uploadTypes: ['animation', 'mesh', 'audio'],
           },
-          logFilePath: null,
+          logFilePath: '',
         });
       }
 
@@ -120,11 +120,6 @@ export default function ActivityView() {
     updateConfig('ui', 'activeTab', 'spoofing');
   };
 
-  const formatDuration = (ms: number) => {
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(1)}s`;
-  };
-
   return (
     <motion.div
       variants={pageVariants}
@@ -150,10 +145,8 @@ export default function ActivityView() {
               <Accordion selectionMode="multiple" className="space-y-3 pb-8">
                 {jobs.map((job) => {
                   const totalAssets = job.assetResults?.length || 0;
-                  const successfulAssets = job.assetResults?.filter((r) => r.success).length || 0;
                   const failedAssets =
                     job.assetResults?.filter((r) => !r.success && !r.skipped).length || 0;
-                  const skippedAssets = job.assetResults?.filter((r) => r.skipped).length || 0;
 
                   const dateStr = new Date(job.startTime).toLocaleDateString(undefined, {
                     month: 'short',

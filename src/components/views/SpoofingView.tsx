@@ -20,6 +20,7 @@ import { readText as readClipboardText } from '@tauri-apps/plugin-clipboard-mana
 import { motion } from 'framer-motion';
 import { Ban, Play, RotateCcw, ScanSearch, UserSquare2, Wand2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 
 import AnimationIcon from '../../assets/roblox_icons/Animation.png';
 import DecalIcon from '../../assets/roblox_icons/Decal.png';
@@ -123,7 +124,29 @@ export default function SpoofingView() {
     activeSpooferJobId,
     lastAssetResults,
     keyframeWarningCount,
-  } = useSpooferStore();
+  } = useSpooferStore(
+    useShallow((s) => ({
+      rootInstances: s.rootInstances,
+      loadedFileName: s.loadedFileName,
+      selectedAssetIds: s.selectedAssetIds,
+      setSelectedAssetIds: s.setSelectedAssetIds,
+      spoofingLogs: s.spoofingLogs,
+      setSpoofingLogs: s.setSpoofingLogs,
+      isSpoofing: s.isSpoofing,
+      setIsSpoofing: s.setIsSpoofing,
+      spoofProgress: s.spoofProgress,
+      setSpoofProgress: s.setSpoofProgress,
+      lastReplacements: s.lastReplacements,
+      spoofCompletionVersion: s.spoofCompletionVersion,
+      isReplacing: s.isReplacing,
+      replaceError: s.replaceError,
+      setReplaceError: s.setReplaceError,
+      setIsReplacing: s.setIsReplacing,
+      activeSpooferJobId: s.activeSpooferJobId,
+      lastAssetResults: s.lastAssetResults,
+      keyframeWarningCount: s.keyframeWarningCount,
+    })),
+  );
   const [isScanningStudio, setIsScanningStudio] = useState(false);
   const [users, setUsers] = useState<RobloxUserInfo[]>(loadCachedUsers);
   const [groups, setGroups] = useState<RobloxGroup[]>(() =>

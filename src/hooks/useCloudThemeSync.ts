@@ -10,7 +10,7 @@ import type { StoredDiscordAuth } from '../types/discordAuth';
 interface CloudThemeStateResponse {
   changed: boolean;
   version?: number;
-  themeData?: string;
+  themeData?: string | Record<string, any>;
   themeHash?: string;
 }
 
@@ -110,13 +110,25 @@ export function useCloudThemeSync() {
         const data: CloudThemeStateResponse = await response.json();
         if (!data.changed || !data.themeData || !data.version || !data.themeHash) return;
 
+        const themeJsonString =
+          typeof data.themeData === 'string' ? data.themeData : JSON.stringify(data.themeData);
+
+        if (themeJsonString === '{}') {
+          window.localStorage.removeItem('active_custom_theme_json');
+          window.localStorage.removeItem('cloud_theme_version');
+          window.localStorage.removeItem('cloud_theme_hash');
+          themeOps.current.clearCustomTheme();
+          themeOps.current.setThemeMode('dark');
+          return;
+        }
+
         try {
-          window.localStorage.setItem('active_custom_theme_json', data.themeData);
+          window.localStorage.setItem('active_custom_theme_json', themeJsonString);
           window.localStorage.setItem('theme', 'custom');
           window.localStorage.setItem('cloud_theme_version', data.version.toString());
           window.localStorage.setItem('cloud_theme_hash', data.themeHash);
 
-          themeOps.current.loadThemeFromJson(data.themeData);
+          themeOps.current.loadThemeFromJson(themeJsonString);
 
           await sendThemeReceipt(auth.loginToken, data.version, data.themeHash, 'applied', null);
         } catch (applyError) {

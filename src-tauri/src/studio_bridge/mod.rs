@@ -30,13 +30,13 @@ use middleware::{require_auth, require_json_for_post};
 use server::{
     get_last_animations, get_last_images, get_last_meshes, get_last_script_refs, get_last_sounds,
     handle_animations_complete, handle_api_dump, handle_assets_animations, handle_assets_images,
-    handle_assets_meshes, handle_assets_script_refs, handle_assets_sounds,
-    handle_cloud_theme_sync_now, handle_confirm_pairing, handle_discover_key,
-    handle_images_complete, handle_meshes_complete, handle_poll, handle_poll_animations,
-    handle_poll_images, handle_poll_replacements, handle_poll_sounds, handle_replace_ids,
-    handle_scan_abort, handle_scan_complete, handle_scan_progress, handle_scan_records,
-    handle_scan_start, handle_script_refs_complete, handle_sounds_complete, handle_studio_health,
-    request_animations, request_images, request_meshes, request_script_refs, request_sounds,
+    handle_assets_meshes, handle_assets_script_refs, handle_assets_sounds, handle_confirm_pairing,
+    handle_discover_key, handle_images_complete, handle_meshes_complete, handle_poll,
+    handle_poll_animations, handle_poll_images, handle_poll_replacements, handle_poll_sounds,
+    handle_replace_ids, handle_scan_abort, handle_scan_complete, handle_scan_progress,
+    handle_scan_records, handle_scan_start, handle_script_refs_complete, handle_sounds_complete,
+    handle_studio_health, request_animations, request_images, request_meshes, request_script_refs,
+    request_sounds,
 };
 
 const PLUGIN_PORT_START: u16 = 14285;
@@ -214,7 +214,6 @@ pub async fn start_server(_app_handle: AppHandle) {
             }),
         )
         .route("/auth/discord", post(handle_auth_discord))
-        .route("/cloud-theme/sync-now", post(handle_cloud_theme_sync_now))
         .route("/discover-key", get(handle_discover_key))
         .route("/confirm-pairing", get(handle_confirm_pairing))
         .route("/studio-health", get(handle_studio_health))

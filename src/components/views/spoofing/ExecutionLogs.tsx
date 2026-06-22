@@ -61,7 +61,6 @@ export default function ExecutionLogs({
               const isSuccess = line.includes('[SUCCESS]');
               const isWarn = line.includes('[WARN]');
               const isError = line.includes('[ERROR]');
-              const isInfo = line.includes('[INFO]');
 
               const containerClass = cn(
                 'py-1.5 px-3 rounded border border-transparent',

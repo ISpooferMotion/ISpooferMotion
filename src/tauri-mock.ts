@@ -26,7 +26,7 @@ export function getCurrentWindow() {
     minimize: async () => console.log('Mock window minimize'),
     close: async () => console.log('Mock window close'),
     onCloseRequested: async () => console.log('Mock window onCloseRequested'),
-    onDragDropEvent: async (handler: any) => {
+    onDragDropEvent: async (_handler: any) => {
       console.log('Mock onDragDropEvent listener attached');
       return () => {};
     },
@@ -41,11 +41,11 @@ export async function unregister(shortcut: string) {
   console.log(`Mock unregister shortcut: ${shortcut}`);
 }
 
-export async function isRegistered(shortcut: string) {
+export async function isRegistered(_shortcut: string) {
   return false;
 }
 
-export async function listen(event: string, handler: any) {
+export async function listen(event: string, _handler: any) {
   console.log(`Mock listen for event: ${event}`);
   return async () => {}; // Unlisten function
 }

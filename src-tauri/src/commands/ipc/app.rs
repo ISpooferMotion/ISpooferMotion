@@ -16,14 +16,14 @@ pub fn window_minimize(app: AppHandle) {
 #[specta::specta]
 pub fn open_frontend_devtools(app: AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
-        #[cfg(feature = "devtools")]
+        #[cfg(debug_assertions)]
         win.open_devtools();
-        #[cfg(not(feature = "devtools"))]
+        #[cfg(not(debug_assertions))]
         {
-            // devtools feature is not compiled in — this is a no-op in release builds
-            // without the feature flag. Notify the frontend so the user knows.
+            // DevTools are restricted to debug builds.
+            // Notify the frontend so the user knows.
             let _ = win.eval(
-                "console.warn('[ISpooferMotion] DevTools are not available in this build. Rebuild with the devtools feature to enable them.')"
+                "console.warn('[ISpooferMotion] DevTools are not available in this release build.')"
             );
         }
     }

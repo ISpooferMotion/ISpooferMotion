@@ -86,6 +86,40 @@ function flattenPoses(poses: RobloxPose[]): Map<string, RobloxPose> {
   return map;
 }
 
+// hoist three.js math objects to prevent garbage collection thrashing in the hot render loop
+const _tempMat1 = new THREE.Matrix4();
+const _tempMat2 = new THREE.Matrix4();
+const _transformMat = new THREE.Matrix4();
+const _tempPos = new THREE.Vector3();
+const _tempScale = new THREE.Vector3(1, 1, 1);
+const _qA = new THREE.Quaternion();
+const _qB = new THREE.Quaternion();
+const _c0Mat = new THREE.Matrix4();
+const _c1Mat = new THREE.Matrix4();
+
+const cframeToMatrix4InPlace = (cf: number[], target: THREE.Matrix4) =>
+  target.set(
+    cf[3],
+    cf[4],
+    cf[5],
+    cf[0],
+    cf[6],
+    cf[7],
+    cf[8],
+    cf[1],
+    cf[9],
+    cf[10],
+    cf[11],
+    cf[2],
+    0,
+    0,
+    0,
+    1,
+  );
+
+const toMat4InPlace = (r: number[], target: THREE.Matrix4) =>
+  target.set(r[0], r[1], r[2], 0, r[3], r[4], r[5], 0, r[6], r[7], r[8], 0, 0, 0, 0, 1);
+
 export default function AnimationPreview({ assetId, assetName, onClose }: AnimationPreviewProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const { config } = useConfig();
@@ -248,80 +282,43 @@ export default function AnimationPreview({ assetId, assetName, onClose }: Animat
       const posesA = getFlattenedPoses(kfA.poses);
       const posesB = getFlattenedPoses(kfB.poses);
 
-      const cframeToMatrix4 = (cf: number[]) =>
-        new THREE.Matrix4().set(
-          cf[3],
-          cf[4],
-          cf[5],
-          cf[0],
-          cf[6],
-          cf[7],
-          cf[8],
-          cf[1],
-          cf[9],
-          cf[10],
-          cf[11],
-          cf[2],
-          0,
-          0,
-          0,
-          1,
-        );
-
-      const toMat4 = (r: number[]) =>
-        new THREE.Matrix4().set(
-          r[0],
-          r[1],
-          r[2],
-          0,
-          r[3],
-          r[4],
-          r[5],
-          0,
-          r[6],
-          r[7],
-          r[8],
-          0,
-          0,
-          0,
-          0,
-          1,
-        );
-
       for (const bone of rigBonesRef.current) {
         const obj = boneObjectsRef.current.get(bone.name);
         if (!obj) continue;
         const pa = posesA.get(bone.name);
         const pb = posesB.get(bone.name);
 
-        const transformMat = new THREE.Matrix4();
+        _transformMat.identity();
 
         if (pa && pb) {
           // both keyframes have this bone, so we interpolate between them
           const pose = pa || pb!;
           const alpha = applyEasing(raw, pose.easingStyle, pose.easingDirection);
-          const pos = new THREE.Vector3(
+          _tempPos.set(
             lerp(pa.position[0], pb.position[0], alpha),
             lerp(pa.position[1], pb.position[1], alpha),
             lerp(pa.position[2], pb.position[2], alpha),
           );
-          const qA = new THREE.Quaternion().setFromRotationMatrix(toMat4(pa.rotation));
-          const qB = new THREE.Quaternion().setFromRotationMatrix(toMat4(pb.rotation));
-          transformMat.compose(pos, qA.slerp(qB, alpha), new THREE.Vector3(1, 1, 1));
+          toMat4InPlace(pa.rotation, _tempMat1);
+          _qA.setFromRotationMatrix(_tempMat1);
+          toMat4InPlace(pb.rotation, _tempMat2);
+          _qB.setFromRotationMatrix(_tempMat2);
+          _qA.slerp(_qB, alpha);
+          _transformMat.compose(_tempPos, _qA, _tempScale);
         } else if (pa || pb) {
           const p = pa || pb!;
-          transformMat.compose(
-            new THREE.Vector3(...p.position),
-            new THREE.Quaternion().setFromRotationMatrix(toMat4(p.rotation)),
-            new THREE.Vector3(1, 1, 1),
-          );
+          _tempPos.set(p.position[0], p.position[1], p.position[2]);
+          toMat4InPlace(p.rotation, _tempMat1);
+          _qA.setFromRotationMatrix(_tempMat1);
+          _transformMat.compose(_tempPos, _qA, _tempScale);
         }
 
-        const c0Mat = cframeToMatrix4(bone.c0);
-        const c1Mat = cframeToMatrix4(bone.c1);
-        const localMat = c0Mat.multiply(transformMat).multiply(c1Mat.invert());
+        cframeToMatrix4InPlace(bone.c0, _c0Mat);
+        cframeToMatrix4InPlace(bone.c1, _c1Mat);
+        _c1Mat.invert();
+        _c0Mat.multiply(_transformMat).multiply(_c1Mat);
 
-        obj.matrix.copy(localMat);
+        obj.matrix.copy(_c0Mat);
       }
     },
     [getFlattenedPoses],
@@ -400,34 +397,14 @@ export default function AnimationPreview({ assetId, assetName, onClose }: Animat
     const objects = new Map<string, THREE.Object3D>();
     boneObjectsRef.current = objects;
 
-    const cframeToMatrix4 = (cf: number[]) =>
-      new THREE.Matrix4().set(
-        cf[3],
-        cf[4],
-        cf[5],
-        cf[0],
-        cf[6],
-        cf[7],
-        cf[8],
-        cf[1],
-        cf[9],
-        cf[10],
-        cf[11],
-        cf[2],
-        0,
-        0,
-        0,
-        1,
-      );
-
     for (const bone of bones) {
       const obj = new THREE.Object3D();
       obj.name = bone.name;
       obj.matrixAutoUpdate = false;
 
-      const c0Mat = cframeToMatrix4(bone.c0);
-      const c1Mat = cframeToMatrix4(bone.c1);
-      obj.matrix.copy(c0Mat.multiply(c1Mat.invert()));
+      cframeToMatrix4InPlace(bone.c0, _c0Mat);
+      cframeToMatrix4InPlace(bone.c1, _c1Mat);
+      obj.matrix.copy(_c0Mat.multiply(_c1Mat.invert()));
 
       objects.set(bone.name, obj);
     }

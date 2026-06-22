@@ -223,7 +223,13 @@ local function applyPatch(patch: Patch): (boolean, string?)
 		end
 		local ok, err = pcall(function()
 			for _, oldTag in ipairs(CollectionService:GetTags(obj)) do
-				CollectionService:RemoveTag(obj, oldTag)
+				if
+					isAssetFormat(oldTag)
+					or stringContainsAssetReference(oldTag)
+					or nameLooksLikeAssetSlot(oldTag)
+				then
+					CollectionService:RemoveTag(obj, oldTag)
+				end
 			end
 			for _, newTag in ipairs(decoded) do
 				CollectionService:AddTag(obj, newTag)
@@ -309,6 +315,7 @@ local function applyPatch(patch: Patch): (boolean, string?)
 			local fallbackPart = Instance.new("Part")
 			local specialMesh = Instance.new("SpecialMesh")
 			specialMesh.MeshId = targetMeshUri
+			specialMesh.Scale = Vector3.new(1, 1, 1)
 			if targetTextureUri then
 				specialMesh.TextureId = targetTextureUri
 			end
@@ -375,7 +382,11 @@ local function applyPatches(patches: any)
 		return
 	end
 	if #patches > MAX_PATCHES_PER_BATCH then
-		warn("[ISpooferMotion] Large patch batch: " .. tostring(#patches) .. " patches - processing in chunks")
+		warn(
+			"[ISpooferMotion] Large patch batch: "
+				.. tostring(#patches)
+				.. " patches - processing in chunks"
+		)
 	end
 	if scanRunning then
 		warn("[ISpooferMotion] Scan already running; skipping patch batch")

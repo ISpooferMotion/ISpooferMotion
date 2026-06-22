@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { findPluginBridgePort } from '../utils/pluginBridge';
 
@@ -103,5 +103,8 @@ export function useStudioConnection(port: string, onPortDiscovered?: (port: stri
     };
   }, [port, onPortDiscovered]);
 
-  return { studioConnected, scanStatus, studioPlaceId };
+  return useMemo(
+    () => ({ studioConnected, scanStatus, studioPlaceId }),
+    [studioConnected, scanStatus, studioPlaceId],
+  );
 }

@@ -111,8 +111,9 @@ fn is_humanoid_description_asset(class_name: &str, name: &str, val_type: &str) -
     {
         return true;
     }
-    // And accessories are just string arrays of IDs separated by commas
-    val_type == "string" && name.contains("Accessory")
+    // And accessories are just string arrays of IDs separated by commas, or arrays/ints
+    (val_type == "string" || val_type == "int64" || val_type.contains("Array"))
+        && name.contains("Accessory")
 }
 
 fn is_asset_property(class_name: &str, member: &Member) -> bool {
@@ -262,6 +263,13 @@ pub async fn get_api_dump_properties() -> ApiDumpProperties {
                     parsed_dump = Some(dump);
                 }
             }
+        }
+    }
+
+    if parsed_dump.is_none() {
+        let fallback_text = include_str!("api_dump_fallback.json");
+        if let Ok(dump) = serde_json::from_str::<ApiDump>(fallback_text) {
+            parsed_dump = Some(dump);
         }
     }
 

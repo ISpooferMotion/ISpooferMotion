@@ -59,15 +59,17 @@ local function requestDiscoveredKey(url: string): string?
 end
 
 local function confirmPairing(url: string, key: string)
-	pcall(function()
-		HttpService:RequestAsync({
-			Url = url .. "/confirm-pairing",
-			Method = "GET",
-			Headers = {
-				["X-API-Key"] = key,
-				["X-Studio-Bridge"] = "1",
-			},
-		})
+	task.spawn(function()
+		pcall(function()
+			HttpService:RequestAsync({
+				Url = url .. "/confirm-pairing",
+				Method = "GET",
+				Headers = {
+					["X-API-Key"] = key,
+					["X-Studio-Bridge"] = "1",
+				},
+			})
+		end)
 	end)
 end
 
@@ -78,6 +80,7 @@ local function discoverServer(): (boolean, boolean)
 	local results: { { url: string, startedAt: number, health: any } } = {}
 
 	local hosts = { "127.0.0.1", "localhost", "127.0.0.1.nip.io" }
+	local cancelled = false
 
 	for port = PORT_START, PORT_END do
 		for _, host in ipairs(hosts) do
@@ -93,7 +96,7 @@ local function discoverServer(): (boolean, boolean)
 						})
 					end)
 
-					if ok and response and response.Success then
+					if ok and response and response.Success and not cancelled then
 						local decodedOk, decoded = decodeJsonResponseBody(response)
 						if decodedOk and responseLooksLikeAppHealth(decoded) then
 							local startedAt = tonumber(decoded.startedAt) or 0
@@ -115,6 +118,7 @@ local function discoverServer(): (boolean, boolean)
 	while pending > 0 and os.clock() < timeout do
 		task.wait(0.05)
 	end
+	cancelled = true
 
 	local selectedHealth = nil
 	for _, result in ipairs(results) do

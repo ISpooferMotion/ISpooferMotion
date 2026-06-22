@@ -74,7 +74,7 @@ pub async fn fetch_assets(
     let creator_type = query.creator_type.unwrap_or_else(|| "User".to_string());
     let is_group = creator_type.eq_ignore_ascii_case("group");
     let limit = query.limit.unwrap_or(50).min(100);
-    let max_pages = query.max_pages.unwrap_or(3);
+    let max_pages = query.max_pages.unwrap_or(3).min(50);
     let asset_types_str = map_asset_types(query.asset_types);
 
     let client = crate::utils::get_http_client();
@@ -82,12 +82,7 @@ pub async fn fetch_assets(
     let mut cursor: Option<String> = None;
     let mut pages = 0;
 
-    // ensure the cookie is formatted correctly with the prefix
-    let cookie_header = if query.cookie.starts_with(".ROBLOSECURITY=") {
-        query.cookie.clone()
-    } else {
-        format!(".ROBLOSECURITY={}", query.cookie)
-    };
+    let cookie_header = crate::utils::build_roblox_cookie_header(&query.cookie);
 
     while pages < max_pages {
         let mut url = if is_group {
@@ -163,7 +158,7 @@ pub async fn fetch_assets(
     if !asset_ids.is_empty() {
         // the thumbnail api yells at us if we ask for too many at once, so chunk it to 100 max
         let chunks: Vec<Vec<u64>> = asset_ids.chunks(100).map(<[u64]>::to_vec).collect();
-        let futures: Vec<_> = chunks.into_iter().map(|chunk| {
+        let futures = chunks.into_iter().map(|chunk| {
             async move {
                 let ids_str = chunk
                     .iter()
@@ -196,9 +191,11 @@ pub async fn fetch_assets(
                 }
                 std::collections::HashMap::new()
             }
-        }).collect();
-        let results = futures::future::join_all(futures).await;
-        for map in results {
+        });
+
+        use futures_util::StreamExt;
+        let mut stream = futures_util::stream::iter(futures).buffer_unordered(10);
+        while let Some(map) = stream.next().await {
             thumbnails.extend(map);
         }
     }

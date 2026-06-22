@@ -110,7 +110,7 @@ local function startPolling(): ()
 					local patches = decoded.patches
 					local mappings = decoded.mappings
 
-				if type(patches) == "table" and #patches > 0 then
+					if type(patches) == "table" and #patches > 0 then
 						if scanRunning then
 							warn("[ISpooferMotion] Scan running; skipping patch batch")
 						elseif patchRunning then

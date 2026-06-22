@@ -120,6 +120,22 @@ function hidePluginAssets(nodes: RbxInstance[]): RbxInstance[] {
     .filter((node) => node.assets.length > 0 || node.children.length > 0);
 }
 
+const VALID_ROOT_SERVICES = new Set([
+  'Workspace',
+  'Lighting',
+  'ReplicatedFirst',
+  'ReplicatedStorage',
+  'ServerScriptService',
+  'ServerStorage',
+  'StarterGui',
+  'StarterPack',
+  'StarterPlayer',
+  'SoundService',
+  'Teams',
+  'MaterialService',
+  'StudioSession',
+]);
+
 export default function AssetExplorer({ isOpen, setIsOpen }: AssetExplorerProps) {
   const [parseState, setParseState] = useState<ParseProgress | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -185,22 +201,6 @@ export default function AssetExplorer({ isOpen, setIsOpen }: AssetExplorerProps)
       unlisten.then((f) => f());
     };
   }, []);
-
-  const VALID_ROOT_SERVICES = new Set([
-    'Workspace',
-    'Lighting',
-    'ReplicatedFirst',
-    'ReplicatedStorage',
-    'ServerScriptService',
-    'ServerStorage',
-    'StarterGui',
-    'StarterPack',
-    'StarterPlayer',
-    'SoundService',
-    'Teams',
-    'MaterialService',
-    'StudioSession',
-  ]);
 
   const displayedInstances = useMemo(() => {
     const cleanRootInstances = rootInstances.filter(

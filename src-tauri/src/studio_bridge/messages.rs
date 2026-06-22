@@ -1040,7 +1040,10 @@ fn replace_script_asset_ids<'a>(
     }
 
     impl<'m> full_moon::visitors::VisitorMut for AstReplacer<'m> {
-        fn visit_string_literal(&mut self, token: full_moon::tokenizer::Token) -> full_moon::tokenizer::Token {
+        fn visit_string_literal(
+            &mut self,
+            token: full_moon::tokenizer::Token,
+        ) -> full_moon::tokenizer::Token {
             let mut text = token.to_string();
             let mut changed = false;
             for (old, new) in self.mappings {
@@ -1050,22 +1053,34 @@ fn replace_script_asset_ids<'a>(
                 }
             }
             if changed {
-                return full_moon::tokenizer::Token::new(full_moon::tokenizer::TokenType::StringLiteral {
-                    literal: text.trim_matches(|c| c == '\'' || c == '"' || c == '[' || c == ']').into(),
-                    multi_line_depth: match token.token_type() {
-                        full_moon::tokenizer::TokenType::StringLiteral { multi_line_depth, .. } => *multi_line_depth,
-                        _ => 0,
+                return full_moon::tokenizer::Token::new(
+                    full_moon::tokenizer::TokenType::StringLiteral {
+                        literal: text
+                            .trim_matches(|c| c == '\'' || c == '"' || c == '[' || c == ']')
+                            .into(),
+                        multi_line_depth: match token.token_type() {
+                            full_moon::tokenizer::TokenType::StringLiteral {
+                                multi_line_depth,
+                                ..
+                            } => *multi_line_depth,
+                            _ => 0,
+                        },
+                        quote_type: match token.token_type() {
+                            full_moon::tokenizer::TokenType::StringLiteral {
+                                quote_type, ..
+                            } => *quote_type,
+                            _ => full_moon::tokenizer::StringLiteralQuoteType::Double,
+                        },
                     },
-                    quote_type: match token.token_type() {
-                        full_moon::tokenizer::TokenType::StringLiteral { quote_type, .. } => *quote_type,
-                        _ => full_moon::tokenizer::StringLiteralQuoteType::Double,
-                    },
-                });
+                );
             }
             token
         }
 
-        fn visit_number(&mut self, token: full_moon::tokenizer::Token) -> full_moon::tokenizer::Token {
+        fn visit_number(
+            &mut self,
+            token: full_moon::tokenizer::Token,
+        ) -> full_moon::tokenizer::Token {
             let text = token.to_string();
             let mut replaced = text.clone();
             for (old, new) in self.mappings {

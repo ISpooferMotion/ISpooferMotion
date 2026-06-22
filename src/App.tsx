@@ -63,14 +63,11 @@ export default function App() {
   useEffect(() => {
     if (!isTauriRuntime()) {
       setDiscordAuth({
-        id: 'web-preview',
-        username: 'Web Preview',
-        discriminator: '0000',
-        avatar: '',
-        access_token: '',
-        refresh_token: '',
-        expires_at: Date.now() + 10000000,
-        scopes: 'identify',
+        loginToken: 'mock-token',
+        user: {
+          id: 'web-preview',
+          username: 'Web Preview',
+        },
       });
       return;
     }

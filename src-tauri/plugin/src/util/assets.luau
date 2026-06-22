@@ -12,7 +12,7 @@ local function valueLooksLikePositiveAssetNumber(value: number): boolean
 	end
 
 	local strVal = tostring(math.floor(value))
-	return #strVal >= 5 and #strVal <= 20
+	return #strVal >= 3 and #strVal <= 20
 end
 
 local function contentValueToString(value: any, allowNumberAssetId: boolean?): string?
@@ -76,7 +76,7 @@ end
 local function isAssetFormat(val: any): boolean
 	if type(val) == "string" then
 		local lower = string.lower(val)
-		if string.match(lower, "^%d+$") and #lower >= 5 and #lower <= 20 then
+		if string.match(lower, "^%d+$") and #lower >= 3 and #lower <= 20 then
 			return true
 		end
 		return stringContainsAssetReference(lower)

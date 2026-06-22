@@ -167,6 +167,8 @@ pub fn run() {
                                 }
                                 // let the UI know we got it
                                 let _ = app_handle.emit("discord-login-success", ());
+                            } else if url.starts_with("ispoofermotion://theme/apply") {
+                                let _ = app_handle.emit("cloud-theme-sync-now", ());
                             }
                         }
                     } else if let Some(payload_clean) = event.payload().trim_matches('"').into() {
@@ -181,6 +183,8 @@ pub fn run() {
                                 log::error!("Failed to save discord auth payload from deep link (fallback): {:?}", e);
                             }
                             let _ = app_handle.emit("discord-login-success", ());
+                        } else if payload_clean.starts_with("ispoofermotion://theme/apply") {
+                            let _ = app_handle.emit("cloud-theme-sync-now", ());
                         }
                     }
                 }

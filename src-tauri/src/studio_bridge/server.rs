@@ -122,7 +122,7 @@ pub async fn handle_scan_complete(State(state): State<AppState>) -> Json<Value> 
         let mut guard = state.data.write().await;
         guard.last_plugin_poll_time = Some(Instant::now());
         guard.scan_status = None;
-        guard.studio_records = guard.pending_studio_records.clone();
+        guard.studio_records = std::sync::Arc::clone(&guard.pending_studio_records);
         std::sync::Arc::clone(&guard.studio_records)
     };
     let stores =
@@ -382,10 +382,4 @@ legacy_complete_handler!(handle_script_refs_complete, last_script_refs);
 
 pub async fn handle_api_dump() -> Json<crate::api_dump::ApiDumpProperties> {
     Json(crate::api_dump::get_api_dump_properties().await)
-}
-
-pub async fn handle_cloud_theme_sync_now(State(state): State<AppState>) -> Json<Value> {
-    use tauri::Emitter;
-    let _ = state.app_handle.emit("cloud-theme-sync-now", ());
-    Json(json!({ "ok": true }))
 }

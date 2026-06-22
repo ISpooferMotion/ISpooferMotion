@@ -10,13 +10,15 @@ export default defineConfig(() => {
       alias: {
         '@': resolve(__dirname, './src'),
         '@codycon/ism-library': resolve(__dirname, '../ISM-Library/packages/ui'),
-        ...(process.env.VITE_WEB_PREVIEW === 'true' ? {
-          '@tauri-apps/api/core': resolve(__dirname, './src/tauri-mock.ts'),
-          '@tauri-apps/api/window': resolve(__dirname, './src/tauri-mock.ts'),
-          '@tauri-apps/plugin-global-shortcut': resolve(__dirname, './src/tauri-mock.ts'),
-          '@tauri-apps/api/event': resolve(__dirname, './src/tauri-mock.ts'),
-          '@tauri-apps/api/app': resolve(__dirname, './src/tauri-mock.ts')
-        } : {})
+        ...(process.env.VITE_WEB_PREVIEW === 'true'
+          ? {
+              '@tauri-apps/api/core': resolve(__dirname, './src/tauri-mock.ts'),
+              '@tauri-apps/api/window': resolve(__dirname, './src/tauri-mock.ts'),
+              '@tauri-apps/plugin-global-shortcut': resolve(__dirname, './src/tauri-mock.ts'),
+              '@tauri-apps/api/event': resolve(__dirname, './src/tauri-mock.ts'),
+              '@tauri-apps/api/app': resolve(__dirname, './src/tauri-mock.ts'),
+            }
+          : {}),
       },
       dedupe: ['react', 'react-dom', 'framer-motion'],
     },
