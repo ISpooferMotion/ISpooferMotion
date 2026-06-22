@@ -1,6 +1,7 @@
 import { extractNumericId } from './common';
 import { AssetService } from './AssetService';
-// @ts-nocheck
+import { buildRobloxCookieHeader } from './common';
+import { SpooferController } from './SpooferController';
 import { withTimeout, readResponseText, readJsonResponse, ROBLOX_USER_AGENT, debugLog, debugWarn, getCookieFromAutoDetect } from './auth';
 import { createRobloxSession } from './roblox-session';
 
@@ -132,7 +133,7 @@ export class RobloxApiService {
         const response = await robloxSession.fetch(url, { headers });
         if (!response.ok) continue;
         const data = await response.json();
-        const metadata = getAssetMetadataFromDetails(data);
+        const metadata = RobloxApiService.getAssetMetadataFromDetails(data);
         if (metadata.name || metadata.creatorId) return metadata;
       } catch (err) {
         if (DEVELOPER_MODE) {
@@ -151,16 +152,16 @@ export class RobloxApiService {
     if (entriesToResolve.length === 0) return 0;
   
     let resolvedCount = 0;
-    await runWithConcurrency(
+    await SpooferController.runWithConcurrency(
       entriesToResolve,
       Math.min(entriesToResolve.length, 8),
       async (entry) => {
-        const metadata = await fetchAssetMetadata(entry.id, robloxSession);
+        const metadata = await RobloxApiService.fetchAssetMetadata(entry.id, robloxSession);
         if (!metadata) return;
   
         const oldName = entry.name;
         const oldCreator = `${entry.creatorType}:${entry.creatorId}`;
-        const changed = applyResolvedAssetMetadata(entry, metadata, {
+        const changed = RobloxApiService.applyResolvedAssetMetadata(entry, metadata, {
           forceName: force || RobloxApiService.shouldRefreshAssetName(entry, force),
         });
         if (!changed) return;
@@ -171,12 +172,12 @@ export class RobloxApiService {
           const newCreator = `${entry.creatorType}:${entry.creatorId}`;
           if (oldName !== entry.name) {
             console.log(
-              `(Dev) Resolved ${getAssetKindLabel(entry.assetTypeName).toLowerCase()} name for ${entry.id}: "${entry.name}"`,
+              `(Dev) Resolved ${AssetService.getAssetKindLabel(entry.assetTypeName).toLowerCase()} name for ${entry.id}: "${entry.name}"`,
             );
           }
           if (oldCreator !== newCreator) {
             console.log(
-              `(Dev) Resolved ${getAssetKindLabel(entry.assetTypeName).toLowerCase()} creator for ${entry.id}: ${oldCreator} -> ${newCreator}`,
+              `(Dev) Resolved ${AssetService.getAssetKindLabel(entry.assetTypeName).toLowerCase()} creator for ${entry.id}: ${oldCreator} -> ${newCreator}`,
             );
           }
         }
@@ -204,14 +205,14 @@ export class RobloxApiService {
     const groupId = context.groupId ? String(context.groupId).trim() : null;
   
     try {
-      const userResp = await fetchJson('https://users.roblox.com/v1/users/authenticated', {
+      const userResp = await RobloxApiService.fetchJson('https://users.roblox.com/v1/users/authenticated', {
         headers: { Cookie: buildRobloxCookieHeader(cookie) },
       });
       if (!userResp || !userResp.id) return null;
       const userId = userResp.id;
       const username = userResp.name || userResp.displayName;
   
-      const avatarResp = await fetchJson(
+      const avatarResp = await RobloxApiService.fetchJson(
         `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=true`,
       );
       const avatarUrl = avatarResp?.data?.[0]?.imageUrl || '';
@@ -219,8 +220,8 @@ export class RobloxApiService {
       let groupInfo = null;
       if (groupId) {
         try {
-          const gResp = await fetchJson(`https://groups.roblox.com/v1/groups/${groupId}`);
-          const gAvatarResp = await fetchJson(
+          const gResp = await RobloxApiService.fetchJson(`https://groups.roblox.com/v1/groups/${groupId}`);
+          const gAvatarResp = await RobloxApiService.fetchJson(
             `https://thumbnails.roblox.com/v1/groups/icons?groupIds=${groupId}&size=150x150&format=Png&isCircular=true`,
           );
   
