@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.3.21-hotfix.1
+- Bug fixes i think? 
+
 ## v1.3.21
 
 ### Frontend & UI
