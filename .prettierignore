@@ -5,3 +5,5 @@ src-tauri/target
 src-tauri/gen
 build
 .git
+
+ISM-Library
