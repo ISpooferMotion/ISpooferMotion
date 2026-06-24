@@ -98,6 +98,8 @@ pub async fn open_job_log(app: AppHandle, log_path: String) -> crate::error::Res
     if !canonical_log_path.starts_with(canonical_logs_dir) {
         return Err("Job log path is outside the logs directory.".into());
     }
-    let _ = open::that(canonical_log_path);
+    use tauri_plugin_opener::OpenerExt;
+    let _ =
+        app.opener().open_path(canonical_log_path.to_string_lossy().to_string(), None::<String>);
     Ok(true)
 }

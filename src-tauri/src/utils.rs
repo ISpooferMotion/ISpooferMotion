@@ -139,20 +139,20 @@ pub fn sanitize_filename(filename: &str) -> String {
 
 pub async fn clear_downloads_directory(dir_path: &Path) -> Result<bool, String> {
     if !dir_path.exists() {
-        if let Err(e) = std::fs::create_dir_all(dir_path) {
+        if let Err(e) = tokio::fs::create_dir_all(dir_path).await {
             return Err(format!("Failed to create directory: {e}"));
         }
         return Ok(true);
     }
 
-    match std::fs::read_dir(dir_path) {
-        Ok(entries) => {
-            for entry in entries.filter_map(Result::ok) {
+    match tokio::fs::read_dir(dir_path).await {
+        Ok(mut entries) => {
+            while let Ok(Some(entry)) = entries.next_entry().await {
                 let path = entry.path();
                 if path.is_file() {
-                    let _ = std::fs::remove_file(path);
+                    let _ = tokio::fs::remove_file(path).await;
                 } else if path.is_dir() {
-                    let _ = std::fs::remove_dir_all(path);
+                    let _ = tokio::fs::remove_dir_all(path).await;
                 }
             }
             Ok(true)

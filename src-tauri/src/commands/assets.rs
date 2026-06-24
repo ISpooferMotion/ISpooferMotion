@@ -193,8 +193,8 @@ pub async fn fetch_assets(
             }
         });
 
-        use futures_util::StreamExt;
-        let mut stream = futures_util::stream::iter(futures).buffer_unordered(10);
+        use futures::StreamExt;
+        let mut stream = futures::stream::iter(futures).buffer_unordered(10);
         while let Some(map) = stream.next().await {
             thumbnails.extend(map);
         }

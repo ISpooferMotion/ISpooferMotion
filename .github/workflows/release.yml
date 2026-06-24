@@ -1,0 +1,128 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create or update (example: v2.1.8)'
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  DISCORD_REPORT_API_URL: ${{ vars.DISCORD_REPORT_API_URL }}
+
+jobs:
+  build-and-release:
+    name: Build & Release (${{ matrix.os }}, ${{ matrix.bundles }})
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-2025
+            os: windows
+            bundles: nsis
+          - platform: macos-latest
+            os: macos
+            bundles: dmg
+          - platform: ubuntu-22.04
+            os: linux
+            bundles: appimage
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout ISM-Library
+        uses: actions/checkout@v4
+        with:
+          repository: ISpooferMotion/ISM-Library
+          path: ISM-Library
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup
+        with:
+          os: ${{ matrix.os }}
+
+      - name: Build ISM-Library
+        run: cd ISM-Library/packages/ui && bun install && bun run build
+
+      - name: Build app (macOS / Linux)
+        if: matrix.os != 'windows'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --bundles ${{ matrix.bundles }}
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: ISpooferMotion ${{ env.RELEASE_TAG }}
+          releaseBody: 'See the assets below to download and install this version.'
+          releaseDraft: false
+          prerelease: false
+          retryAttempts: 2
+
+      - name: Build app (Windows Unsigned Inner)
+        if: matrix.os == 'windows'
+        run: bun run tauri build --no-bundle
+
+      - name: Build app (Windows Bundle)
+        if: matrix.os == 'windows'
+        run: bun run tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Upload Windows Bundle to Release
+        if: matrix.os == 'windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ISpooferMotion ${{ env.RELEASE_TAG }}
+          body: 'See the assets below to download and install this version.'
+          files: src-tauri/target/release/bundle/nsis/*setup*.exe
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
+
+  plugin-release:
+    name: Build & Release Plugin
+    needs: build-and-release
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout ISM-Library
+        uses: actions/checkout@v4
+        with:
+          repository: ISpooferMotion/ISM-Library
+          path: ISM-Library
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup
+
+      - name: Build ISM-Library
+        run: cd ISM-Library/packages/ui && bun install && bun run build
+
+      - name: Build plugin
+        run: bun run build:plugin
+
+      - name: Upload plugin to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ISpooferMotion ${{ env.RELEASE_TAG }}
+          body: 'See the assets below to download and install this version.'
+          files: dist-plugin/ISpooferMotion.rbxmx
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false

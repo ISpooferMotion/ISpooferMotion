@@ -14,6 +14,9 @@ export interface LogEntry {
   timestamp: string;
 }
 
+// Lazy loaded so we don't cause circular dependencies on boot
+let cachedConfigStore: typeof import('../stores/configStore') | null = null;
+
 const MAX_LOGS = 1000;
 
 type Listener = (logs: LogEntry[]) => void;
@@ -105,12 +108,17 @@ export function addDebugLog(
     } catch (e) {}
   }
 
-  if (notify && (level === 'success' || level === 'error')) {
+  if (notify && (level === 'success' || level === 'error') && isTauriRuntime()) {
     try {
-      const configStr = localStorage.getItem('ISpooferMotion_Config');
-      if (configStr) {
-        const config = JSON.parse(configStr);
-        if (config?.general?.desktopNotifications && isTauriRuntime()) {
+      if (!cachedConfigStore) {
+        import('../stores/configStore').then((mod) => {
+          cachedConfigStore = mod;
+        });
+      }
+
+      if (cachedConfigStore) {
+        const config = cachedConfigStore.useConfigStore.getState().config;
+        if (config?.general?.desktopNotifications) {
           invoke('show_notification', {
             options: {
               title: level === 'success' ? 'ISpooferMotion - Success' : 'ISpooferMotion - Error',

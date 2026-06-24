@@ -4,12 +4,14 @@ import { AppConfig } from '../contexts/ConfigContext';
 import { logIsm } from './robloxProfiles';
 
 let currentAudio: HTMLAudioElement | null = null;
+let playbackToken = 0;
 
 const notifyPlaybackChange = (assetId: string | null) => {
   window.dispatchEvent(new CustomEvent('ism-audio-playback-change', { detail: { assetId } }));
 };
 
 export const stopRobloxAudio = () => {
+  playbackToken++;
   if (!currentAudio) return;
 
   currentAudio.pause();
@@ -26,6 +28,7 @@ export const playRobloxAudio = async (assetId: string, config: AppConfig) => {
   }
 
   stopRobloxAudio();
+  const currentToken = ++playbackToken;
 
   try {
     const audioPath = await invoke<string>('play_roblox_audio', {
@@ -33,6 +36,10 @@ export const playRobloxAudio = async (assetId: string, config: AppConfig) => {
       cookie: config.spoofing.cookie || null,
       enableCache: config.debug.enableCache,
     });
+
+    if (currentToken !== playbackToken) {
+      return false;
+    }
 
     const audioUrl = convertFileSrc(audioPath);
     const audio = new Audio(audioUrl);
@@ -55,11 +62,18 @@ export const playRobloxAudio = async (assetId: string, config: AppConfig) => {
     });
 
     await audio.play();
+    if (currentToken !== playbackToken) {
+      audio.pause();
+      return false;
+    }
+
     notifyPlaybackChange(assetId);
     logIsm('success', `Playing Roblox audio ${assetId}.`);
     return true;
   } catch (err) {
-    stopRobloxAudio();
+    if (currentToken === playbackToken) {
+      stopRobloxAudio();
+    }
     logIsm('error', `Could not play Roblox audio ${assetId}: ${String(err)}`);
     return false;
   }

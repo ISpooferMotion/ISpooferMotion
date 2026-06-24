@@ -231,7 +231,10 @@ pub async fn start_discord_login(
 
     if !in_app.unwrap_or(false) {
         let _ = window.set_focus();
-        open::that(authorization_url)
+        use tauri_plugin_opener::OpenerExt;
+        window
+            .opener()
+            .open_url(authorization_url, None::<String>)
             .map_err(|err| format!("Could not open Discord login: {err}"))?;
     }
     Ok(AnyValue(payload))
@@ -248,7 +251,8 @@ pub async fn open_discord_deep_link(
     }
 
     let _ = window.set_focus();
-    match open::that(&url) {
+    use tauri_plugin_opener::OpenerExt;
+    match window.opener().open_url(url, None::<String>) {
         Ok(()) => Ok(true),
         Err(_) => Ok(false),
     }

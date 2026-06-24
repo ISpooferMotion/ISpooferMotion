@@ -246,11 +246,6 @@ pub async fn build_saved_versions_urls(asset_id: &str, cookie_header: &str) -> V
     urls
 }
 
-pub async fn build_library_scraping_urls(_asset_id: &str, _cookie_header: &str) -> Vec<String> {
-    // Deprecated: roblox.com/library redirects to create.roblox.com which is an SPA and no longer embeds the AssetUrl in HTML.
-    Vec::new()
-}
-
 // tries to find what games this asset is used in, so we can pretend to be a server for that game and bypass copylocks
 pub async fn attempt_asset_usage_place_id_discovery(
     asset_id: &str,

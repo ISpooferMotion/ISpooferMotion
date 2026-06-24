@@ -1,6 +1,6 @@
 @import 'tailwindcss';
-@import '../../ISM-Library/packages/ui/theme/ism-library.css';
-@source "../../ISM-Library/packages/ui";
+@import '../ISM-Library/packages/ui/theme/ism-library.css';
+@source "../ISM-Library/packages/ui";
 
 input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button {

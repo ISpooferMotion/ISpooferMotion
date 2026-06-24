@@ -9,7 +9,7 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': resolve(__dirname, './src'),
-        '@codycon/ism-library': resolve(__dirname, '../ISM-Library/packages/ui'),
+        '@codycon/ism-library': resolve(__dirname, './ISM-Library/packages/ui'),
         ...(process.env.VITE_WEB_PREVIEW === 'true'
           ? {
               '@tauri-apps/api/core': resolve(__dirname, './src/tauri-mock.ts'),
@@ -55,7 +55,7 @@ export default defineConfig(() => {
     server: {
       proxy: {
         '/api': {
-          target: 'https://www.incredidev.com',
+          target: 'https://ispoofermotion.com',
           changeOrigin: true,
           secure: false,
         },

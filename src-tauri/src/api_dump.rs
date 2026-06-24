@@ -210,11 +210,12 @@ async fn get_cached_dump_cell() -> &'static Arc<RwLock<Option<ApiDumpProperties>
 
 pub async fn get_api_dump_properties() -> ApiDumpProperties {
     let cell = get_cached_dump_cell().await;
-    {
-        let guard = cell.read().await;
-        if let Some(cached) = &*guard {
-            return cached.clone();
-        }
+
+    // Acquire a write lock immediately to prevent cache stampede.
+    // If multiple threads hit this simultaneously, only one will perform the fetch.
+    let mut guard = cell.write().await;
+    if let Some(cached) = &*guard {
+        return cached.clone();
     }
 
     let mut properties = ApiDumpProperties::default();
@@ -278,12 +279,9 @@ pub async fn get_api_dump_properties() -> ApiDumpProperties {
             is_asset_property(class_name, member)
         });
         properties.string_scan_properties =
-            build_class_hierarchy(&dump.Classes, |_class_name, member| {
-                is_string_scan_property(member)
-            });
+            build_class_hierarchy(&dump.Classes, |_, m| is_string_scan_property(m));
     }
 
-    let mut guard = cell.write().await;
     *guard = Some(properties.clone());
 
     properties

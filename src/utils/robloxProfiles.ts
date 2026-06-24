@@ -105,8 +105,8 @@ export const logIsm = (
 
   if (level === 'error') console.error(message);
   else if (level === 'warn') console.warn(message);
-  else if (level === 'success') console.warn(message);
-  else console.warn(message);
+  else if (level === 'success') console.info(message);
+  else console.info(message);
 };
 
 export const hydrateUserProfile = async (

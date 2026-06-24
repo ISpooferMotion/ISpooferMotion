@@ -190,7 +190,7 @@ pub async fn resolve_asset_creators(
         }));
     }
 
-    let results = futures_util::future::join_all(tasks).await;
+    let results = futures::future::join_all(tasks).await;
     for (index, (asset, msg, success)) in results.into_iter().flatten().enumerate() {
         emit_resolver_progress(
             &app_arc,
@@ -319,7 +319,7 @@ pub async fn resolve_script_references(
         }));
     }
 
-    let results = futures_util::future::join_all(tasks).await;
+    let results = futures::future::join_all(tasks).await;
     for res in results.into_iter().flatten() {
         let (asset_id, category, is_false_positive) = res;
         if is_false_positive {
@@ -392,7 +392,7 @@ pub async fn validate_asset_ids(
         }));
     }
 
-    let results = futures_util::future::join_all(tasks).await;
+    let results = futures::future::join_all(tasks).await;
     for res in results.into_iter().flatten() {
         let (asset_id, category) = res;
         result_map.insert(asset_id, category);

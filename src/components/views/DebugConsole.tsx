@@ -129,17 +129,17 @@ export default function DebugConsole({ isOpen, onClose }: DebugConsoleProps) {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: '100%', opacity: 0.5 }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="absolute bottom-0 left-0 right-0 bg-bg-surface/95 backdrop-blur-2xl border-t border-border-strong shadow-[0_-10px_40px_rgba(0,0,0,0.3)] flex flex-col z-[40]"
+          className="absolute bottom-0 left-0 right-0 bg-bg-surface/95 backdrop-blur-2xl border-t border-border-strong shadow-[0_-10px_40px_rgba(0,0,0,0.3)] flex flex-col z-40"
         >
           <div className="flex items-center justify-between px-4 py-2 border-b border-border-subtle bg-bg-elevated/80 shrink-0">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-text-secondary text-[13px] font-bold uppercase tracking-wider">
                 <Terminal size={15} className="text-primary" /> Debug Console
               </div>
-              <div className="w-[180px] z-[50]">
+              <div className="w-45 z-50">
                 <Dropdown options={filterOptions} value={filterSource} onChange={setFilterSource} />
               </div>
-              <div className="w-[220px] z-[50]">
+              <div className="w-55 z-50">
                 <MultiSelectDropdown
                   options={levelOptions}
                   values={filterLevels}
@@ -210,7 +210,7 @@ export default function DebugConsole({ isOpen, onClose }: DebugConsoleProps) {
                           : 'text-text-primary hover:bg-bg-elevated/50',
                   )}
                 >
-                  <span className="text-text-muted shrink-0 min-w-[70px] select-none opacity-60 flex items-center gap-1.5">
+                  <span className="text-text-muted shrink-0 min-w-17.5 select-none opacity-60 flex items-center gap-1.5">
                     {log.timestamp}
                     {log.count > 1 && (
                       <span className="bg-border-strong/40 text-text-primary px-1 rounded font-bold text-[9px] shadow-sm">
@@ -220,7 +220,7 @@ export default function DebugConsole({ isOpen, onClose }: DebugConsoleProps) {
                   </span>
                   <span
                     className={cn(
-                      'uppercase shrink-0 min-w-[60px] font-bold select-none',
+                      'uppercase shrink-0 min-w-15 font-bold select-none',
                       log.level === 'error'
                         ? 'text-danger'
                         : log.level === 'warn'
@@ -232,12 +232,12 @@ export default function DebugConsole({ isOpen, onClose }: DebugConsoleProps) {
                   >
                     {log.level}
                   </span>
-                  <span className="text-text-muted shrink-0 min-w-[50px] font-bold select-none opacity-40">
+                  <span className="text-text-muted shrink-0 min-w-12.5 font-bold select-none opacity-40">
                     [{log.source === 'ism' ? 'ISM' : 'DEV'}]
                   </span>
                   <div className="flex-1 min-w-0 flex flex-col gap-1">
                     {log.message && (
-                      <span className="break-words whitespace-pre-wrap leading-relaxed">
+                      <span className="wrap-break-word whitespace-pre-wrap leading-relaxed">
                         {log.message.split('\n').map((line, i) => {
                           const isTrace = /^\s*at\s+/.test(line);
                           if (isTrace) {

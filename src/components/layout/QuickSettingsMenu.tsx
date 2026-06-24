@@ -253,7 +253,7 @@ export default function QuickSettingsMenu() {
               transition={{ duration: 0.16, ease: 'easeOut' }}
               onPointerDown={(e) => e.stopPropagation()}
               onWheel={(e) => e.stopPropagation()}
-              className="fixed z-[500] rounded-[var(--radius-md)] border border-border-subtle bg-bg-surface shadow-floating overflow-hidden flex flex-col"
+              className="fixed z-500 rounded-md border border-border-subtle bg-bg-surface shadow-floating overflow-hidden flex flex-col"
               style={{
                 top: coords.top,
                 left: coords.left,

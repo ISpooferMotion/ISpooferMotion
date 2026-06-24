@@ -119,7 +119,7 @@ export default function GeneralSection() {
 
       <div className="flex items-center justify-between w-full">
         <span className="text-sm font-medium text-text-primary">{t('settings.theme')}</span>
-        <div className="flex bg-bg-surface border border-border-subtle rounded-[calc(var(--radius-md)-2px)] p-1 overflow-hidden w-[160px] shrink-0">
+        <div className="flex bg-bg-surface border border-border-subtle rounded-[calc(var(--radius-md)-2px)] p-1 overflow-hidden w-40 shrink-0">
           {(['light', 'dark'] as const).map((tMode) => (
             <button
               key={tMode}
@@ -155,9 +155,9 @@ export default function GeneralSection() {
         {createPortal(
           <AnimatePresence>
             {isColorPickerOpen && (
-              <div className="fixed inset-0 z-[9999] pointer-events-none">
+              <div className="fixed inset-0 z-9999 pointer-events-none">
                 <div
-                  className="absolute inset-0 z-[490] pointer-events-auto"
+                  className="absolute inset-0 z-490 pointer-events-auto"
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
                     setIsColorPickerOpen(false);
@@ -168,7 +168,7 @@ export default function GeneralSection() {
                   initial={{ opacity: 0, scale: 0.95, y: -10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                  className="absolute z-[500] p-0 border border-border-subtle rounded-xl overflow-hidden shadow-floating bg-bg-surface flex flex-col pointer-events-auto"
+                  className="absolute z-500 p-0 border border-border-subtle rounded-xl overflow-hidden shadow-floating bg-bg-surface flex flex-col pointer-events-auto"
                   onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
                   onClick={(e: React.MouseEvent) => e.stopPropagation()}
                   style={{
@@ -195,7 +195,7 @@ export default function GeneralSection() {
           document.body,
         )}
       </div>
-      <Divider className="my-2 !border-0 bg-gradient-to-r from-transparent via-border-subtle to-transparent h-px opacity-75" />
+      <Divider className="my-2 border-0! bg-linear-to-r from-transparent via-border-subtle to-transparent h-px opacity-75" />
       <div className="pt-2">
         <Button
           color="primary"

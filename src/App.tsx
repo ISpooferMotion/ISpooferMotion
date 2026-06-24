@@ -165,14 +165,14 @@ export default function App() {
   const backgroundUrl = customBackground ? resolveThemeBackgroundUrl(customBackground.path) : null;
 
   useEffect(() => {
-    const allowedTabs = ['home', 'spoofing', 'activity', 'settings', 'config'];
+    const allowedTabs = ['spoofing', 'activity', 'settings', 'config'];
     // only show the experimental tab if they've explicitly enabled it in debug settings
     if (config.debug?.enableExperimentalTab) {
       allowedTabs.push('experimental');
     }
 
     if (!allowedTabs.includes(activeTab)) {
-      updateConfig('ui', 'activeTab', 'home');
+      updateConfig('ui', 'activeTab', 'spoofing');
     }
   }, [activeTab, config.debug?.enableExperimentalTab, updateConfig]);
 
@@ -239,10 +239,6 @@ export default function App() {
       invoke('get_economy_metadata', { cookie: config.spoofing.cookie }).catch(() => {});
     }
   }, [config.spoofing.cookie]);
-
-  useEffect(() => {
-    if (!isTauriRuntime()) return;
-  }, []);
 
   if (maintenance.mode) {
     return (
@@ -354,7 +350,7 @@ export default function App() {
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: 20, opacity: 0 }}
                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 z-[45] cursor-pointer flex items-center justify-end group"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 z-45 cursor-pointer flex items-center justify-end group"
                     onClick={() => setIsExplorerOpen(true)}
                   >
                     <motion.div
@@ -375,7 +371,7 @@ export default function App() {
               </div>
 
               <div
-                className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none z-[60] opacity-[0.03] mix-blend-screen"
+                className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none z-60 opacity-[0.03] mix-blend-screen"
                 style={{
                   background: 'linear-gradient(to top, var(--primary), transparent)',
                 }}

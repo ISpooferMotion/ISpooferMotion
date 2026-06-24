@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "2.0.0-beta.3"
+version = "2.0.0-rc"
 authors = ["IncredibroXP <incredibroxpdev@gmail.com>"]
 description = "Animation spoofing utility for Roblox"
 edition = "2021"
@@ -20,13 +20,13 @@ log = "0.4"
 tauri = { version = "2.11.2", features = ["protocol-asset", "tray-icon", "devtools"] }
 tauri-plugin-log = "2"
 reqwest = { version = "0.12", features = ["json", "cookies", "default-tls", "multipart", "stream"] }
-futures-util = "0.3"
+
 keyring = "3"
 regex = "1"
 tokio = { version = "1", features = ["full"] }
 tauri-plugin-notification = "2.3.3"
 chrono = "0.4"
-open = "5"
+
 tauri-plugin-dialog = "2"
 axum = "0.7"
 tower-http = { version = "0.6", features = ["cors", "limit"] }
@@ -42,7 +42,7 @@ rbx_binary = "2.0.1"
 rbx_xml = "2.0.1"
 rbx_dom_weak = "4.1.0"
 tauri-plugin-global-shortcut = "2.3.2"
-tauri-plugin-process = "2.3.1"
+
 tauri-plugin-http = "2.5.9"
 uuid = { version = "1.20.0", features = ["v4"] }
 futures = "0.3.32"

@@ -462,7 +462,7 @@ pub fn get_cookie_from_roblox_studio_inner(
                 return Ok(Some(cookie));
             }
         }
-        Ok(None)
+        return Ok(None);
     }
 
     #[cfg(target_os = "macos")]
@@ -477,7 +477,7 @@ pub fn get_cookie_from_roblox_studio_inner(
                 return Ok(Some(cookie));
             }
         }
-        Ok(None)
+        return Ok(None);
     }
 
     #[cfg(target_os = "linux")]
@@ -496,12 +496,12 @@ pub fn get_cookie_from_roblox_studio_inner(
                 }
             }
         }
-        Ok(None)
+        return Ok(None);
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
-        Ok(None)
+        return Ok(None);
     }
 }
 

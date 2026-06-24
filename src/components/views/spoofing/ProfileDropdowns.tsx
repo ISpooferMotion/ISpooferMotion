@@ -73,14 +73,14 @@ function DropdownPortal({
     <AnimatePresence>
       {open && (
         <>
-          <div className="fixed inset-0 z-[490]" onPointerDown={() => setOpen(false)} />
+          <div className="fixed inset-0 z-490" onPointerDown={() => setOpen(false)} />
           <motion.div
             initial={{ opacity: 0, y: -6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
             onPointerDown={(event) => event.stopPropagation()}
-            className="fixed z-[500] bg-bg-surface border border-border-subtle rounded-[var(--radius-md)] shadow-floating backdrop-blur-xl p-1"
+            className="fixed z-500 bg-bg-surface border border-border-subtle rounded-md shadow-floating backdrop-blur-xl p-1"
             style={{
               top: coords.top,
               left: coords.left,
@@ -157,7 +157,7 @@ export function AvatarDropdown({
           ref={buttonRef}
           type="button"
           onClick={toggle}
-          className="flex items-center gap-2 h-12 px-3 bg-bg-surface border border-border-strong rounded-[var(--radius-md)] text-[13px] font-medium text-text-primary hover:border-primary transition-colors min-w-[190px] max-w-[270px] w-full"
+          className="flex items-center gap-2 h-12 px-3 bg-bg-surface border border-border-strong rounded-md text-[13px] font-medium text-text-primary hover:border-primary transition-colors min-w-47.5 max-w-67.5 w-full"
         >
           <motion.div
             key={`${selected?.id || 'none'}-img`}
@@ -200,7 +200,7 @@ export function AvatarDropdown({
             setOpen(false);
           }}
           className={cn(
-            'flex items-center gap-3 w-full px-2 py-1.5 text-left text-[13px] rounded-[var(--radius-sm)] hover:bg-bg-elevated transition-colors',
+            'flex items-center gap-3 w-full px-2 py-1.5 text-left text-[13px] rounded-sm hover:bg-bg-elevated transition-colors',
             value === 'none' ? 'text-primary font-semibold' : 'text-text-primary',
           )}
         >
@@ -224,7 +224,7 @@ export function AvatarDropdown({
               setOpen(false);
             }}
             className={cn(
-              'flex items-center gap-3 w-full px-2 py-1.5 text-left text-[13px] rounded-[var(--radius-sm)] hover:bg-bg-elevated transition-colors',
+              'flex items-center gap-3 w-full px-2 py-1.5 text-left text-[13px] rounded-sm hover:bg-bg-elevated transition-colors',
               normalizeId(user.id) === normalizeId(value)
                 ? 'text-primary font-semibold'
                 : 'text-text-primary',
@@ -290,7 +290,7 @@ export function GroupDropdown({
         ref={buttonRef}
         type="button"
         onClick={toggle}
-        className="flex items-center gap-2 h-10 px-3 bg-bg-surface border border-border-strong rounded-[var(--radius-md)] text-[13px] font-medium text-text-primary hover:border-primary transition-colors min-w-[180px] max-w-[240px] w-full"
+        className="flex items-center gap-2 h-10 px-3 bg-bg-surface border border-border-strong rounded-md text-[13px] font-medium text-text-primary hover:border-primary transition-colors min-w-45 max-w-60 w-full"
       >
         <motion.div
           key={`${selected?.id || 'none'}-icon`}
@@ -329,7 +329,7 @@ export function GroupDropdown({
             setOpen(false);
           }}
           className={cn(
-            'flex items-center gap-3 w-full px-2 py-1.5 text-left text-[13px] rounded-[var(--radius-sm)] hover:bg-bg-elevated transition-colors',
+            'flex items-center gap-3 w-full px-2 py-1.5 text-left text-[13px] rounded-sm hover:bg-bg-elevated transition-colors',
             value === 'none' ? 'text-primary font-semibold' : 'text-text-primary',
           )}
         >
@@ -353,7 +353,7 @@ export function GroupDropdown({
               setOpen(false);
             }}
             className={cn(
-              'flex items-center gap-3 w-full px-2 py-1.5 text-left text-[13px] rounded-[var(--radius-sm)] hover:bg-bg-elevated transition-colors',
+              'flex items-center gap-3 w-full px-2 py-1.5 text-left text-[13px] rounded-sm hover:bg-bg-elevated transition-colors',
               normalizeId(group.id) === normalizeId(value)
                 ? 'text-primary font-semibold'
                 : 'text-text-primary',

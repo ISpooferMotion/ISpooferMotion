@@ -1,0 +1,3 @@
+[submodule "ISM-Library"]
+	path = ISM-Library
+	url = https://github.com/ISpooferMotion/ISM-Library.git

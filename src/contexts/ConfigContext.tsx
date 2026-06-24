@@ -37,6 +37,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (!isTauriRuntime()) return;
 
+    let isMounted = true;
     const unlisteners: Array<() => void> = [];
 
     // Hook up all the Tauri event listeners so we can react to backend spoofing updates in real-time
@@ -52,14 +53,14 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         incrementSpoofCompletionVersion,
       } = useSpooferStore.getState();
 
-      const un1 = await listen<SpooferStartedPayload>('spoofer-started', (e) => {
+      const p1 = listen<SpooferStartedPayload>('spoofer-started', (e) => {
         setIsSpoofing(true);
         setSpoofingLogs([]);
         setSpoofProgress(0);
         setActiveSpooferJobId(e.payload.job_id ?? e.payload.jobId);
       });
 
-      const un2 = await listen<SpooferLogPayload>('spoofer-log', (e) => {
+      const p2 = listen<SpooferLogPayload>('spoofer-log', (e) => {
         let msg = e.payload.message ?? '';
         const rawLevel = (e.payload.level || 'info').toUpperCase();
 
@@ -72,7 +73,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSpoofingLogs((prev) => appendSpoofingLog(prev, msg));
       });
 
-      const un3 = await listen<SpooferProgressPayload>('spoofer-progress', (e) => {
+      const p3 = listen<SpooferProgressPayload>('spoofer-progress', (e) => {
         if (e.payload.progress !== undefined) {
           setSpoofProgress(e.payload.progress);
         } else if (
@@ -84,7 +85,7 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       });
 
-      const un4 = await listen<SpooferResultPayload>('spoofer-result', (e) => {
+      const p4 = listen<SpooferResultPayload>('spoofer-result', (e) => {
         setIsSpoofing(false);
         setActiveSpooferJobId(null);
         setLastAssetResults(e.payload.assetResults ?? e.payload.results ?? []);
@@ -98,11 +99,17 @@ export const ConfigProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       });
 
-      unlisteners.push(un1, un2, un3, un4);
+      const uns = await Promise.all([p1, p2, p3, p4]);
+      if (!isMounted) {
+        uns.forEach((u) => u());
+      } else {
+        unlisteners.push(...uns);
+      }
     };
 
     setup();
     return () => {
+      isMounted = false;
       unlisteners.forEach((u) => u());
     };
   }, []);

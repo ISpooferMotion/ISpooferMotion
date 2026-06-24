@@ -69,7 +69,7 @@ fn asset_id_pattern() -> &'static Regex {
     static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"^(?i)(?:(?:https?://(?:www\.)?)?roblox\.com/(?:asset/?\?.*?id=|library/)|create\.roblox\.com/(?:marketplace/)?|rbxassetid://|rbxasset://|rbxthumb://[^/]*/?)?(\d+)$",
+            r#"^(?i)(?:(?:https?://(?:www\.)?)?roblox\.com/(?:asset/?\?[^"'\s&]*?id=|library/)|create\.roblox\.com/(?:marketplace/)?|rbxassetid://|rbxasset://|rbxthumb://[^/]*/?)?(\d+)$"#,
         )
         .unwrap_or_else(|e| {
             log::error!("Invalid asset id regex: {}", e);
@@ -82,7 +82,7 @@ fn script_ref_pattern() -> &'static Regex {
     static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"(?ix)(?:(?:https?://(?:www\.)?)?roblox\.com/asset/?\?.*?id=|rbxassetid://|rbxthumb://[^/]*/?)?(\d{7,15})",
+            r#"(?ix)(?:(?:https?://(?:www\.)?)?roblox\.com/asset/?\?[^"'\s&]*?id=|rbxassetid://|rbxthumb://[^/]*/?)?(\d{7,15})"#,
         )
         .unwrap_or_else(|e| {
             log::error!("Invalid script reference regex: {}", e);
@@ -94,7 +94,7 @@ fn script_ref_pattern() -> &'static Regex {
 fn script_rewrite_pattern() -> &'static Regex {
     static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"(?ix)((?:(?:https?://(?:www\.)?)?roblox\.com/asset/?\?.*?id=|rbxassetid://|rbxthumb://[^/]*/?)?)(\d{4,15})")
+        Regex::new(r#"(?ix)((?:(?:https?://(?:www\.)?)?roblox\.com/asset/?\?[^"'\s&]*?id=|rbxassetid://|rbxthumb://[^/]*/?)?)(\d{4,15})"#)
             .unwrap_or_else(|e| {
                 log::error!("Invalid script rewrite regex: {}", e);
                 Regex::new("^$").unwrap()
@@ -362,10 +362,25 @@ fn extract_table_block_ids_with_context(source: &str) -> Vec<(String, Option<&'s
         let mut depth = 1;
         let mut block_end = match_whole.end();
         let bytes = source.as_bytes();
+        let max_scan = block_end + 20_000;
+        let mut in_string = false;
+        let mut string_char = 0;
+        let mut escape = false;
 
-        while block_end < bytes.len() && depth > 0 {
+        while block_end < bytes.len() && depth > 0 && block_end < max_scan {
             let ch = bytes[block_end];
-            if ch == b'{' {
+            if in_string {
+                if escape {
+                    escape = false;
+                } else if ch == b'\\' {
+                    escape = true;
+                } else if ch == string_char {
+                    in_string = false;
+                }
+            } else if ch == b'"' || ch == b'\'' || ch == b'`' {
+                in_string = true;
+                string_char = ch;
+            } else if ch == b'{' {
                 depth += 1;
             } else if ch == b'}' {
                 depth -= 1;
@@ -1053,24 +1068,31 @@ fn replace_script_asset_ids<'a>(
                 }
             }
             if changed {
+                let (depth, q_type) = match token.token_type() {
+                    full_moon::tokenizer::TokenType::StringLiteral {
+                        multi_line_depth,
+                        quote_type,
+                        ..
+                    } => (*multi_line_depth, *quote_type),
+                    _ => (0, full_moon::tokenizer::StringLiteralQuoteType::Double),
+                };
+
+                let offset = match q_type {
+                    full_moon::tokenizer::StringLiteralQuoteType::Brackets => 2 + depth,
+                    _ => 1,
+                };
+
+                let inner_literal = if text.len() >= offset * 2 {
+                    &text[offset..text.len() - offset]
+                } else {
+                    &text
+                };
+
                 return full_moon::tokenizer::Token::new(
                     full_moon::tokenizer::TokenType::StringLiteral {
-                        literal: text
-                            .trim_matches(|c| c == '\'' || c == '"' || c == '[' || c == ']')
-                            .into(),
-                        multi_line_depth: match token.token_type() {
-                            full_moon::tokenizer::TokenType::StringLiteral {
-                                multi_line_depth,
-                                ..
-                            } => *multi_line_depth,
-                            _ => 0,
-                        },
-                        quote_type: match token.token_type() {
-                            full_moon::tokenizer::TokenType::StringLiteral {
-                                quote_type, ..
-                            } => *quote_type,
-                            _ => full_moon::tokenizer::StringLiteralQuoteType::Double,
-                        },
+                        literal: inner_literal.to_string().into(),
+                        multi_line_depth: depth,
+                        quote_type: q_type,
                     },
                 );
             }

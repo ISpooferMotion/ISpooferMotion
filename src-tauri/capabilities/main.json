@@ -41,8 +41,6 @@
         { "url": "https://api.github.com/**" },
         { "url": "https://www.incredidev.com/**" }
       ]
-    },
-    "process:default",
-    "process:allow-restart"
+    }
   ]
 }

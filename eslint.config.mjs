@@ -6,7 +6,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'dist-plugin', 'src-tauri', 'src/bindings.ts'] },
+  { ignores: ['dist', 'dist-plugin', 'src-tauri', 'src/bindings.ts', 'ISM-Library'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],

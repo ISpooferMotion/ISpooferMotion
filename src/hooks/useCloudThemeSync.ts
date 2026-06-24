@@ -59,7 +59,7 @@ export function useCloudThemeSync() {
   });
   useEffect(() => {
     themeOps.current = { clearCustomTheme, loadThemeFromJson, setThemeMode };
-  });
+  }, [clearCustomTheme, loadThemeFromJson, setThemeMode]);
 
   // the actual sync logic, wrapped in a ref so we don't trip over react dependencies or cause weird re-renders
   const performSyncRef = useRef<() => Promise<void>>(() => Promise.resolve());
@@ -152,7 +152,7 @@ export function useCloudThemeSync() {
         syncInProgress.current = false;
       }
     };
-  });
+  }, []);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;

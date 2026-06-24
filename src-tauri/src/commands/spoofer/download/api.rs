@@ -2,8 +2,9 @@ use super::{
     build_roblox_cookie_header, download_animation_asset_with_progress, emit_spoofer_log,
     emit_transfer_update, is_valid_numeric_id, set_rate_limit, validate_downloaded_payload,
     wait_rate_limit, AsyncWriteExt, BatchAssetRequest, ConcurrentDownloadTask, DownloadResult,
-    Duration, File, RateLimitBucket, StreamExt, TransferUpdate, CONTENT_LENGTH,
+    Duration, File, RateLimitBucket, TransferUpdate, CONTENT_LENGTH,
 };
+use futures::StreamExt;
 use reqwest::header::{COOKIE, USER_AGENT};
 use std::collections::HashMap;
 use tauri::AppHandle;
@@ -45,6 +46,10 @@ pub async fn write_download_response(
     asset_type: Option<String>,
     resume_offset: u64,
 ) -> crate::error::Result<DownloadResult> {
+    if file_path.contains("..") {
+        return Err("Invalid file path: path traversal detected.".into());
+    }
+
     let file_path_buf = std::path::PathBuf::from(&file_path);
     if let Some(parent) = file_path_buf.parent() {
         tokio::fs::create_dir_all(parent)
@@ -238,7 +243,7 @@ pub async fn auto_claim_free_asset(
     Ok(false)
 }
 
-#[tauri::command]
+// (Removed tauri command as this is internal)
 #[specta::specta]
 pub async fn batch_get_download_urls(
     app: AppHandle,
@@ -416,7 +421,7 @@ pub async fn batch_get_download_urls_for_assets(
     Ok(urls)
 }
 
-#[tauri::command]
+// (Removed tauri command as this is internal)
 #[specta::specta]
 pub async fn batch_download_assets_concurrent(
     app: AppHandle,

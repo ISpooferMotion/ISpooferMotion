@@ -1,7 +1,6 @@
 #![allow(clippy::wildcard_imports, clippy::too_many_lines, clippy::missing_errors_doc)]
 
 use crate::utils::{build_roblox_cookie_header, sanitize_filename};
-use futures_util::StreamExt;
 use reqwest::header::{CONTENT_LENGTH, COOKIE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

@@ -472,41 +472,63 @@ pub async fn publish_asset_with_progress(
                             new_buffer.extend_from_slice(&mutable_buffer[iend_idx..]);
                             mutable_buffer = new_buffer;
                         } else {
-                            mutable_buffer.push(rand::random::<u8>());
+                            upload_error =
+                                Some("Cannot bypass 409 Conflict: Invalid PNG format".to_string());
+                            break;
                         }
                     } else if file_type == "model/x-rbxm" {
                         if mutable_buffer.starts_with(b"<roblox!") {
-                            if let Some(idx) = mutable_buffer.windows(4).rposition(|w| w == b"END\0") {
+                            if let Some(idx) =
+                                mutable_buffer.windows(4).rposition(|w| w == b"END\0")
+                            {
                                 let mut random_bytes = [0u8; 4];
                                 random_bytes.copy_from_slice(&rand::random::<[u8; 4]>());
-                                let mut chunk = b"DUMY\x04\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00".to_vec();
+                                let mut chunk =
+                                    b"DUMY\x04\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00"
+                                        .to_vec();
                                 chunk.extend_from_slice(&random_bytes);
-                                let mut new_buffer = Vec::with_capacity(mutable_buffer.len() + chunk.len());
+                                let mut new_buffer =
+                                    Vec::with_capacity(mutable_buffer.len() + chunk.len());
                                 new_buffer.extend_from_slice(&mutable_buffer[..idx]);
                                 new_buffer.extend_from_slice(&chunk);
                                 new_buffer.extend_from_slice(&mutable_buffer[idx..]);
                                 mutable_buffer = new_buffer;
                             } else {
-                                mutable_buffer.push(rand::random::<u8>());
+                                upload_error = Some(
+                                    "Cannot bypass 409 Conflict: Invalid RBXM format".to_string(),
+                                );
+                                break;
                             }
-                        } else if mutable_buffer.starts_with(b"<roblox xmlns:xmime=") || mutable_buffer.starts_with(b"<roblox xmlns=") {
+                        } else if mutable_buffer.starts_with(b"<roblox xmlns:xmime=")
+                            || mutable_buffer.starts_with(b"<roblox xmlns=")
+                        {
                             let mut random_bytes = [0u8; 4];
                             random_bytes.copy_from_slice(&rand::random::<[u8; 4]>());
                             let hex_str = format!("<!-- ispoofer{} -->", hex::encode(random_bytes));
-                            if let Some(idx) = mutable_buffer.windows(9).rposition(|w| w == b"</roblox>") {
-                                let mut new_buffer = Vec::with_capacity(mutable_buffer.len() + hex_str.len());
+                            if let Some(idx) =
+                                mutable_buffer.windows(9).rposition(|w| w == b"</roblox>")
+                            {
+                                let mut new_buffer =
+                                    Vec::with_capacity(mutable_buffer.len() + hex_str.len());
                                 new_buffer.extend_from_slice(&mutable_buffer[..idx]);
                                 new_buffer.extend_from_slice(hex_str.as_bytes());
                                 new_buffer.extend_from_slice(&mutable_buffer[idx..]);
                                 mutable_buffer = new_buffer;
                             } else {
-                                mutable_buffer.push(rand::random::<u8>());
+                                upload_error = Some(
+                                    "Cannot bypass 409 Conflict: Invalid RBXMX format".to_string(),
+                                );
+                                break;
                             }
                         } else {
-                            mutable_buffer.push(rand::random::<u8>());
+                            upload_error = Some(
+                                "Cannot bypass 409 Conflict: Unknown model format".to_string(),
+                            );
+                            break;
                         }
                     } else {
-                        mutable_buffer.push(rand::random::<u8>());
+                        upload_error = Some("Cannot bypass 409 Conflict: File type does not support hash modification".to_string());
+                        break;
                     }
                     fallback_buffer = Some(mutable_buffer);
                 }

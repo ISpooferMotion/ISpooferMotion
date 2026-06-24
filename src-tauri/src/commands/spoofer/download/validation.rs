@@ -37,7 +37,8 @@ pub async fn validate_downloaded_payload(
                 || head.starts_with(b"fLaC")
                 || head.windows(4).any(|w| w == b"ftyp") // M4A/MP4
                 || head.starts_with(b"MAC ") // monkey's audio
-                || head.starts_with(b"FORM") // AIFF
+                || head.starts_with(b"FORM")
+            // AIFF
             {
                 Ok(())
             } else {
@@ -55,7 +56,28 @@ pub async fn validate_downloaded_payload(
                 Err("Downloaded image was not a recognized image file.".into())
             }
         }
-        "video" => Ok(()),
+        "video" => {
+            if head.windows(4).any(|w| {
+                w == b"ftyp" || w == b"moov" || w == b"mdat" || w == b"free" || w == b"webm"
+            }) || head.starts_with(b"\x1A\x45\xDF\xA3")
+            // WEBM/MKV
+            {
+                Ok(())
+            } else {
+                Err("Downloaded video was not a recognized video format.".into())
+            }
+        }
+        "mesh" | "animation" | "plugin" | "model" => {
+            if head.starts_with(b"<roblox!")
+                || head.starts_with(b"<roblox xmlns")
+                || head.starts_with(b"version ")
+                || head.starts_with(b"v ")
+            {
+                Ok(())
+            } else {
+                Err("Downloaded asset was not a recognized Roblox model format.".into())
+            }
+        }
         _ => Ok(()),
     }
 }

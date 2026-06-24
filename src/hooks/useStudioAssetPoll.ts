@@ -31,15 +31,17 @@ export function useStudioAssetPoll(
     let lastSnapshot = '';
     let intervalId: ReturnType<typeof setInterval> | undefined;
 
+    const hashAssets = (assets?: any[]) => {
+      if (!assets || assets.length === 0) return '0';
+      // Fast hash: combine length, first asset ID/name, and last asset ID/name
+      const first = assets[0].assetId || assets[0].name || '';
+      const last = assets[assets.length - 1].assetId || assets[assets.length - 1].name || '';
+      return `${assets.length}:${first}:${last}`;
+    };
+
     // lazy snapshot comparison so we avoid triggering massive react renders if nothing actually changed
     const bundleSnapshot = (bundle: StudioScanBundle) =>
-      JSON.stringify({
-        anims: bundle.anims.assets,
-        sounds: bundle.sounds.assets,
-        images: bundle.images.assets,
-        meshes: bundle.meshes.assets,
-        scriptRefs: bundle.scriptRefs.assets,
-      });
+      `${hashAssets(bundle.anims.assets)}-${hashAssets(bundle.sounds.assets)}-${hashAssets(bundle.images.assets)}-${hashAssets(bundle.meshes.assets)}-${hashAssets(bundle.scriptRefs.assets)}`;
 
     const schedulePoll = (delayMs: number) => {
       if (intervalId) clearInterval(intervalId);

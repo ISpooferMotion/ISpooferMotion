@@ -1,0 +1,108 @@
+std = "roblox"
+
+[globals.PLUGIN_VERSION]
+property = "auto"
+[globals.EMBEDDED_ASSET_PROPS]
+property = "auto"
+[globals.SERVICES_TO_SCAN]
+property = "auto"
+[globals.SEND_CHUNK_SIZE]
+property = "auto"
+[globals.MAX_SCRIPT_SOURCE_BYTES]
+property = "auto"
+[globals.MAX_TAGS_PER_OBJECT]
+property = "auto"
+[globals.MAX_TAG_BYTES]
+property = "auto"
+[globals.MAX_PATCHES_PER_BATCH]
+property = "auto"
+[globals.MAX_HTTP_BODY_BYTES]
+property = "auto"
+[globals.MAX_HTTP_RESPONSE_BYTES]
+property = "auto"
+[globals.API_KEY_SETTING]
+property = "auto"
+[globals.PORT_START]
+property = "auto"
+[globals.PORT_END]
+property = "auto"
+[globals.BASE_URL]
+property = "auto"
+[globals.API_KEY]
+property = "auto"
+[globals.polling]
+property = "auto"
+[globals.scanRunning]
+property = "auto"
+[globals.patchRunning]
+property = "auto"
+[globals.lastDiscovery]
+property = "auto"
+[globals.HttpService]
+property = "auto"
+[globals.AssetService]
+property = "auto"
+[globals.ChangeHistoryService]
+property = "auto"
+[globals.CollectionService]
+property = "auto"
+[globals.ScriptEditorService]
+property = "auto"
+[globals.ASSET_PROPERTIES]
+property = "auto"
+[globals.STRING_SCAN_PROPERTIES]
+property = "auto"
+[globals.registerObject]
+property = "auto"
+[globals.getRegisteredObject]
+property = "auto"
+[globals.replaceRegisteredObject]
+property = "auto"
+[globals.resetObjectRegistry]
+property = "auto"
+[globals.contentValueToString]
+property = "auto"
+[globals.stringContainsAssetReference]
+property = "auto"
+[globals.isAssetFormat]
+property = "auto"
+[globals.countBundledClasses]
+property = "auto"
+[globals.addRecord]
+property = "auto"
+[globals.resetScanRecordState]
+property = "auto"
+[globals.getPendingRecordBytes]
+property = "auto"
+[globals.flushRecords]
+property = "auto"
+[globals.captureProperty]
+property = "auto"
+[globals.scanBundledStringProperties]
+property = "auto"
+[globals.scanEmbeddedStringAssets]
+property = "auto"
+[globals.scanSpecialInstanceAssets]
+property = "auto"
+[globals.nameLooksLikeAssetSlot]
+property = "auto"
+[globals.copyMeshPartPropertiesInto]
+property = "auto"
+[globals.moveMeshPartContentsInto]
+property = "auto"
+[globals.clearPairingState]
+property = "auto"
+[globals.decodeJsonResponseBody]
+property = "auto"
+[globals.getJson]
+property = "auto"
+[globals.postJson]
+property = "auto"
+[globals.scan]
+property = "auto"
+[globals.applyPatches]
+property = "auto"
+[globals.startPolling]
+property = "auto"
+[globals.discoverServer]
+property = "auto"

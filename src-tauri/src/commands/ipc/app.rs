@@ -71,10 +71,11 @@ pub fn get_runtime_info() -> AnyValue {
 
 #[tauri::command]
 #[specta::specta]
-pub fn open_external(url: String) -> crate::error::Result<bool> {
+pub fn open_external(app: AppHandle, url: String) -> crate::error::Result<bool> {
     // just a tiny sanity check so we don't accidentally run arbitrary schemes
     if url.starts_with("https://") || url.starts_with("http://") {
-        let _ = open::that(&url);
+        use tauri_plugin_opener::OpenerExt;
+        let _ = app.opener().open_url(url, None::<String>);
         Ok(true)
     } else {
         Ok(false)

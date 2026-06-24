@@ -10,9 +10,8 @@ pub use api::{
 pub use resolution::{
     attempt_asset_usage_place_id_discovery, attempt_deep_place_id_discovery,
     attempt_social_graph_place_id_discovery, build_cdn_fallback_urls,
-    build_direct_asset_download_urls, build_library_scraping_urls, build_saved_versions_urls,
-    extract_place_id_from_url, parse_place_ids, push_unique_url, resolve_asset_economy_urls,
-    resolve_asset_id_location,
+    build_direct_asset_download_urls, build_saved_versions_urls, extract_place_id_from_url,
+    parse_place_ids, push_unique_url, resolve_asset_economy_urls, resolve_asset_id_location,
 };
 pub use types::ConcurrentDownloadTask;
 pub use validation::validate_downloaded_payload;
@@ -20,7 +19,7 @@ pub use validation::validate_downloaded_payload;
 use crate::commands::spoofer::{
     build_roblox_cookie_header, emit_transfer_update, is_valid_numeric_id, set_rate_limit,
     wait_rate_limit, AsyncWriteExt, BatchAssetRequest, DownloadResult, File, RateLimitBucket,
-    StreamExt, TransferUpdate, CONTENT_LENGTH,
+    TransferUpdate, CONTENT_LENGTH,
 };
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
@@ -36,7 +35,6 @@ fn emit_spoofer_log(app: &AppHandle, level: &str, message: &str) {
     );
 }
 
-#[tauri::command]
 // the main download orchestration function. handles discovery, resolution, fallback urls, and retries
 pub async fn download_animation_asset_with_progress(
     app: AppHandle,
@@ -54,6 +52,10 @@ pub async fn download_animation_asset_with_progress(
     if !is_valid_numeric_id(&asset_id) {
         return Err("Invalid Roblox asset id.".into());
     }
+    if file_path.contains("..") {
+        return Err("Invalid file path: path traversal detected.".into());
+    }
+
     let file_path_buf = std::path::PathBuf::from(&file_path);
     if let Some(parent) = file_path_buf.parent() {
         tokio::fs::create_dir_all(parent)
@@ -117,10 +119,6 @@ pub async fn download_animation_asset_with_progress(
     }
 
     for url in build_saved_versions_urls(&asset_id, &cookie_header).await {
-        push_unique_url(&mut candidate_urls, url);
-    }
-
-    for url in build_library_scraping_urls(&asset_id, &cookie_header).await {
         push_unique_url(&mut candidate_urls, url);
     }
 

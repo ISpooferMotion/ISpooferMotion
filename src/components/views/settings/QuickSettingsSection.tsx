@@ -23,7 +23,7 @@ export default function QuickSettingsSection() {
             {} as Record<string, typeof AVAILABLE_QUICK_SETTINGS>,
           ),
         ).map(([groupKey, settings]) => (
-          <Group key={groupKey} title={groupKey} className="!pt-2">
+          <Group key={groupKey} title={groupKey} className="pt-2!">
             <div className="grid grid-cols-2 gap-x-6 gap-y-2">
               {settings.map((setting) => (
                 <FormToggle

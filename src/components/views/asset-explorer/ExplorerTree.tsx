@@ -320,7 +320,7 @@ function DetailLine({ label, value }: { label: string; value: string }) {
       <div className="text-[8px] font-semibold uppercase tracking-normal text-text-muted/70">
         {label}
       </div>
-      <div className="mt-0.5 select-text whitespace-normal break-words text-[10px] leading-snug text-text-secondary">
+      <div className="mt-0.5 select-text whitespace-normal wrap-break-word text-[10px] leading-snug text-text-secondary">
         {value}
       </div>
     </div>

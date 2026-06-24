@@ -1,6 +1,6 @@
---!strict
-local ASSET_PROPERTIES: { [string]: { string } } = {}
-local STRING_SCAN_PROPERTIES: { [string]: { string } } = {}
+--!nonstrict
+local ASSET_PROPERTIES: { [string]: { string } } = {} --!nolint LocalUnused
+local STRING_SCAN_PROPERTIES: { [string]: { string } } = {} --!nolint LocalUnused
 
 --#include "src/version/version.luau"
 --#include "src/config/runtime.luau"
