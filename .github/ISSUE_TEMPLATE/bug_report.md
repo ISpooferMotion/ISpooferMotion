@@ -1,32 +1,42 @@
 ---
 name: Bug Report
-about: Create a report to help us improve
-title: '[BUG] '
+about: Something isn't working the way it should
+title: 'bug: '
 labels: bug
 assignees: ''
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+### What happened?
 
-**To Reproduce**
-Steps to reproduce the behavior:
+<!-- Describe what went wrong. Be specific - "it crashed" isn't enough. -->
 
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+### Steps to reproduce
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+1.
+2.
+3.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+### What did you expect to happen?
 
-**Environment details (please complete the following information):**
+<!-- What should have happened instead? -->
 
-- OS: [e.g. Windows 11]
-- Version: [e.g. v2.0.0-beta.3]
+### Environment
 
-**Additional context**
-Add any other context about the problem here.
+- OS: <!-- Windows 11, macOS 14, Ubuntu 22.04, etc. -->
+- App version: <!-- Found in the title bar or Settings > About -->
+- Roblox Studio version: <!-- Help > About Roblox Studio -->
+
+### Logs
+
+<!--
+If the app has a debug console (Settings > Debug), paste the relevant output here.
+If it crashed outright, attach any crash report you received.
+-->
+
+```text
+paste logs here
+```
+
+### Screenshots / recordings
+
+<!-- If it's a visual issue, a screenshot helps a lot. -->

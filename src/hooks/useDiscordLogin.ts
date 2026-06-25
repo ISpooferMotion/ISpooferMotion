@@ -63,7 +63,7 @@ export function useDiscordLogin(onSuccess?: (auth: StoredDiscordAuth) => void) {
         if (attempts > maxAttempts) {
           stopPolling();
           setLoginState('idle');
-          setErrorMessage('Login timed out — click the button to try again.');
+          setErrorMessage('Login timed out - click the button to try again.');
           return;
         }
 

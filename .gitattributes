@@ -1,5 +1,6 @@
 * text=auto eol=lf
 
+# Binary assets
 *.png binary
 *.jpg binary
 *.jpeg binary
@@ -10,3 +11,15 @@
 *.pdf binary
 *.zip binary
 *.rbxmx binary
+
+# Luau
+*.luau text diff=lua linguist-language=Luau
+
+# Rust
+*.rs text diff=rust
+
+# TypeScript / JavaScript
+*.ts text diff=typescript
+*.tsx text diff=typescript
+*.js text diff=javascript
+*.mjs text diff=javascript
