@@ -46,7 +46,7 @@
     "react-colorful": "^5.7.0",
     "react-dom": "^19.2.6",
     "tailwind-merge": "^3.6.0",
-    "three": "^0.184.0",
+    "three": "^0.185.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },
