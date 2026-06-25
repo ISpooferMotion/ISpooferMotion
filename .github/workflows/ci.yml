@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload Windows Bundle to Release
         if: matrix.os == 'windows'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: ISpooferMotion ${{ env.RELEASE_TAG }}
@@ -153,7 +153,7 @@ jobs:
         run: bun run build:plugin
 
       - name: Upload plugin to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: ISpooferMotion ${{ env.RELEASE_TAG }}
