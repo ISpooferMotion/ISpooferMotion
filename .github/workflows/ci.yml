@@ -100,7 +100,7 @@ jobs:
 
       - name: Build app (macOS / Linux)
         if: matrix.os != 'windows'
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
