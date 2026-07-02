@@ -7,7 +7,7 @@
       "dependencies": {
         "@codycon/ism-library": "file:./ISM-Library/packages/ui",
         "@floating-ui/react-dom": "^2.1.8",
-        "@tanstack/react-query": "^5.101.1",
+        "@tanstack/react-query": "^5.101.2",
         "@tauri-apps/api": "^2.11.1",
         "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
         "@tauri-apps/plugin-dialog": "^2.7.1",
@@ -313,11 +313,11 @@
 
     "@tailwindcss/vite": ["@tailwindcss/vite@4.3.1", "", { "dependencies": { "@tailwindcss/node": "4.3.1", "@tailwindcss/oxide": "4.3.1", "tailwindcss": "4.3.1" }, "peerDependencies": { "vite": "^5.2.0 || ^6 || ^7 || ^8" } }, "sha512-hItDHuIIlEV61R+faXu66s1K36aTurO/Qw0e45Vskz57gXl9pWOT6eg3zmcEui6CZXddbN7zd41bwmvag4JGwQ=="],
 
-    "@tanstack/query-core": ["@tanstack/query-core@5.101.1", "", {}, "sha512-Y6Y92dkXtNqx67m2pMSxUsA3zOCwv862JexZRP8/EPwvKXMPu9m8rv43spiXWzOUIggQ3SQApttALStzhA8B4g=="],
+    "@tanstack/query-core": ["@tanstack/query-core@5.101.2", "", {}, "sha512-hH5MLoJhF7KaIGd7q3xTXGXvslI+GYlM1Z/35aSHHWaCJWB7XvTSHYuV3eM7tw+aE0mT/xMro4M4Q9rCGHT0lw=="],
 
     "@tanstack/query-devtools": ["@tanstack/query-devtools@5.101.1", "", {}, "sha512-37RQ9U2PxlXQiv1era2t+uHgVhmiyvxqTMu30+KoVf0rufiucu6rpGRKFJk61Wh5OAZFKqCQd6lxTzFWfLZiuQ=="],
 
-    "@tanstack/react-query": ["@tanstack/react-query@5.101.1", "", { "dependencies": { "@tanstack/query-core": "5.101.1" }, "peerDependencies": { "react": "^18 || ^19" } }, "sha512-ZnONUuQKJe1bJMStXUL1s5uKN9FcfC28j5cK+iDZcdSHtUv1wtin1cGc/Oewhf2Oc4eKY7lggtpvT/AbMmhHew=="],
+    "@tanstack/react-query": ["@tanstack/react-query@5.101.2", "", { "dependencies": { "@tanstack/query-core": "5.101.2" }, "peerDependencies": { "react": "^18 || ^19" } }, "sha512-seDkr6kzGzX1okaaTtZPtgA688CDPlXUz1C6xSg0ESqn04Vuc8tlrYms1s3de+znBqhPVxFRfpAfUf+6XvfPWg=="],
 
     "@tanstack/react-query-devtools": ["@tanstack/react-query-devtools@5.101.1", "", { "dependencies": { "@tanstack/query-devtools": "5.101.1" }, "peerDependencies": { "@tanstack/react-query": "^5.101.1", "react": "^18 || ^19" } }, "sha512-OXFR9XKdEslraq3cpl3kCUeNvTIq/xGWEZiFZdn2bLB/q4WxSALMEDKYZ5yYjMQytsfnQxwQYqV4qtVEf0nuog=="],
 
