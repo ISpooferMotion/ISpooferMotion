@@ -64,7 +64,7 @@
     "lucide-react": "1.25.0",
     "react": "19.2.7",
     "react-colorful": "5.8.0",
-    "react-dom": "19.2.7",
+    "react-dom": "19.2.8",
     "react-resizable-panels": "^4.12.2",
     "shadcn": "^4.13.0",
     "tailwind-merge": "3.6.0",
